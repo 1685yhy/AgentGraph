@@ -23,19 +23,19 @@ CONFIG="$REPO_ROOT/guild.config.json"
 REQUIRED_FIELDS=(name short role description color emoji difficulty pairing)
 # ── Required body sections (checked by heading presence) ────────────
 REQUIRED_SECTIONS=(
-  "Identity"
-  "Core Mission"
-  "Contrarian Take"
-  "Critical Rules"
-  "Technical Deliverables"
-  "Workflow Process"
-  "Deliverable Template"
-  "Communication Style"
-  "Success Metrics"
-  "Conflict Preferences"
-  "Blind Spots"
-  "Decision Authority"
-  "Collaboration Contract"
+  "身份与记忆"
+  "核心任务"
+  "挑衅性观点"
+  "铁律"
+  "技术交付物"
+  "工作流程"
+  "交付模板"
+  "沟通风格"
+  "成功指标"
+  "冲突偏好"
+  "盲区声明"
+  "决策权重"
+  "协作契约"
 )
 
 ERRORS=0
@@ -88,7 +88,7 @@ lint_file() {
 
   # Check contrarian take length (> 200 chars = meaningful)
   local body; body="$(get_body "$file")"
-  local ct_start; ct_start=$(echo "$body" | grep -ni "contrarian take" | head -1 | cut -d: -f1 || true)
+  local ct_start; ct_start=$(echo "$body" | grep -ni "挑衅性观点" | head -1 | cut -d: -f1 || true)
   if [[ -n "$ct_start" ]]; then
     # Skip the section heading line, then collect content until the next ## heading.
     local ct_len; ct_len=$(echo "$body" | tail -n +"$((ct_start + 1))" | awk '/^## /{exit} {print}' | wc -c)
@@ -123,7 +123,7 @@ check_duplicates() {
     local slug; slug=$(get_field name "$agent_file" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')
     local body; body="$(get_body "$agent_file")"
     # Extract Contrarian Take section
-    local ct; ct=$(echo "$body" | awk '/Contrarian Take/{found=1; next} /^## /{found=0} found{print}')
+    local ct; ct=$(echo "$body" | awk '/挑衅性观点/{found=1; next} /^## /{found=0} found{print}')
     # Compute similarity hash: first 100 normalized chars, no line breaks
     local hash; hash=$(echo "$ct" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g' | head -c 100)
     echo "${hash}|${slug}" >> "$takes_file"
