@@ -1,0 +1,18 @@
+name: 功能开发
+description: 单个功能的开发流水线（需求 → 设计 → 实现 → 审查）
+phases:
+  - phase: 需求定义
+    agents: [product-manager]
+    delivers: [PRD, 用户故事, 验收条件]
+  - phase: 设计
+    agents: [ui-designer]
+    requires_from: 需求定义
+    delivers: [UI 设计稿, 交互说明]
+  - phase: 实现
+    agents: [frontend-engineer, backend-architect]
+    requires_from: 设计
+    delivers: [功能代码, API, 测试]
+  - phase: 审查
+    agents: [tech-writer, creative-director]
+    requires_from: 实现
+    delivers: [文档更新, 设计审查, 发布就绪]
