@@ -11,8 +11,12 @@ phases:
   - phase: 实现
     agents: [frontend-engineer, backend-architect]
     requires_from: 设计
-    delivers: [功能代码, API, 测试]
+    delivers: [功能代码, API]
+  - phase: 测试
+    agents: [qa-engineer, performance-tester]
+    requires_from: 实现
+    delivers: [测试报告, 性能基准]
   - phase: 审查
     agents: [tech-writer, creative-director]
-    requires_from: 实现
+    requires_from: 测试
     delivers: [文档更新, 设计审查, 发布就绪]

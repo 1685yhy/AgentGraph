@@ -13,6 +13,6 @@ phases:
     requires_from: 设计
     delivers: [可运行构建, API 规范, 部署流水线]
   - phase: 质量验证
-    agents: [data-analyst, creative-director]
+    agents: [qa-engineer, performance-tester, accessibility-auditor, creative-director]
     requires_from: 工程实现
-    delivers: [质量报告, 设计评审, 发布决策]
+    delivers: [质量报告, 性能报告, 无障碍审计, 设计评审, 发布决策]
