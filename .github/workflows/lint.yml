@@ -1,0 +1,58 @@
+name: Lint Agents
+
+on:
+  pull_request:
+    paths:
+      - "agents/**"
+      - "guild.config.json"
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Agent Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get changed agent files
+        id: changed
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            FILES=$(git diff --name-only --diff-filter=ACMR \
+              origin/${{ github.base_ref }}...HEAD -- 'agents/**/*.md')
+          else
+            FILES=$(find agents -name '*.md' -type f)
+          fi
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$FILES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Lint changed agents
+        if: steps.changed.outputs.files != ''
+        run: |
+          chmod +x scripts/lint.sh
+          ./scripts/lint.sh ${{ steps.changed.outputs.files }}
+
+      - name: Check duplicate Contrarian Takes
+        run: |
+          chmod +x scripts/lint.sh
+          ./scripts/lint.sh --check-duplicates
+
+      - name: Verify config consistency
+        run: |
+          # Verify every agent in config exists on disk
+          while IFS= read -r f; do
+            [[ -z "$f" ]] && continue
+            [[ -f "$f" ]] || { echo "ERROR: Agent file not found: $f"; exit 1; }
+            echo "OK: $f"
+          done < <(awk -F'"' '/"file":/{print $4}' guild.config.json)
+
+          # Verify every .md in agents/ is registered in config
+          for f in agents/**/*.md; do
+            if ! grep -q "\"$(basename "$f")\"" guild.config.json; then
+              echo "ERROR: Agent file not registered in guild.config.json: $f"
+              exit 1
+            fi
+            echo "OK: $f (registered)"
+          done
