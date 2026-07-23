@@ -90,7 +90,8 @@ lint_file() {
   local body; body="$(get_body "$file")"
   local ct_start; ct_start=$(echo "$body" | grep -ni "contrarian take" | head -1 | cut -d: -f1 || true)
   if [[ -n "$ct_start" ]]; then
-    local ct_len; ct_len=$(echo "$body" | tail -n +"$ct_start" | awk '/^## /{exit} {print}' | wc -c)
+    # Skip the section heading line, then collect content until the next ## heading.
+    local ct_len; ct_len=$(echo "$body" | tail -n +"$((ct_start + 1))" | awk '/^## /{exit} {print}' | wc -c)
     if (( ct_len < 200 )); then
       warn "Contrarian Take in $file is short ($ct_len chars). Should be at least 200 chars for meaningful insight."
       ((WARNINGS++))
@@ -123,18 +124,18 @@ check_duplicates() {
     local body; body="$(get_body "$agent_file")"
     # Extract Contrarian Take section
     local ct; ct=$(echo "$body" | awk '/Contrarian Take/{found=1; next} /^## /{found=0} found{print}')
-    # Compute similarity hash (first 100 chars of normalized CT)
-    local hash; hash=$(echo "$ct" | head -c 100 | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 ]//g')
-    echo "$hash $slug" >> "$takes_file"
+    # Compute similarity hash: first 100 normalized chars, no line breaks
+    local hash; hash=$(echo "$ct" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g' | head -c 100)
+    echo "${hash}|${slug}" >> "$takes_file"
   done
 
   # Check for near-duplicate hashes
-  local dups; dups=$(cut -d' ' -f1 "$takes_file" | sort | uniq -d)
+  local dups; dups=$(cut -d'|' -f1 "$takes_file" | sort | uniq -d)
   if [[ -n "$dups" ]]; then
     err "Duplicate or near-duplicate Contrarian Takes detected:"
     while IFS= read -r dup; do
-      grep "$dup" "$takes_file" | while read -r line; do
-        echo "  - $(echo "$line" | awk '{print $NF}')"
+      grep "^${dup}|" "$takes_file" | while IFS='|' read -r _ agent; do
+        echo "  - $agent"
       done
     done <<< "$dups"
     ((ERRORS++))
@@ -148,7 +149,7 @@ LINTED=0
 if [[ "${1:-}" == "--all" ]]; then
   while IFS= read -r agent_file; do
     lint_file "$agent_file"
-    ((LINTED++))
+    LINTED=$(( LINTED + 1 ))
   done < <(get_agent_files "$CONFIG")
 elif [[ "${1:-}" == "--check-duplicates" ]]; then
   check_duplicates
@@ -156,7 +157,7 @@ elif [[ $# -gt 0 ]]; then
   for f in "$@"; do
     [[ -f "$f" ]] || die "File not found: $f"
     lint_file "$f"
-    ((LINTED++))
+    LINTED=$(( LINTED + 1 ))
   done
 else
   echo "Usage: $0 [--all | --check-duplicates | file1.md file2.md ...]"

@@ -41,7 +41,7 @@ is_agent_file() {
 # Uses awk to parse the JSON (no jq dependency).
 get_agent_files() {
   local config="$1"
-  awk -F'"' '/"file":/ { print $4 }' "$config"
+  awk -F'"' '/"file":/ { print $12 }' "$config"
 }
 
 # get_agent_slugs <config_json> — list agent slugs from guild.config.json.
