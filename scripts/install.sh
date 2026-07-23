@@ -92,13 +92,17 @@ install_windsurf() {
 
 # ── Main ────────────────────────────────────────────────────────────
 
-TOOL="${1:-all}"
-if [[ "$TOOL" == "--tool" ]]; then
-  TOOL="${2:-all}"
-fi
-if [[ "${2:-}" == "--dry-run" || "${3:-}" == "--dry-run" ]]; then
-  DRY_RUN=true
-fi
+TOOL="all"
+DRY_RUN=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --tool) TOOL="${2:-all}"; shift 2;;
+    --dry-run) DRY_RUN=true; shift;;
+    --help|-h|help) sed -n '3,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    *) TOOL="$1"; shift;;
+  esac
+done
 
 # Check integrations exist
 if [[ ! -d "$INTEGRATIONS/claude-code" ]]; then
@@ -128,10 +132,6 @@ case "$TOOL" in
     ;;
   claude-code|cursor|copilot|windsurf)
     install_tool "$TOOL"
-    ;;
-  --help|-h|help)
-    sed -n '3,30p' "$0" | sed 's/^# \{0,1\}//'
-    exit 0
     ;;
   *)
     die "Unknown: $TOOL. Valid: claude-code, cursor, copilot, windsurf, all"

@@ -88,8 +88,8 @@ done < <(get_agent_files "$CONFIG")
 
 convert_tool() {
   local tool="$1"
-  local format; format=$(awk -F'"' '/"'"$tool"'"/{found=1} found && /"format":/{print $4; exit}' "$CONFIG")
-  local kind; kind=$(awk -F'"' '/"'"$tool"'"/{found=1} found && /"installKind":/{print $4; exit}' "$CONFIG")
+  local format; format=$(awk -F'"' -v t="$tool" '$0 ~ "\"" t "\"" {found=1} found && /"format":/{for(i=1;i<=NF;i++) if($i=="format"){print $(i+2); exit}}' "$CONFIG")
+  local kind; kind=$(awk -F'"' -v t="$tool" '$0 ~ "\"" t "\"" {found=1} found && /"installKind":/{for(i=1;i<=NF;i++) if($i=="installKind"){print $(i+2); exit}}' "$CONFIG")
 
   echo "Converting for $tool (format=$format, kind=$kind)..."
 
