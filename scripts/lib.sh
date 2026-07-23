@@ -68,3 +68,71 @@ err()  { printf "${C_RED}[ERR]${C_RESET} %s\n" "$*" >&2; }
 
 # die <msg> — print error and exit 1.
 die() { err "$*"; exit 1; }
+
+# ── Contract helpers (Phase 2a) ──────────────────────────────────
+
+# yaml_escape <string> — escape double-quote and backslash for YAML.
+yaml_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+# parse_contract <agent_file> — extract structured contract from section 13.
+# Outputs YAML fragment to stdout.
+parse_contract() {
+  local file="$1"
+  local body; body="$(get_body "$file")"
+  local slug; slug="$(agent_slug "$file")"
+
+  # Extract section 13 (after "## 13." heading, until next ## heading or EOF)
+  local section13; section13=$(echo "$body" | awk '/^## 13\./{found=1; next} /^## /{if(found) exit} found{print}')
+
+  echo "  ${slug}:"
+  echo "    delivers:"
+
+  # Extract deliverables.
+  # Matches both "**我向下游交付：**" and "**我交付：**" (and English fallback).
+  echo "$section13" | awk '
+    /我向下游交付|我交付|I deliver/ { in_delivers=1; next }
+    /我需要上游提供|我需要|I require/ { in_delivers=0; next }
+    in_delivers && /^- / {
+      sub(/^- /, "")
+      gsub(/\*\*/, "")
+      sub(/[：:].*/, "")
+      sub(/:.*/, "")
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+      if (length > 3 && length < 80)
+        printf "      - name: \"%s\"\n        description: \"%s\"\n", $0, $0
+    }
+  '
+
+  echo "    requires:"
+
+  # Extract requirements.
+  # Matches both "**我需要上游提供：**" and "**我需要：**" (and English fallback).
+  # Lines are like: `- **Role Name**：description`
+  echo "$section13" | awk '
+    BEGIN { in_rq = 0 }
+    /我需要上游提供|我需要|I require/ { in_rq = 1; next }
+    /我向下游交付|我交付|I deliver/ { in_rq = 0; next }
+    in_rq && /^- .*\*\*/ {
+      # Extract role name between ** markers
+      if (match($0, /\*\*[^*]+\*\*/)) {
+        role = substr($0, RSTART, RLENGTH)
+        gsub(/\*\*/, "", role)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", role)
+
+        # Extract description after the closing **
+        desc = substr($0, RSTART + RLENGTH)
+        sub(/^[：:][[:space:]]*/, "", desc)
+        sub(/^[[:space:]]+|[[:space:]]+$/, "", desc)
+        gsub(/\*\*/, "", desc)
+
+        if (length(role) > 1 && length(role) < 60 && length(desc) > 0) {
+          printf "      - from: \"%s\"\n        items:\n", role
+          printf "          - name: \"%s\"\n            description: \"%s\"\n            required: true\n", desc, desc
+        }
+      }
+      next
+    }
+  '
+}
