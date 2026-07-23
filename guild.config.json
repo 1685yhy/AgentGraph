@@ -1,0 +1,47 @@
+{
+  "_note": "AgentGuild project metadata and agent registry. Single source of truth consumed by convert.sh, install.sh, lint.sh, and CI. Each agent entry maps a source file to its metadata. Divisions define the organizational structure.",
+  "project": {
+    "name": "AgentGuild",
+    "version": "0.1.0",
+    "phase": "core",
+    "license": "MIT",
+    "repository": "https://github.com/agentguild/agentguild"
+  },
+  "divisions": {
+    "engineering": { "label": "Engineering", "icon": "Code", "color": "#3B82F6" },
+    "product": { "label": "Product", "icon": "Box", "color": "#D946EF" },
+    "design": { "label": "Design", "icon": "PenTool", "color": "#EC4899" }
+  },
+  "tools": {
+    "claude-code": {
+      "label": "Claude Code", "format": "identity", "installKind": "per-agent",
+      "dest": { "user": [".claude/agents/{slug}.md"], "project": [".claude/agents/{slug}.md"] }
+    },
+    "cursor": {
+      "label": "Cursor", "format": "cursor-mdc", "installKind": "per-agent",
+      "dest": { "user": [], "project": [".cursor/rules/{slug}.mdc"] }
+    },
+    "copilot": {
+      "label": "GitHub Copilot", "format": "identity", "installKind": "per-agent",
+      "dest": { "user": [".github/agents/{slug}.md", ".copilot/agents/{slug}.md"], "project": [".github/agents/{slug}.md"] }
+    },
+    "windsurf": {
+      "label": "Windsurf", "format": "windsurf-rules", "installKind": "roster",
+      "dest": { "user": [], "project": [".windsurfrules"] }
+    }
+  },
+  "agents": [
+    { "slug": "frontend-engineer", "division": "engineering", "file": "agents/engineering/frontend-engineer.md" },
+    { "slug": "backend-architect", "division": "engineering", "file": "agents/engineering/backend-architect.md" },
+    { "slug": "devops-engineer", "division": "engineering", "file": "agents/engineering/devops-engineer.md" },
+    { "slug": "ai-engineer", "division": "engineering", "file": "agents/engineering/ai-engineer.md" },
+    { "slug": "product-manager", "division": "product", "file": "agents/product/product-manager.md" },
+    { "slug": "ux-researcher", "division": "product", "file": "agents/product/ux-researcher.md" },
+    { "slug": "data-analyst", "division": "product", "file": "agents/product/data-analyst.md" },
+    { "slug": "tech-writer", "division": "product", "file": "agents/product/tech-writer.md" },
+    { "slug": "ui-designer", "division": "design", "file": "agents/design/ui-designer.md" },
+    { "slug": "brand-guardian", "division": "design", "file": "agents/design/brand-guardian.md" },
+    { "slug": "interaction-designer", "division": "design", "file": "agents/design/interaction-designer.md" },
+    { "slug": "creative-director", "division": "design", "file": "agents/design/creative-director.md" }
+  ]
+}
