@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/github/stars/agentguild/agentguild?style=for-the-badge&color=3B82F6" alt="GitHub Stars">
   <img src="https://img.shields.io/github/license/agentguild/agentguild?style=for-the-badge&color=EC4899" alt="MIT License">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=for-the-badge&color=22C55E" alt="PRs Welcome">
-  <img src="https://img.shields.io/badge/agents-12-3B82F6?style=for-the-badge" alt="12 Agents">
+  <img src="https://img.shields.io/badge/agents-18-3B82F6?style=for-the-badge" alt="18 Agents">
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@
 
 ## What is AgentGuild?
 
-AgentGuild is a **curated roster of 12 AI agents** purpose-built for software development teams. Each agent is a detailed markdown file defining a specialized role — complete with identity, expertise, and most importantly, **opinions**.
+AgentGuild is a **curated roster of 18 AI agents** purpose-built for software development teams. Each agent is a detailed markdown file defining a specialized role — complete with identity, expertise, and most importantly, **opinions**.
 
 Unlike generic AI agent frameworks that give you empty templates, AgentGuild agents come with:
 
@@ -50,7 +50,7 @@ AgentGuild works with **Claude Code**, **Cursor**, **GitHub Copilot**, and **Win
 | **Blind Spots** | Not addressed | Honest self-assessment of limitations |
 | **Decision Authority** | Not defined | Clear who has final say on what |
 | **Format Support** | Claude Code only | Claude Code, Cursor, Copilot, Windsurf |
-| **Agent Count** | Many, varying quality | 12 carefully crafted agents |
+| **Agent Count** | Many, varying quality | 18 carefully crafted agents |
 
 AgentGuild is **not a fork** of agency-agents. It is a next-generation approach where every agent in the guild has real personality, strong professional opinions, and clear boundaries about what they will and will not do.
 
@@ -84,6 +84,22 @@ AgentGuild is **not a fork** of agency-agents. It is a next-generation approach 
 | 🛡️ | Brand Guardian | Brand identity, tone consistency, and visual identity governance | Advanced |
 | 🎬 | Interaction Designer | Motion design, micro-interactions, transitions, and interaction choreography | Advanced |
 | 🎯 | Creative Director | Aesthetic direction, quality bar enforcement, and design critique authority | Advanced |
+
+### Testing Division
+
+| Emoji | Agent | Description | Difficulty |
+|-------|-------|-------------|------------|
+| 🧪 | QA Engineer | Evidence-based quality verification that catches every edge case | Intermediate |
+| ⚡ | Performance Tester | Realistic load modeling and system capacity planning | Advanced |
+| ♿ | Accessibility Auditor | Real accessibility validation beyond automated compliance | Intermediate |
+
+### Marketing Division
+
+| Emoji | Agent | Description | Difficulty |
+|-------|-------|-------------|------------|
+| 📈 | Growth Hacker | Systematic growth strategy without relying on platform exploits | Advanced |
+| ✍️ | Content Creator | Content strategy prioritizing answer depth and user value | Intermediate |
+| 📱 | Social Media Strategist | Platform-native content strategy without cross-platform reposting | Intermediate |
 
 ---
 
@@ -126,7 +142,7 @@ cd agentguild
 # 3. Install agents into your AI tool
 ./scripts/install.sh
 
-# 4. Done! Your AI tool now knows all 12 guild agents.
+# 4. Done! Your AI tool now knows all 18 guild agents.
 #    When you need expert help, reference an agent by name.
 ```
 
@@ -176,6 +192,14 @@ agentguild/
 │   │   ├── ux-researcher.md
 │   │   ├── data-analyst.md
 │   │   └── tech-writer.md
+│   ├── testing/
+│   │   ├── qa-engineer.md
+│   │   ├── performance-tester.md
+│   │   └── accessibility-auditor.md
+│   ├── marketing/
+│   │   ├── growth-hacker.md
+│   │   ├── content-creator.md
+│   │   └── social-media-strategist.md
 │   └── design/
 │       ├── ui-designer.md
 │       ├── brand-guardian.md

@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/github/stars/agentguild/agentguild?style=for-the-badge&color=3B82F6" alt="GitHub Stars">
   <img src="https://img.shields.io/github/license/agentguild/agentguild?style=for-the-badge&color=EC4899" alt="MIT License">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=for-the-badge&color=22C55E" alt="PRs Welcome">
-  <img src="https://img.shields.io/badge/agents-12-3B82F6?style=for-the-badge" alt="12 Agents">
+  <img src="https://img.shields.io/badge/agents-18-3B82F6?style=for-the-badge" alt="18 Agents">
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@
 
 ## 什么是 AgentGuild？
 
-AgentGuild 是一个**精心策划的 12 人 AI 特工花名册**，专为软件开发团队设计。每个特工都是一份详细的 Markdown 文件，定义了一个专业化角色——包括身份、专长，最重要的是，**观点和立场**。
+AgentGuild 是一个**精心策划的 18 人 AI 特工花名册**，专为软件开发团队设计。每个特工都是一份详细的 Markdown 文件，定义了一个专业化角色——包括身份、专长，最重要的是，**观点和立场**。
 
 与只提供空模板的通用 AI 特工框架不同，AgentGuild 的特工拥有：
 
@@ -50,7 +50,7 @@ AgentGuild 支持 **Claude Code**、**Cursor**、**GitHub Copilot** 和 **Windsu
 | **盲区** | 未涉及 | 坦诚的自我评估和限制认知 |
 | **决策权** | 未定义 | 明确谁对什么有最终决定权 |
 | **格式支持** | 仅 Claude Code | Claude Code、Cursor、Copilot、Windsurf |
-| **特工数量** | 很多，质量参差不齐 | 12 个精心打磨的特工 |
+| **特工数量** | 很多，质量参差不齐 | 18 个精心打磨的特工 |
 
 **AgentGuild 不是 agency-agents 的分支（fork）**。它是一种下一代方案——公会中的每个特工都拥有真实的个性、坚定的专业立场，以及明确的能力与责任边界。
 
@@ -84,6 +84,22 @@ AgentGuild 支持 **Claude Code**、**Cursor**、**GitHub Copilot** 和 **Windsu
 | 🛡️ | 品牌守护者 | 品牌形象、调性一致性、视觉标识治理 | 高级 |
 | 🎬 | 交互设计师 | 动效设计、微交互、转场与交互编排 | 高级 |
 | 🎯 | 创意指导 | 美学方向、质量标准执行与设计评审权 | 高级 |
+
+### 测试部
+
+| Emoji | 特工 | 描述 | 难度 |
+|-------|------|------|------|
+| 🧪 | QA 工程师 | 基于证据的质量验证，不放过任何边界情况 | 中级 |
+| ⚡ | 性能测试工程师 | 真实负载建模与系统容量规划 | 高级 |
+| ♿ | 无障碍审计员 | 超越自动化合规的真实无障碍验证 | 中级 |
+
+### 市场部
+
+| Emoji | 特工 | 描述 | 难度 |
+|-------|------|------|------|
+| 📈 | 增长黑客 | 系统的增长策略，不依赖平台漏洞 | 高级 |
+| ✍️ | 内容创作者 | 以回答深度和用户价值为优先的内容策略 | 中级 |
+| 📱 | 社媒策略师 | 平台原生内容策略，不跨平台一键分发 | 中级 |
 
 ---
 
@@ -126,7 +142,7 @@ cd agentguild
 # 3. 将特工安装到你的 AI 工具中
 ./scripts/install.sh
 
-# 4. 完成！你的 AI 工具现在了解全部 12 个公会特工。
+# 4. 完成！你的 AI 工具现在了解全部 18 个公会特工。
 #    需要专家帮助时，直接引用特工名称即可。
 ```
 
@@ -176,6 +192,14 @@ agentguild/
 │   │   ├── ux-researcher.md       # 用户研究员
 │   │   ├── data-analyst.md        # 数据分析师
 │   │   └── tech-writer.md         # 技术文档工程师
+│   ├── testing/                   # 测试部
+│   │   ├── qa-engineer.md         # QA 工程师
+│   │   ├── performance-tester.md  # 性能测试工程师
+│   │   └── accessibility-auditor.md# 无障碍审计员
+│   ├── marketing/                 # 市场部
+│   │   ├── growth-hacker.md       # 增长黑客
+│   │   ├── content-creator.md     # 内容创作者
+│   │   └── social-media-strategist.md# 社媒策略师
 │   └── design/                    # 设计部
 │       ├── ui-designer.md         # UI 设计师
 │       ├── brand-guardian.md      # 品牌守护者
