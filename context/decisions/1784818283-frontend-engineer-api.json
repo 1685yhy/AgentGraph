@@ -1,0 +1,22 @@
+{
+  "id": 1784818283,
+  "agent": "frontend-engineer",
+  "timestamp": "2026-07-23T14:51:23Z",
+  "decision": {
+    "type": "api-design",
+    "topic": "教师数据API响应格式",
+    "summary": "直接返回数据对象，不需要包裹层，减少一次解包",
+    "rationale": "包裹层在前端缓存场景下增加了性能开销",
+    "constraints": "",
+    "authority": "frontend-engineer"
+  },
+  "impact": {
+    "affects": [],
+    "breaking_changes": [],
+    "notified": [],
+    "confirmed": []
+  },
+  "traceability": [],
+  "status": "active",
+  "superseded_by": null
+}

@@ -8,6 +8,8 @@
 #   guild status   [--agent <name>] [--status incomplete|ready|accepted]
 #   guild accept   --handoff <id> --as <agent>
 #   guild list     [--contracts] [--handoffs]
+#   guild decide   --agent <name> --type <type> --topic <topic> [options]
+#   guild context  [show|check]
 #
 # guild is an alias: ln -s scripts/nexus.sh guild
 
@@ -259,6 +261,26 @@ print('  记录: ' + '$json_file')
 }
 JSONFALLBACK
   }
+
+  # Context check: are there relevant decisions this handoff should follow?
+  echo ""
+  echo "  上下文检查..."
+
+  local relevant=0
+  for f in "$REPO_ROOT/context/decisions"/*.json; do
+    [[ -f "$f" ]] || continue
+    local dec_agent; dec_agent=$(grep -o '"agent": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+    local dec_topic; dec_topic=$(grep -o '"topic": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+    local dec_status; dec_status=$(grep -o '"status": "[^"]*"' "$f" | tail -1 | cut -d'"' -f4)
+
+    # If the decision maker is the sender or receiver of this handoff
+    if [[ "$dec_agent" == "$from_slug" || "$dec_agent" == "$to_slug" ]] && [[ "$dec_status" == "active" ]]; then
+      ((relevant++)) 2>/dev/null || true
+      echo "    📋 相关决策: #$(grep -o '"id": [0-9]*' "$f" | head -1 | awk '{print $2}') [$dec_agent] $dec_topic"
+    fi
+  done
+
+  [[ $relevant -gt 0 ]] && echo "    → 建议确认交付物是否遵循以上决策" || echo "    (无相关决策)"
 }
 
 cmd_check() {
@@ -565,12 +587,272 @@ if req_missing > 0:
 
     echo ""
     echo "  ✓ 阶段 $current_phase → $next_phase 完成"
+
+    # Auto context check after phase
+    if ! $dry_run; then
+      echo ""
+      echo "  正在运行上下文检查..."
+      "$0" context check 2>/dev/null | head -10
+    fi
+
     echo ""
   done
 
   echo "============================================"
   echo "  流水线完成: $pipeline"
   echo "============================================"
+}
+
+# ── cmd_decide ────────────────────────────────────────────────────────
+
+cmd_decide() {
+  local agent="" type="" topic="" summary="" rationale="" constraints="" authority=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent) agent="$2"; shift 2;;
+      --type) type="$2"; shift 2;;
+      --topic) topic="$2"; shift 2;;
+      --summary) summary="$2"; shift 2;;
+      --rationale) rationale="$2"; shift 2;;
+      --constraints) constraints="$2"; shift 2;;
+      --authority) authority="$2"; shift 2;;
+      *) shift;;
+    esac
+  done
+
+  [[ -n "$agent" ]] || die "--agent is required"
+  [[ -n "$type" ]] || die "--type is required (api-design, data-model, naming, scope, architecture, deployment, ux, brand)"
+  [[ -n "$topic" ]] || die "--topic is required"
+  [[ -n "$summary" ]] || die "--summary is required"
+
+  local agent_slug; agent_slug="$(resolve_agent "$agent")"
+  [[ -n "$agent_slug" ]] || die "Unknown agent: $agent"
+
+  # Auto-fill authority from agent's decision authority section
+  [[ -z "$authority" ]] && authority="$agent_slug"
+
+  # PREVENTIVE CHECK: Calculate impact scope
+  echo "记录决策: $agent_slug / $type / $topic"
+  echo ""
+  echo "=== 影响分析 ==="
+
+  # Check which agents depend on this agent (from guild-contracts.yml)
+  local affected=""
+  local affected_count=0
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    local downstream; downstream=$(echo "$line" | awk -F'|' '{print $1}')
+    local item; item=$(echo "$line" | awk -F'|' '{print $2}')
+    if [[ -n "$downstream" && "$downstream" != "$agent_slug" ]]; then
+      if [[ -z "$(echo "$affected" | grep "$downstream")" ]]; then
+        affected="$affected $downstream"
+        ((affected_count++)) || true
+      fi
+    fi
+  done < <(awk -v agent="$agent_slug" '
+    /^  [a-z]/ { current=$1; gsub(/:$/,"",current) }
+    /- from:/ && $0 ~ agent { found=1; print current }
+  ' "$CONTRACTS" 2>/dev/null)
+
+  if [[ -n "$affected" ]]; then
+    echo "  此决策影响以下 Agent："
+    for a in $affected; do
+      echo "    - $a"
+    done
+    echo ""
+    echo "  建议：通知所有受影响方。"
+    echo "  是否继续记录？(Enter/Y = 继续, N = 取消)"
+    read -r confirm
+    [[ "$confirm" == "N" || "$confirm" == "n" ]] && { echo "已取消"; return 0; }
+  else
+    echo "  未检测到直接影响（基于现有契约）。"
+  fi
+
+  # Create decision record
+  local id; id=$(date +%s)
+  local timestamp; timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  local slug_topic; slug_topic=$(echo "$topic" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')
+  local filename="${id}-${agent_slug}-${slug_topic}.json"
+  local filepath="$REPO_ROOT/context/decisions/$filename"
+
+  # Parse affected list for JSON array
+  local affected_json="["
+  local first=true
+  for a in $affected; do
+    $first && first=false || affected_json+=", "
+    affected_json+="\"$a\""
+  done
+  affected_json+="]"
+
+  cat > "$filepath" << JSONEOF
+{
+  "id": $id,
+  "agent": "$agent_slug",
+  "timestamp": "$timestamp",
+  "decision": {
+    "type": "$type",
+    "topic": "$topic",
+    "summary": "$summary",
+    "rationale": "$rationale",
+    "constraints": "$constraints",
+    "authority": "$authority"
+  },
+  "impact": {
+    "affects": $affected_json,
+    "breaking_changes": [],
+    "notified": [],
+    "confirmed": []
+  },
+  "traceability": [],
+  "status": "active",
+  "superseded_by": null
+}
+JSONEOF
+
+  # Update index
+  local idx="$REPO_ROOT/context/index.json"
+  local tmpidx="${idx}.tmp"
+  python3 -c "
+import json
+with open('$idx') as f:
+    idx = json.load(f)
+idx['updated'] = '$timestamp'
+idx['decisions'].append({
+    'id': $id,
+    'agent': '$agent_slug',
+    'type': '$type',
+    'topic': '$topic',
+    'file': '$filename',
+    'status': 'active'
+})
+with open('$tmpidx', 'w') as f:
+    json.dump(idx, f, indent=2, ensure_ascii=False)
+" 2>/dev/null && mv "$tmpidx" "$idx" || {
+    ok "索引更新跳过（python3 不可用）。决策已保存至: $filepath"
+    return 0
+  }
+
+  echo ""
+  ok "决策 #$id 已记录: $agent_slug / $type / $topic"
+  ok "文件: $filename"
+  [[ -n "$affected" ]] && echo "  受影响方: $affected"
+}
+
+# ── cmd_context ────────────────────────────────────────────────────────
+
+cmd_context() {
+  local sub="${1:-show}"; shift || true
+
+  case "$sub" in
+    show)
+      echo "=== 决策图谱 ==="
+      echo ""
+
+      local idx="$REPO_ROOT/context/index.json"
+      [[ -f "$idx" ]] || { echo "  暂无决策记录。使用 guild decide 创建第一条。"; return 0; }
+
+      # Group by type
+      echo "按类型分组："
+      local types; types=$(python3 -c "
+import json
+idx = json.load(open('$idx'))
+types = {}
+for d in idx['decisions']:
+    t = d['type']
+    if t not in types: types[t] = []
+    types[t].append(d)
+for t in sorted(types.keys()):
+    print(f'{t}:{len(types[t])}')
+" 2>/dev/null)
+
+      if [[ -n "$types" ]]; then
+        echo "$types" | while IFS=':' read -r t count; do
+          echo "  $t ($count 条)"
+          # List decisions of this type
+          python3 -c "
+import json
+idx = json.load(open('$idx'))
+for d in idx['decisions']:
+    if d['type'] == '$t':
+        print(f'    #{d[\"id\"]} [{d[\"agent\"]}] {d[\"topic\"]} ({d[\"status\"]})')
+" 2>/dev/null
+        done
+      else
+        # Fallback: list all from files
+        echo "  (使用文件列表)"
+        for f in "$REPO_ROOT/context/decisions"/*.json; do
+          [[ -f "$f" ]] || continue
+          local id; id=$(grep -o '"id": [0-9]*' "$f" | head -1 | awk '{print $2}')
+          local agent; agent=$(grep -o '"agent": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+          local topic; topic=$(grep -o '"topic": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+          local status; status=$(grep -o '"status": "[^"]*"' "$f" | tail -1 | cut -d'"' -f4)
+          echo "    #$id [$agent] $topic ($status)"
+        done
+      fi
+      ;;
+
+    check)
+      echo "=== 冲突检查 ==="
+      echo ""
+
+      local idx="$REPO_ROOT/context/index.json"
+      [[ -f "$idx" ]] || { echo "  暂无决策。"; return 0; }
+
+      local conflicts=0
+
+      # Check 1: Decisions on same topic by different agents
+      echo "1. 同主题多决策："
+      local check1_output; check1_output=$(python3 -c "
+import json
+from collections import defaultdict
+idx = json.load(open('$idx'))
+topics = defaultdict(list)
+for d in idx['decisions']:
+    if d['status'] == 'active':
+        topics[d['topic']].append(d)
+found = 0
+for topic, decs in topics.items():
+    if len(decs) > 1:
+        agents = set(d['agent'] for d in decs)
+        if len(agents) > 1:
+            found += 1
+            print(f'  ⚠️  冲突: {topic}')
+            for d in decs:
+                print(f'      #{d[\"id\"]} [{d[\"agent\"]}]: {d[\"topic\"]}')
+print(f'CONFLICT_COUNT={found}')
+" 2>/dev/null) || {
+        echo "  (无法运行冲突检查 — python3 不可用)"
+        check1_output="CONFLICT_COUNT=0"
+      }
+
+      # Print check output (excluding the CONFLICT_COUNT marker)
+      echo "$check1_output" | grep -v "^CONFLICT_COUNT="
+      local conflict_count; conflict_count=$(echo "$check1_output" | grep "^CONFLICT_COUNT=" | cut -d= -f2)
+      conflict_count=${conflict_count:-0}
+      if [[ "$conflict_count" -gt 0 ]]; then
+        conflicts=$conflict_count
+      fi
+
+      # Check 2: Handoff traceability
+      echo ""
+      echo "2. 决策追溯："
+      local total_trace=0
+      for f in "$REPO_ROOT/context/decisions"/*.json; do
+        [[ -f "$f" ]] || continue
+        local traces; traces=$(grep -c '"handoff_id"' "$f" 2>/dev/null || echo 0)
+        ((total_trace += traces)) 2>/dev/null || true
+      done
+      echo "  总决策数: $(ls "$REPO_ROOT/context/decisions"/*.json 2>/dev/null | wc -l)"
+      echo "  已追溯的交付物: $total_trace"
+
+      echo ""
+      [[ $conflicts -gt 0 ]] && echo "  ⚠️  发现潜在冲突，运行 guild resolve 处理。" || echo "  ✓ 未检测到冲突。"
+      ;;
+
+    *)
+      echo "用法: guild context [show|check]"
+      ;;
+  esac
 }
 
 # ── Main ────────────────────────────────────────────────────────────
@@ -584,6 +866,9 @@ if [[ $# -eq 0 ]]; then
   echo "  guild status    — 查看所有交接状态"
   echo "  guild accept    — 接收交接并开始工作"
   echo "  guild list      — 列出契约或交接记录"
+  echo "  guild decide    — 记录结构化决策 (ADR)"
+  echo "  guild context   — 显示/检查决策图谱和冲突"
+  echo "  guild run       — 执行流水线"
   echo ""
   echo "Run 'guild <command> --help' for details."
   exit 0
@@ -599,8 +884,10 @@ case "$CMD" in
   accept)  cmd_accept "$@";;
   list)    cmd_list "$@";;
   run)     cmd_run "$@";;
+  decide)  cmd_decide "$@";;
+  context) cmd_context "$@";;
   --help|-h|help)
     sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: handoff, check, status, accept, list, run";;
+  *) die "Unknown command: $CMD. Valid: handoff, check, status, accept, list, run, decide, context";;
 esac

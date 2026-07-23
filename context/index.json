@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "updated": "2026-07-23T14:51:23Z",
+  "decisions": [
+    {
+      "id": 1784818279,
+      "agent": "backend-architect",
+      "type": "api-design",
+      "topic": "教师数据API响应格式",
+      "file": "1784818279-backend-architect-api.json",
+      "status": "active"
+    },
+    {
+      "id": 1784818283,
+      "agent": "frontend-engineer",
+      "type": "api-design",
+      "topic": "教师数据API响应格式",
+      "file": "1784818283-frontend-engineer-api.json",
+      "status": "active"
+    }
+  ],
+  "conflicts": []
+}

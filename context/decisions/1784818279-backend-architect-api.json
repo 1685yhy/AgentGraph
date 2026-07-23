@@ -1,0 +1,22 @@
+{
+  "id": 1784818279,
+  "agent": "backend-architect",
+  "timestamp": "2026-07-23T14:51:19Z",
+  "decision": {
+    "type": "api-design",
+    "topic": "教师数据API响应格式",
+    "summary": "统一使用 {code: 0, data: {...}, message: ''} 包裹响应",
+    "rationale": "前端和移动端都需要统一的错误处理模式",
+    "constraints": "不兼容 v1 API",
+    "authority": "backend-architect"
+  },
+  "impact": {
+    "affects": [],
+    "breaking_changes": [],
+    "notified": [],
+    "confirmed": []
+  },
+  "traceability": [],
+  "status": "active",
+  "superseded_by": null
+}
