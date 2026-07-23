@@ -181,14 +181,29 @@ agentguild/
 │       ├── brand-guardian.md      # 品牌守护者
 │       ├── interaction-designer.md# 交互设计师
 │       └── creative-director.md   # 创意指导
+├── contracts/                     # 协作契约（Phase 2a）
+│   ├── extract.sh                 # 从特工文件中提取契约
+│   └── guild-contracts.yml        # 生成的 YAML 契约文件
+├── demos/                         # 交接演练场景（Phase 2b）
+│   ├── pm-to-ux.md
+│   ├── pm-to-backend.md
+│   └── frontend-to-qa.md
 ├── docs/
 │   ├── AGENT_TEMPLATE.md          # 特工创建指南（英文）
-│   └── AGENT_TEMPLATE_zh-CN.md    # 特工创建指南（中文）
+│   ├── AGENT_TEMPLATE_zh-CN.md    # 特工创建指南（中文）
+│   ├── 使用指南.md                 # 使用指南
+│   ├── 协作指南.md                 # 协作指南
+│   └── 流水线指南.md               # 流水线指南
+├── handoffs/                      # 交接记录（Phase 2b）
+├── pipelines/                     # 流水线定义（Phase 2a）
+│   └── startup-mvp.yml            # MVP 开发流水线
 ├── scripts/
 │   ├── convert.sh                 # 将特工转换为工具特定格式
 │   ├── install.sh                 # 将特工安装到本地 AI 工具
+│   ├── lib.sh                     # 共享辅助函数
 │   ├── lint.sh                    # 验证特工文件是否符合模板规范
-│   └── lib.sh                     # 共享辅助函数
+│   └── nexus.sh                   # 交接引擎 CLI（Phase 2a）
+├── guild                          # → scripts/nexus.sh（符号链接）
 ├── guild.config.json              # 特工、部门和工具的中央注册表
 ├── .github/workflows/lint.yml     # CI：每次推送时自动检查特工文件
 ├── LICENSE                        # MIT 许可证

@@ -181,14 +181,29 @@ agentguild/
 │       ├── brand-guardian.md
 │       ├── interaction-designer.md
 │       └── creative-director.md
+├── contracts/                     # Collaboration contracts (Phase 2a)
+│   ├── extract.sh                 # Contract extraction from agent files
+│   └── guild-contracts.yml        # Generated YAML contracts
+├── demos/                         # Demo handoff scenarios (Phase 2b)
+│   ├── pm-to-ux.md
+│   ├── pm-to-backend.md
+│   └── frontend-to-qa.md
 ├── docs/
 │   ├── AGENT_TEMPLATE.md          # Agent creation guide (English)
-│   └── AGENT_TEMPLATE_zh-CN.md    # Agent creation guide (Chinese)
+│   ├── AGENT_TEMPLATE_zh-CN.md    # Agent creation guide (Chinese)
+│   ├── 使用指南.md                 # Usage guide (Chinese)
+│   ├── 协作指南.md                 # Collaboration guide (Chinese)
+│   └── 流水线指南.md               # Pipeline guide (Chinese)
+├── handoffs/                      # Handoff records (Phase 2b)
+├── pipelines/                     # Pipeline definitions (Phase 2a)
+│   └── startup-mvp.yml            # MVP development pipeline
 ├── scripts/
 │   ├── convert.sh                 # Convert agents to tool-specific formats
 │   ├── install.sh                 # Install agents into local AI tools
+│   ├── lib.sh                     # Shared helper functions
 │   ├── lint.sh                    # Validate agent files against the template
-│   └── lib.sh                     # Shared helper functions
+│   └── nexus.sh                   # Handoff engine CLI (Phase 2a)
+├── guild                          # → scripts/nexus.sh (symlink)
 ├── guild.config.json              # Central registry of agents, divisions, and tools
 ├── .github/workflows/lint.yml     # CI: lint agents on every push
 ├── LICENSE                        # MIT License

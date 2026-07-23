@@ -91,16 +91,19 @@ resolve_agent() {
 # Output: from_agent|item_name|required
 get_requires() {
   local slug="$1"
-  python3 -c "
-import yaml, sys
-with open('$CONTRACTS') as f:
-    data = yaml.safe_load(f)
-contract = data['contracts'].get('$slug', {})
-for req in contract.get('requires', []):
-    upstream = req.get('from', 'unknown')
-    for item in req.get('items', []):
-        print(f\"{upstream}|{item['name']}|{item.get('required', True)}\")
-" 2>/dev/null
+  awk -v slug="$slug" '
+    $0 ~ "^  " slug ":" { in_contract=1; next }
+    in_contract && /^  [a-z]/ && $0 !~ "^  " slug ":" { in_contract=0; next }
+    in_contract && /^    requires:/ { in_req=1; next }
+    in_contract && /^    delivers:/ { in_req=0; next }
+    in_req && /^      - from:/ { sub(/.*from: "/, ""); sub(/".*/, ""); current_from=$0; next }
+    in_req && /^          - name:/ { sub(/.*name: "/, ""); sub(/".*/, ""); current_name=$0; next }
+    in_req && /^            required:/ {
+      sub(/.*required: /, ""); gsub(/"/, "");
+      if ($0 == "true") r="True"; else r="False";
+      if (current_from != "") print current_from "|" current_name "|" r
+    }
+  ' "$CONTRACTS"
 }
 
 # scan_artifacts <path> <requirements-list> — match files to required items
@@ -170,7 +173,7 @@ cmd_handoff() {
   local id
   id=$(next_id)
   local date
-  date=$(date -Iseconds 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
+  date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
   echo "创建交接 #${id}: ${from_slug} → ${to_slug}"
 
@@ -400,14 +403,17 @@ cmd_list() {
   case "$mode" in
     contracts)
       echo "已注册的交接契约:"
-      python3 -c "
-import yaml
-d = yaml.safe_load(open('$CONTRACTS'))
-for slug, contract in d['contracts'].items():
-    delivers = len(contract.get('delivers', []))
-    requires = sum(len(r.get('items', [])) for r in contract.get('requires', []))
-    print(f'  {slug}: 产出 {delivers} 项, 需求 {requires} 项')
-" 2>/dev/null
+      awk '
+        /^  [a-z]/ {
+          if (slug != "") print slug ": 产出 " del_count " 项, 需求 " req_count " 项"
+          slug=$1; gsub(/:$/, "", slug); del_count=0; req_count=0
+        }
+        /delivers:/ { in_del=1; in_req=0; next }
+        /requires:/ { in_req=1; in_del=0; next }
+        in_del && /- name:/ { del_count++ }
+        in_req && /- name:/ { req_count++ }
+        END { if (slug != "") print slug ": 产出 " del_count " 项, 需求 " req_count " 项" }
+      ' "$CONTRACTS"
       ;;
     handoffs|*)
       cmd_status
@@ -422,9 +428,10 @@ cmd_run() {
       --pipeline) pipeline="$2"; shift 2;;
       --path) path="$2"; shift 2;;
       --dry-run) dry_run=true; shift;;
-      --list) ls "$REPO_ROOT/pipelines/"*.yml 2>/dev/null | while read f; do
-                local name; name=$(python3 -c "import yaml; print(yaml.safe_load(open('$f'))['name'])" 2>/dev/null)
-                local desc; desc=$(python3 -c "import yaml; print(yaml.safe_load(open('$f')).get('description',''))" 2>/dev/null)
+      --list) for f in "$REPO_ROOT/pipelines/"*.yml; do
+                [[ -f "$f" ]] || continue
+                local name; name=$(grep -m1 '^name:' "$f" | sed 's/^name: *//')
+                local desc; desc=$(grep -m1 '^description:' "$f" | sed 's/^description: *//')
                 echo "  $(basename "$f" .yml) — $name"
                 [[ -n "$desc" ]] && echo "    $desc"
               done; return;;
@@ -449,19 +456,15 @@ cmd_run() {
     echo ""
   fi
 
-  # Read phases from YAML
-  local phase_count; phase_count=$(python3 -c "
-import yaml
-d = yaml.safe_load(open('$pipeline_file'))
-print(len(d['phases']))
-" 2>/dev/null)
+  # Read phases from pipeline YAML
+  local phase_count; phase_count=$(grep -c '^  - phase:' "$pipeline_file")
 
   for ((i=0; i<phase_count-1; i++)); do
     local current_phase next_phase current_agents next_agents
-    current_phase=$(python3 -c "import yaml; d=yaml.safe_load(open('$pipeline_file')); print(d['phases'][$i]['phase'])" 2>/dev/null)
-    next_phase=$(python3 -c "import yaml; d=yaml.safe_load(open('$pipeline_file')); print(d['phases'][$((i+1))]['phase'])" 2>/dev/null)
-    current_agents=$(python3 -c "import yaml; d=yaml.safe_load(open('$pipeline_file')); print(' '.join(d['phases'][$i]['agents']))" 2>/dev/null)
-    next_agents=$(python3 -c "import yaml; d=yaml.safe_load(open('$pipeline_file')); print(' '.join(d['phases'][$((i+1))]['agents']))" 2>/dev/null)
+    current_phase=$(awk -v n=$((i+1)) '/^  - phase:/{count++; if(count==n){sub(/.*phase: /,""); print; exit}}' "$pipeline_file")
+    next_phase=$(awk -v n=$((i+2)) '/^  - phase:/{count++; if(count==n){sub(/.*phase: /,""); print; exit}}' "$pipeline_file")
+    current_agents=$(awk -v n=$((i+1)) '/^  - phase:/{count++} count==n && /agents:/{gsub(/.*agents: \[|\]/,""); gsub(/,/," "); print; exit}' "$pipeline_file")
+    next_agents=$(awk -v n=$((i+2)) '/^  - phase:/{count++} count==n && /agents:/{gsub(/.*agents: \[|\]/,""); gsub(/,/," "); print; exit}' "$pipeline_file")
 
     echo "━━━ 阶段: $current_phase → $next_phase ━━━"
     echo "  当前: $current_agents"
@@ -495,7 +498,7 @@ print(len(d['phases']))
           [[ -n "$to_slug" ]] || { echo "      [!!] 未知 Agent: $to_agent"; continue; }
 
           local id; id=$(next_id)
-          local date; date=$(date -Iseconds)
+          local date; date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           # Get receiver's requirements
           local reqs; reqs=$(get_requires "$to_slug" | grep "|${from_slug}|" || get_requires "$to_slug")

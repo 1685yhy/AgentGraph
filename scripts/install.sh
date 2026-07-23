@@ -18,7 +18,6 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 CONFIG="$REPO_ROOT/guild.config.json"
 INTEGRATIONS="$REPO_ROOT/integrations"
-DRY_RUN=false
 
 # ── Tool detection ──────────────────────────────────────────────────
 
