@@ -281,6 +281,35 @@ JSONFALLBACK
   done
 
   [[ $relevant -gt 0 ]] && echo "    → 建议确认交付物是否遵循以上决策" || echo "    (无相关决策)"
+
+  # Auto-detect conflicts
+  local conflict_found=false
+  for f in "$REPO_ROOT/context/decisions"/*.json; do
+    [[ -f "$f" ]] || continue
+    local dec_agent; dec_agent=$(grep -o '"agent": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+    local dec_topic; dec_topic=$(grep -o '"topic": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+
+    # Check if another agent has a decision on the same topic with different content
+    for g in "$REPO_ROOT/context/decisions"/*.json; do
+      [[ -f "$g" ]] || continue
+      [[ "$f" == "$g" ]] && continue
+      local g_agent; g_agent=$(grep -o '"agent": "[^"]*"' "$g" | head -1 | cut -d'"' -f4)
+      local g_topic; g_topic=$(grep -o '"topic": "[^"]*"' "$g" | head -1 | cut -d'"' -f4)
+
+      if [[ "$dec_topic" == "$g_topic" && "$dec_agent" != "$g_agent" ]]; then
+        # Same topic, different agents — potential conflict
+        if [[ "$dec_agent" == "$from_slug" || "$dec_agent" == "$to_slug" ]] || [[ "$g_agent" == "$from_slug" || "$g_agent" == "$to_slug" ]]; then
+          $conflict_found && continue
+          conflict_found=true
+          echo ""
+          warn "检测到潜在决策冲突: $dec_topic"
+          echo "    $dec_agent vs $g_agent"
+          echo "    建议: 运行 guild context check 查看详情"
+          echo "    建议: 在继续交接前解决此冲突"
+        fi
+      fi
+    done
+  done
 }
 
 cmd_check() {
@@ -444,12 +473,13 @@ cmd_list() {
 }
 
 cmd_run() {
-  local pipeline="" path="" dry_run=false
+  local pipeline="" path="" dry_run=false auto_yes=false
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --pipeline) pipeline="$2"; shift 2;;
       --path) path="$2"; shift 2;;
       --dry-run) dry_run=true; shift;;
+      --yes) auto_yes=true; shift;;
       --list) for f in "$REPO_ROOT/pipelines/"*.yml; do
                 [[ -f "$f" ]] || continue
                 local name; name=$(grep -m1 '^name:' "$f" | sed 's/^name: *//')
@@ -496,8 +526,12 @@ cmd_run() {
     echo "  完成后按 Enter 继续（或输入 'skip' 跳过此阶段）..."
 
     if ! $dry_run; then
-      read -r input
-      [[ "$input" == "skip" ]] && { echo "  已跳过"; echo ""; continue; }
+      if $auto_yes; then
+        echo "  (自动继续)"
+      else
+        read -r input
+        [[ "$input" == "skip" ]] && { echo "  已跳过"; echo ""; continue; }
+      fi
     fi
 
     echo ""
@@ -581,8 +615,12 @@ if req_missing > 0:
     if ! $all_ready && ! $dry_run; then
       echo ""
       echo "  ⚠️  存在缺失项。请补充后按 Enter 重试（或输入 'skip' 跳过）..."
-      read -r input
-      [[ "$input" == "skip" ]] && { echo "  已跳过"; echo ""; continue; }
+      if $auto_yes; then
+        echo "  (自动继续)"
+      else
+        read -r input
+        [[ "$input" == "skip" ]] && { echo "  已跳过"; echo ""; continue; }
+      fi
     fi
 
     echo ""
@@ -646,7 +684,7 @@ cmd_decide() {
     if [[ -n "$downstream" && "$downstream" != "$agent_slug" ]]; then
       if [[ -z "$(echo "$affected" | grep "$downstream")" ]]; then
         affected="$affected $downstream"
-        ((affected_count++)) || true
+        affected_count=$((affected_count + 1))
       fi
     fi
   done < <(awk -v agent="$agent_slug" '
@@ -735,7 +773,7 @@ with open('$tmpidx', 'w') as f:
   echo ""
   ok "决策 #$id 已记录: $agent_slug / $type / $topic"
   ok "文件: $filename"
-  [[ -n "$affected" ]] && echo "  受影响方: $affected"
+  if [[ -n "$affected" ]]; then echo "  受影响方: $affected"; fi
 }
 
 # ── cmd_context ────────────────────────────────────────────────────────
