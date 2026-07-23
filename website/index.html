@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentGuild — Craft AI Teammates, Not Templates</title>
+<style>
+  /* ── Reset & Base ────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+      Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+    background: #0F0F12;
+    color: #E4E4E7;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  /* ── Typography ------------------------------------------------ */
+  h1, h2, h3, h4 { font-weight: 600; line-height: 1.2; }
+  h1 { font-size: clamp(2.4rem, 6vw, 4rem); }
+  h2 {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    text-align: center;
+    margin-bottom: 3rem;
+  }
+  p { color: #A1A1AA; max-width: 640px; }
+
+  /* ── Container ------------------------------------------------ */
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+
+  /* ── Buttons -------------------------------------------------- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 500;
+    font-size: 0.95rem; cursor: pointer; border: none;
+    transition: all 0.2s ease;
+  }
+  .btn-primary { background: #3B82F6; color: #fff; }
+  .btn-primary:hover { background: #2563EB; transform: translateY(-1px); }
+  .btn-ghost {
+    background: transparent; color: #A1A1AA; border: 1px solid #27272A;
+  }
+  .btn-ghost:hover { background: #18181B; color: #E4E4E7; }
+
+  /* ── Section --------------------------------------------------- */
+  section { padding: 5rem 0; }
+  section:nth-child(even) { background: #111115; }
+  .section-label {
+    display: inline-block;
+    font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #52525B; margin-bottom: 0.75rem;
+  }
+
+  /* ── Nav ─────────────────────────────────────────────────────── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(15,15,18,0.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid #18181B;
+  }
+  nav .container {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 0.75rem; padding-bottom: 0.75rem;
+  }
+  nav .logo {
+    font-weight: 700; font-size: 1.1rem; color: #E4E4E7;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  nav .logo span { color: #6366F1; }
+  nav ul { display: flex; gap: 1.5rem; list-style: none; }
+  nav ul a {
+    font-size: 0.875rem; color: #A1A1AA; transition: color 0.2s;
+  }
+  nav ul a:hover { color: #E4E4E7; }
+
+  /* ── Hero ────────────────────────────────────────────────────── */
+  .hero {
+    min-height: 80vh; display: flex; align-items: center;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 20% 60%, rgba(99,102,241,0.08), transparent),
+      radial-gradient(ellipse 500px 500px at 80% 30%, rgba(59,130,246,0.06), transparent);
+    pointer-events: none;
+  }
+  .hero .container { position: relative; text-align: center; }
+  .hero h1 { margin-bottom: 0.75rem; }
+  .hero h1 .accent {
+    background: linear-gradient(135deg, #6366F1, #3B82F6, #D946EF);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero .subtitle {
+    font-size: clamp(1rem, 2vw, 1.2rem); color: #71717A;
+    margin-bottom: 1.5rem; max-width: 600px; margin-left: auto; margin-right: auto;
+  }
+  .hero .description {
+    font-size: 1rem; color: #A1A1AA; max-width: 560px;
+    margin: 0 auto 2.5rem; line-height: 1.7;
+  }
+  .hero .actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+  .hero .badge-row {
+    display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap;
+    margin-top: 3rem;
+  }
+  .hero .badge-row .stat {
+    text-align: center;
+  }
+  .hero .badge-row .stat-num {
+    font-size: 1.5rem; font-weight: 700; color: #E4E4E7;
+  }
+  .hero .badge-row .stat-label {
+    font-size: 0.8rem; color: #71717A; margin-top: 0.15rem;
+  }
+
+  /* ── Agent Gallery ───────────────────────────────────────────── */
+  .gallery h2 { margin-bottom: 2rem; }
+
+  .division-group { margin-bottom: 3.5rem; }
+  .division-group:last-child { margin-bottom: 0; }
+
+  .division-header {
+    display: flex; align-items: center; gap: 0.75rem;
+    margin-bottom: 1.5rem; padding-bottom: 0.75rem;
+    border-bottom: 2px solid;
+  }
+  .division-header h3 { font-size: 1.3rem; font-weight: 600; }
+  .division-header .count {
+    font-size: 0.8rem; font-weight: 500; opacity: 0.6;
+    margin-left: auto;
+  }
+
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .agent-card {
+    background: #18181B; border: 1px solid #27272A;
+    border-radius: 12px; padding: 1.5rem;
+    transition: all 0.25s ease; cursor: default;
+    display: flex; flex-direction: column;
+  }
+  .agent-card:hover {
+    border-color: #3F3F46; transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .agent-card .card-top {
+    display: flex; align-items: flex-start; gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .agent-card .emoji {
+    font-size: 1.6rem; line-height: 1; flex-shrink: 0;
+    width: 2.2rem; text-align: center;
+  }
+  .agent-card .card-info { flex: 1; min-width: 0; }
+  .agent-card .card-name {
+    font-weight: 600; font-size: 1rem; color: #E4E4E7;
+  }
+  .agent-card .card-short {
+    font-size: 0.8rem; color: #71717A; margin-top: 0.1rem;
+  }
+  .agent-card .badge {
+    display: inline-block;
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em; padding: 0.2rem 0.55rem; border-radius: 4px;
+    background: #27272A; color: #A1A1AA; flex-shrink: 0;
+    margin-left: auto; margin-top: 0.15rem;
+  }
+  .badge-beginner { background: rgba(34,197,94,0.12); color: #4ADE80; }
+  .badge-intermediate { background: rgba(251,191,36,0.12); color: #FBBF24; }
+  .badge-advanced { background: rgba(239,68,68,0.12); color: #F87171; }
+
+  .agent-card .card-desc {
+    font-size: 0.85rem; color: #A1A1AA; line-height: 1.5;
+    margin-bottom: 0.75rem;
+  }
+  .agent-card .contrarian-label {
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; margin-bottom: 0.35rem;
+  }
+  .agent-card .contrarian-quote {
+    font-size: 0.82rem; line-height: 1.5; color: #D4D4D8;
+    font-style: italic; position: relative; padding-left: 0.75rem;
+    border-left: 2px solid;
+  }
+
+  /* ── Quick Start ─────────────────────────────────────────────── */
+  .quickstart { text-align: center; }
+  .quickstart p { margin: 0 auto 1.5rem; }
+  .code-block {
+    display: inline-flex; align-items: center; gap: 0.75rem;
+    background: #18181B; border: 1px solid #27272A;
+    border-radius: 10px; padding: 0.75rem 1rem;
+    font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono",
+      "Cascadia Code", Consolas, monospace;
+    font-size: 0.9rem; color: #E4E4E7; max-width: 100%;
+    overflow-x: auto; white-space: nowrap;
+  }
+  .code-block .prompt { color: #52525B; user-select: none; }
+  .code-block .cmd { color: #A1A1AA; }
+  .code-block .flag { color: #818CF8; }
+  .copy-btn {
+    flex-shrink: 0;
+    background: #27272A; border: 1px solid #3F3F46;
+    color: #A1A1AA; cursor: pointer; border-radius: 6px;
+    padding: 0.3rem 0.7rem; font-size: 0.75rem; font-weight: 500;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover { background: #3F3F46; color: #E4E4E7; }
+  .copy-btn.copied { background: rgba(34,197,94,0.15); color: #4ADE80; border-color: #4ADE80; }
+
+  .qs-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 2.5rem; text-align: left; }
+  .qs-step { background: #18181B; border: 1px solid #27272A; border-radius: 10px; padding: 1.25rem; }
+  .qs-step .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.75rem; height: 1.75rem; border-radius: 50%;
+    font-size: 0.8rem; font-weight: 700; margin-bottom: 0.75rem;
+  }
+  .qs-step h4 { font-size: 0.95rem; margin-bottom: 0.4rem; }
+  .qs-step p { font-size: 0.82rem; color: #71717A; max-width: none; }
+
+  /* ── Installation ────────────────────────────────────────────── */
+  .install { text-align: center; }
+  .install > p { margin: 0 auto 2rem; }
+
+  .tabs {
+    display: flex; justify-content: center; gap: 0.25rem;
+    background: #18181B; border-radius: 10px; padding: 0.25rem;
+    max-width: 500px; margin: 0 auto 2rem; border: 1px solid #27272A;
+    flex-wrap: wrap;
+  }
+  .tabs button {
+    flex: 1; min-width: 100px;
+    padding: 0.6rem 1rem; border: none; background: transparent;
+    color: #71717A; font-size: 0.85rem; font-weight: 500;
+    border-radius: 8px; cursor: pointer; transition: all 0.2s;
+    font-family: inherit;
+  }
+  .tabs button.active {
+    background: #27272A; color: #E4E4E7;
+  }
+  .tabs button:hover:not(.active) { color: #A1A1AA; }
+
+  .tab-content { display: none; text-align: left; max-width: 600px; margin: 0 auto; }
+  .tab-content.active { display: block; }
+  .tab-content .code-block { display: flex; width: 100%; }
+  .tab-content .cmd-desc {
+    font-size: 0.88rem; color: #A1A1AA; margin-bottom: 1rem; max-width: none;
+  }
+
+  /* ── Different ───────────────────────────────────────────────── */
+  .different .dim-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.25rem;
+  }
+  .different .dim-card {
+    background: #18181B; border: 1px solid #27272A;
+    border-radius: 12px; padding: 1.5rem;
+    transition: border-color 0.2s;
+  }
+  .different .dim-card:hover { border-color: #3F3F46; }
+  .different .dim-card h4 { font-size: 1rem; margin-bottom: 0.4rem; }
+  .different .dim-card p {
+    font-size: 0.85rem; color: #71717A; max-width: none;
+  }
+  .different .dim-card .dim-icon {
+    font-size: 1.4rem; margin-bottom: 0.5rem; display: block;
+  }
+
+  /* ── Footer ──────────────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid #18181B; padding: 2rem 0;
+    text-align: center; font-size: 0.82rem; color: #52525B;
+  }
+
+  /* ── Responsive ──────────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    section { padding: 3rem 0; }
+    .agent-grid { grid-template-columns: 1fr; }
+    nav ul { display: none; }
+    .hero { min-height: 60vh; }
+    .qs-steps { grid-template-columns: 1fr; }
+    .different .dim-grid { grid-template-columns: 1fr; }
+    .tabs button { min-width: 80px; font-size: 0.8rem; padding: 0.5rem 0.75rem; }
+  }
+  @media (max-width: 480px) {
+    .hero .badge-row { gap: 1rem; }
+    .code-block { font-size: 0.78rem; padding: 0.6rem 0.75rem; flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Navigation ─────────────────────────────────────────── -->
+<nav>
+  <div class="container">
+    <div class="logo"><span>AG</span>AgentGuild</div>
+    <ul>
+      <li><a href="#agents">Agents</a></li>
+      <li><a href="#quickstart">Quick Start</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#different">Approach</a></li>
+    </ul>
+    <a href="#quickstart" class="btn btn-primary" style="padding:0.5rem 1rem;font-size:0.85rem;">Get Started</a>
+  </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="container">
+    <h1>Agent<span class="accent">Guild</span></h1>
+    <p class="subtitle">Craft AI Teammates, Not Templates</p>
+    <p class="description">
+      AgentGuild is an open-source framework for authoring AI agent identities —
+      purpose-built personas with opinions, constraints, and craft standards.
+      From frontend engineers to creative directors, each agent ships with a
+      Contrarian Take, conflict preferences, and decision authority that make
+      them feel like real colleagues.
+    </p>
+    <div class="actions">
+      <a href="#quickstart" class="btn btn-primary">Quick Start</a>
+      <a href="https://github.com/agentguild/agentguild" target="_blank" class="btn btn-ghost">GitHub</a>
+    </div>
+    <div class="badge-row">
+      <div class="stat"><div class="stat-num">12</div><div class="stat-label">Agents</div></div>
+      <div class="stat"><div class="stat-num">4</div><div class="stat-label">Tool Integrations</div></div>
+      <div class="stat"><div class="stat-num">3</div><div class="stat-label">Divisions</div></div>
+      <div class="stat"><div class="stat-num">0</div><div class="stat-label">Dependencies</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Agent Gallery ───────────────────────────────────────── -->
+<section id="agents">
+  <div class="container">
+    <h2>Meet the Guild</h2>
+
+    <!-- Engineering -->
+    <div class="division-group">
+      <div class="division-header" style="border-color:#3B82F6;">
+        <h3 style="color:#3B82F6;">Engineering</h3>
+        <span class="count">4 agents</span>
+      </div>
+      <div class="agent-grid">
+
+        <div class="agent-card" style="border-color:#1E293B;">
+          <div class="card-top">
+            <span class="emoji">🖥️</span>
+            <div class="card-info">
+              <div class="card-name">Frontend Engineer</div>
+              <div class="card-short">前端工程师</div>
+            </div>
+            <span class="badge badge-advanced" style="background:rgba(59,130,246,0.12);color:#60A5FA;">advanced</span>
+          </div>
+          <p class="card-desc">UI architecture, performance optimization, and design-system engineering.</p>
+          <div class="contrarian-label" style="color:#3B82F6;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#3B82F6;">
+            Framework choice is the least important architectural decision your team will make.
+            React vs Vue vs Svelte debates consume weeks of engineering time while masking the real questions —
+            are your components independently testable?
+          </div>
+        </div>
+
+        <div class="agent-card" style="border-color:#1E293B;">
+          <div class="card-top">
+            <span class="emoji">🗄️</span>
+            <div class="card-info">
+              <div class="card-name">Backend Architect</div>
+              <div class="card-short">后端架构师</div>
+            </div>
+            <span class="badge badge-advanced" style="background:rgba(59,130,246,0.12);color:#60A5FA;">advanced</span>
+          </div>
+          <p class="card-desc">API design, data modeling, authentication, and service reliability.</p>
+          <div class="contrarian-label" style="color:#3B82F6;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#3B82F6;">
+            Microservices are over-prescribed by a wide margin. Most teams with fewer than 50 engineers
+            do not have the organizational complexity to justify them — what they have is a modularity
+            problem that a well-structured monolith solves better.
+          </div>
+        </div>
+
+        <div class="agent-card" style="border-color:#1E293B;">
+          <div class="card-top">
+            <span class="emoji">🚀</span>
+            <div class="card-info">
+              <div class="card-name">DevOps Engineer</div>
+              <div class="card-short">DevOps 工程师</div>
+            </div>
+            <span class="badge badge-advanced" style="background:rgba(59,130,246,0.12);color:#60A5FA;">advanced</span>
+          </div>
+          <p class="card-desc">CI/CD, infrastructure, monitoring, incident response, and reliability.</p>
+          <div class="contrarian-label" style="color:#3B82F6;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#3B82F6;">
+            CI/CD pipelines that take longer than 10 minutes are broken, not thorough. I have seen teams
+            celebrate their 45-minute test suites as "comprehensive" when what they actually have is a
+            design failure.
+          </div>
+        </div>
+
+        <div class="agent-card" style="border-color:#1E293B;">
+          <div class="card-top">
+            <span class="emoji">🤖</span>
+            <div class="card-info">
+              <div class="card-name">AI Engineer</div>
+              <div class="card-short">AI 工程师</div>
+            </div>
+            <span class="badge badge-advanced" style="background:rgba(59,130,246,0.12);color:#60A5FA;">advanced</span>
+          </div>
+          <p class="card-desc">Model selection, prompt architecture, evaluation, and AI feature design.</p>
+          <div class="contrarian-label" style="color:#3B82F6;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#3B82F6;">
+            The best AI feature is often the one you do not build. Before adding "AI-powered" to anything,
+            I insist on asking a simple question: what is the user actually trying to accomplish?
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Product -->
+    <div class="division-group">
+      <div class="division-header" style="border-color:#D946EF;">
+        <h3 style="color:#D946EF;">Product</h3>
+        <span class="count">4 agents</span>
+      </div>
+      <div class="agent-grid">
+
+        <div class="agent-card" style="border-color:#2D1B2E;">
+          <div class="card-top">
+            <span class="emoji">📋</span>
+            <div class="card-info">
+              <div class="card-name">Product Manager</div>
+              <div class="card-short">产品经理</div>
+            </div>
+            <span class="badge badge-intermediate" style="background:rgba(217,70,239,0.12);color:#E879F9;">intermediate</span>
+          </div>
+          <p class="card-desc">Problem definition, prioritization, and scope management for product teams.</p>
+          <div class="contrarian-label" style="color:#D946EF;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#D946EF;">
+            Most "MVP" products are neither minimal nor viable. They're bloated with features that one
+            stakeholder demanded but no user asked for.
+          </div>
+        </div>
+
+        <div class="agent-card" style="border-color:#2D1B2E;">
+          <div class="card-top">
+            <span class="emoji">🔍</span>
+            <div class="card-info">
+              <div class="card-name">UX Researcher</div>
+              <div class="card-short">用户研究员</div>
+            </div>
+            <span class="badge badge-intermediate" style="background:rgba(217,70,239,0.12);color:#E879F9;">intermediate</span>
+          </div>
+          <p class="card-desc">User research methodology, insight validation, and behavioral analysis.</p>
+          <div class="contrarian-label" style="color:#D946EF;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#D946EF;">
+            User interviews produce more misleading data than no data at all — if done poorly. The most
+            common failure mode is confirmation bias disguised as discovery.
+          </div>
+        </div>
+
+        <div class="agent-card" style="border-color:#2D1B2E;">
+          <div class="card-top">
+            <span class="emoji">📊</span>
+            <div class="card-info">
+              <div class="card-name">Data Analyst</div>
+              <div class="card-short">数据分析师</div>
+            </div>
+            <span class="badge badge-intermediate" style="background:rgba(217,70,239,0.12);color:#E879F9;">intermediate</span>
+          </div>
+          <p class="card-desc">Metric definition, statistical analysis, and evidence-based decision support.</p>
+          <div class="contrarian-label" style="color:#D946EF;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#D946EF;">
+            Most "data-driven" decisions are actually intuition-driven decisions looking for post-hoc data
+            support. If you have already decided what to build before looking at the data, you are not
+            doing analysis.
+          </div>
+        </div>
+
+        <div class="agent-card" style="border-color:#2D1B2E;">
+          <div class="card-top">
+            <span class="emoji">📝</span>
+            <div class="card-info">
+              <div class="card-name">Tech Writer</div>
+              <div class="card-short">技术文档工程师</div>
+            </div>
+            <span class="badge badge-beginner" style="background:rgba(52,211,153,0.12);color:#34D399;">beginner</span>
+          </div>
+          <p class="card-desc">API documentation, naming consistency, and information architecture.</p>
+          <div class="contrarian-label" style="color:#D946EF;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#D946EF;">
+            Documentation that is written after the code is always wrong. By the time you "circle back to
+            document," the API has already changed twice, the PM has renamed three features, and the
+            original developer has forgotten why.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Design -->
+    <div class="division-group">
+      <div class="division-header" style="border-color:#EC4899;">
+        <h3 style="color:#EC4899;">Design</h3>
+        <span class="count">4 agents</span>
+      </div>
+      <div class="agent-grid">
+
+        <div class="agent-card" style="border-color:#2D1B2E;">
+          <div class="card-top">
+            <span class="emoji">🎨</span>
+            <div class="card-info">
+              <div class="card-name">UI Designer</div>
+              <div class="card-short">UI 设计师</div>
+            </div>
+            <span class="badge badge-intermediate" style="background:rgba(236,72,153,0.12);color:#F472B6;">intermediate</span>
+          </div>
+          <p class="card-desc">Visual design systems, layout, color, typography, and deliberate inconsistency.</p>
+          <div class="contrarian-label" style="color:#EC4899;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#EC4899;">
+            Consistency is overrated. Yes, design systems matter. But dogmatic consistency produces
+            homogenous, forgettable interfaces. The best designs know exactly when to break the system.
+          </div>
+        </div>
+
+        <div class="agent-card" style="border-color:#2D1B2E;">
+          <div class="card-top">
+            <span class="emoji">🛡️</span>
+            <div class="card-info">
+              <div class="card-name">Brand Guardian</div>
+              <div class="card-short">品牌守护者</div>
+            </div>
+            <span class="badge badge-advanced" style="background:rgba(236,72,153,0.12);color:#F472B6;">advanced</span>
+          </div>
+          <p class="card-desc">Brand identity, tone consistency, and visual identity governance across touchpoints.</p>
+          <div class="contrarian-label" style="color:#EC4899;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#EC4899;">
+            Rebranding is the most expensive way to avoid fixing your product. When a company says
+            "we need a rebrand," 90% of the time what they actually need is a better product experience.
+          </div>
+        </div>
+
+        <div class="agent-card" style="border-color:#2D1B2E;">
+          <div class="card-top">
+            <span class="emoji">🎬</span>
+            <div class="card-info">
+              <div class="card-name">Interaction Designer</div>
+              <div class="card-short">交互设计师</div>
+            </div>
+            <span class="badge badge-advanced" style="background:rgba(236,72,153,0.12);color:#F472B6;">advanced</span>
+          </div>
+          <p class="card-desc">Motion design, micro-interactions, transitions, and interaction choreography.</p>
+          <div class="contrarian-label" style="color:#EC4899;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#EC4899;">
+            Most animation in software is self-indulgent. If your transition doesn't help the user
+            understand what just happened, where they are now, or what they can do next — remove it.
+          </div>
+        </div>
+
+        <div class="agent-card" style="border-color:#2D1B2E;">
+          <div class="card-top">
+            <span class="emoji">🎯</span>
+            <div class="card-info">
+              <div class="card-name">Creative Director</div>
+              <div class="card-short">创意指导</div>
+            </div>
+            <span class="badge badge-advanced" style="background:rgba(236,72,153,0.12);color:#F472B6;">advanced</span>
+          </div>
+          <p class="card-desc">Aesthetic direction, quality bar enforcement, and design critique authority.</p>
+          <div class="contrarian-label" style="color:#EC4899;">Contrarian Take</div>
+          <div class="contrarian-quote" style="border-color:#EC4899;">
+            Design by committee produces exactly the quality you'd expect from a committee: the safest
+            possible choice that offends no one and delights no one. Great design requires someone with
+            the authority to say 'this isn't good enough.'
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── Quick Start ─────────────────────────────────────────── -->
+<section id="quickstart" style="background:#111115;">
+  <div class="container">
+    <div class="quickstart">
+      <span class="section-label">Quick Start</span>
+      <h2>Get started in seconds</h2>
+      <p>Clone the repo and install agents into your AI tool. No build step, no dependencies.</p>
+      <div class="code-block" id="install-command">
+        <span class="prompt">$</span>
+        <span class="cmd">./scripts/install.sh</span>
+        <span class="flag">--tool claude-code</span>
+        <button class="copy-btn" onclick="copyCommand()">Copy</button>
+      </div>
+      <div class="qs-steps">
+        <div class="qs-step">
+          <div class="step-num" style="background:rgba(59,130,246,0.12);color:#60A5FA;">1</div>
+          <h4>Clone</h4>
+          <p>Clone the AgentGuild repository to your local machine.</p>
+        </div>
+        <div class="qs-step">
+          <div class="step-num" style="background:rgba(59,130,246,0.12);color:#60A5FA;">2</div>
+          <h4>Convert</h4>
+          <p>Run <code style="font-size:0.82rem;background:#27272A;padding:0.1rem 0.35rem;border-radius:3px;">./scripts/convert.sh</code> to generate integration files.</p>
+        </div>
+        <div class="qs-step">
+          <div class="step-num" style="background:rgba(59,130,246,0.12);color:#60A5FA;">3</div>
+          <h4>Install</h4>
+          <p>Run <code style="font-size:0.82rem;background:#27272A;padding:0.1rem 0.35rem;border-radius:3px;">./scripts/install.sh --tool &lt;name&gt;</code> to activate agents.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Installation ────────────────────────────────────────── -->
+<section id="install">
+  <div class="container">
+    <div class="install">
+      <span class="section-label">Installation</span>
+      <h2>One command per tool</h2>
+      <p>AgentGuild supports four AI coding assistants. Pick yours.</p>
+
+      <div class="tabs" role="tablist">
+        <button class="active" data-tab="tab-claude" role="tab" onclick="switchTab('tab-claude')">Claude Code</button>
+        <button data-tab="tab-cursor" role="tab" onclick="switchTab('tab-cursor')">Cursor</button>
+        <button data-tab="tab-copilot" role="tab" onclick="switchTab('tab-copilot')">Copilot</button>
+        <button data-tab="tab-windsurf" role="tab" onclick="switchTab('tab-windsurf')">Windsurf</button>
+      </div>
+
+      <div id="tab-claude" class="tab-content active">
+        <p class="cmd-desc">Install all agents as <strong>Claude Code</strong> agent identities. Each agent becomes a custom Claude mode you can invoke directly.</p>
+        <div class="code-block">
+          <span class="prompt">$</span>
+          <span class="cmd">./scripts/install.sh</span>
+          <span class="flag">--tool claude-code</span>
+          <button class="copy-btn" onclick="copyText(this, './scripts/install.sh --tool claude-code')">Copy</button>
+        </div>
+      </div>
+
+      <div id="tab-cursor" class="tab-content">
+        <p class="cmd-desc">Install as <strong>Cursor</strong> rules (.mdc format). Agents appear as composable cursor rules for AI-assisted editing.</p>
+        <div class="code-block">
+          <span class="prompt">$</span>
+          <span class="cmd">./scripts/install.sh</span>
+          <span class="flag">--tool cursor</span>
+          <button class="copy-btn" onclick="copyText(this, './scripts/install.sh --tool cursor')">Copy</button>
+        </div>
+      </div>
+
+      <div id="tab-copilot" class="tab-content">
+        <p class="cmd-desc">Install as <strong>GitHub Copilot</strong> agent definitions. Agents are added to your Copilot configuration for inline assistance.</p>
+        <div class="code-block">
+          <span class="prompt">$</span>
+          <span class="cmd">./scripts/install.sh</span>
+          <span class="flag">--tool copilot</span>
+          <button class="copy-btn" onclick="copyText(this, './scripts/install.sh --tool copilot')">Copy</button>
+        </div>
+      </div>
+
+      <div id="tab-windsurf" class="tab-content">
+        <p class="cmd-desc">Install as <strong>Windsurf</strong> rules. All agents are compiled into a single .windsurfrules file for comprehensive AI support.</p>
+        <div class="code-block">
+          <span class="prompt">$</span>
+          <span class="cmd">./scripts/install.sh</span>
+          <span class="flag">--tool windsurf</span>
+          <button class="copy-btn" onclick="copyText(this, './scripts/install.sh --tool windsurf')">Copy</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── What Makes AgentGuild Different ─────────────────────── -->
+<section id="different" style="background:#111115;">
+  <div class="container">
+    <div class="different">
+      <span class="section-label">Philosophy</span>
+      <h2>What Makes AgentGuild Different</h2>
+      <p style="text-align:center;margin:0 auto 2.5rem;max-width:580px;">
+        Most AI agents are generic prompt templates. AgentGuild agents are designed
+        personas with structured opinions, boundaries, and autonomy.
+      </p>
+
+      <div class="dim-grid">
+        <div class="dim-card">
+          <span class="dim-icon">💭</span>
+          <h4>Contrarian Take</h4>
+          <p>
+            Every agent ships with a strong, well-reasoned opinion that challenges industry
+            orthodoxy. Not for shock value — to spark better decisions by forcing teams to
+            defend their assumptions. A DevOps engineer who insists CI should be under 10
+            minutes. A PM who says most MVPs are neither minimal nor viable.
+          </p>
+        </div>
+        <div class="dim-card">
+          <span class="dim-icon">⚡</span>
+          <h4>Conflict Preferences</h4>
+          <p>
+            Agents don't just agree — they push back. Each has defined conflict styles:
+            when to escalate, when to compromise, and what warrants a hard veto. A brand
+            guardian will block a growth hack that trades long-term trust for short-term
+            metrics. That's not disagreement — it's the system working as designed.
+          </p>
+        </div>
+        <div class="dim-card">
+          <span class="dim-icon">👁️</span>
+          <h4>Blind Spots</h4>
+          <p>
+            Every agent knows what it's bad at. Blind spots are explicit — a data analyst
+            who overlooks qualitative signals, a UI designer who prioritizes aesthetics over
+            accessibility. By surfacing limitations, the framework turns weaknesses into
+            pairing opportunities and prevents overreach.
+          </p>
+        </div>
+        <div class="dim-card">
+          <span class="dim-icon">🎯</span>
+          <h4>Decision Authority</h4>
+          <p>
+            Not all opinions are equal. Each agent has a defined zone of autonomy — a
+            creative director's taste call overrides consensus, a tech writer's naming
+            conventions are binding. Decision authority eliminates death-by-committee and
+            gives every agent clear ownership boundaries.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ──────────────────────────────────────────────── -->
+<footer>
+  <div class="container">
+    <p>AgentGuild &mdash; MIT Licensed &middot; Open Source &middot; Craft AI Teammates, Not Templates</p>
+  </div>
+</footer>
+
+<!-- ── Scripts ─────────────────────────────────────────────── -->
+<script>
+// Copy hero command
+function copyCommand() {
+  const text = './scripts/install.sh --tool claude-code';
+  const btn = document.querySelector('#install-command .copy-btn');
+  copyText(btn, text);
+}
+
+// Generic copy helper
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+// Tab switching
+function switchTab(tabId) {
+  // Deactivate all
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  // Activate selected
+  document.getElementById(tabId).classList.add('active');
+  document.querySelector(`.tabs button[data-tab="${tabId}"]`).classList.add('active');
+}
+</script>
+
+</body>
+</html>
