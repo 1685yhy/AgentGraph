@@ -10,7 +10,9 @@
   "divisions": {
     "engineering": { "label": "Engineering", "icon": "Code", "color": "#3B82F6" },
     "product": { "label": "Product", "icon": "Box", "color": "#D946EF" },
-    "design": { "label": "Design", "icon": "PenTool", "color": "#EC4899" }
+    "design": { "label": "Design", "icon": "PenTool", "color": "#EC4899" },
+    "testing": { "label": "Testing", "icon": "Bug", "color": "#F59E0B" },
+    "marketing": { "label": "Marketing", "icon": "TrendingUp", "color": "#F97316" }
   },
   "tools": {
     "claude-code": {
@@ -42,6 +44,12 @@
     { "slug": "ui-designer", "division": "design", "file": "agents/design/ui-designer.md" },
     { "slug": "brand-guardian", "division": "design", "file": "agents/design/brand-guardian.md" },
     { "slug": "interaction-designer", "division": "design", "file": "agents/design/interaction-designer.md" },
-    { "slug": "creative-director", "division": "design", "file": "agents/design/creative-director.md" }
+    { "slug": "creative-director", "division": "design", "file": "agents/design/creative-director.md" },
+    { "slug": "qa-engineer", "division": "testing", "file": "agents/testing/qa-engineer.md" },
+    { "slug": "performance-tester", "division": "testing", "file": "agents/testing/performance-tester.md" },
+    { "slug": "accessibility-auditor", "division": "testing", "file": "agents/testing/accessibility-auditor.md" },
+    { "slug": "growth-hacker", "division": "marketing", "file": "agents/marketing/growth-hacker.md" },
+    { "slug": "content-creator", "division": "marketing", "file": "agents/marketing/content-creator.md" },
+    { "slug": "social-media-strategist", "division": "marketing", "file": "agents/marketing/social-media-strategist.md" }
   ]
 }
