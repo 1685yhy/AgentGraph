@@ -1,0 +1,19 @@
+---
+name: 产品迭代
+description: 收集反馈 → 修复 → 验证 → 部署的持续迭代流水线
+phases:
+  - phase: 反馈收集
+    agents: [customer-support, game-qa-engineer, data-analyst]
+    delivers: [bug报告, 用户反馈摘要, 优先级排序]
+  - phase: 修复
+    agents: [game-programmer, frontend-engineer, game-designer]
+    requires_from: 反馈收集
+    delivers: [修复代码, 更新日志, 回归测试]
+  - phase: 验证
+    agents: [game-qa-engineer, performance-tester, accessibility-auditor]
+    requires_from: 修复
+    delivers: [验证报告, 性能对比, 无障碍审计]
+  - phase: 发布
+    agents: [game-producer, devops-engineer, creative-director]
+    requires_from: 验证
+    delivers: [发布版本, 发布说明, 监控仪表盘]

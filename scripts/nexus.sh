@@ -3,13 +3,18 @@
 # nexus.sh — AgentGuild Handoff Engine CLI
 #
 # Usage:
-#   guild handoff  --from <agent> --to <agent> --path <dir> [--message <msg>]
-#   guild check    --handoff <id>
-#   guild status   [--agent <name>] [--status incomplete|ready|accepted]
-#   guild accept   --handoff <id> --as <agent>
-#   guild list     [--contracts] [--handoffs]
-#   guild decide   --agent <name> --type <type> --topic <topic> [options]
-#   guild context  [show|check]
+#   guild handoff   --from <agent> --to <agent> --path <dir> [--message <msg>]
+#   guild check     --handoff <id>
+#   guild status    [--agent <name>] [--status incomplete|needs_fix|ready|accepted]
+#   guild accept    --handoff <id> --as <agent>
+#   guild verify    --type <type> --file <path> | --path <dir> | --handoff <id>
+#   guild feedback  --handoff <id> --type bug|improvement --summary "..."
+#   guild feedback  --list [--handoff <id>] [--status open|fixed]
+#   guild feedback  --fix <fb-id> --handoff <id>
+#   guild changelog [--since <version|date>]
+#   guild list      [--contracts] [--handoffs]
+#   guild decide    --agent <name> --type <type> --topic <topic> [options]
+#   guild context   [show|check]
 #
 # guild is an alias: ln -s scripts/nexus.sh guild
 
@@ -24,6 +29,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONTRACTS="$REPO_ROOT/contracts/guild-contracts.yml"
 HANDOFFS_DIR="$REPO_ROOT/handoffs"
 CONFIG="$REPO_ROOT/guild.config.json"
+FEEDBACK_DIR="$REPO_ROOT/context/feedback"
 
 # ── Helpers ────────────────────────────────────────────────────────
 
@@ -106,6 +112,162 @@ get_requires() {
       if (current_from != "") print current_from "|" current_name "|" r
     }
   ' "$CONTRACTS"
+}
+
+# ── File type detection ─────────────────────────────────────────────
+
+# detect_type <file> — return file type based on extension.
+detect_type() {
+  local file="$1"
+  local ext="${file##*.}"
+  case "$(echo "$ext" | tr '[:upper:]' '[:lower:]')" in
+    html|htm) echo "html";;
+    md|markdown) echo "md";;
+    sh|bash) echo "sh";;
+    json) echo "json";;
+    yml|yaml) echo "yaml";;
+    css) echo "css";;
+    js|mjs|cjs) echo "js";;
+    ts|tsx) echo "ts";;
+    py) echo "py";;
+    *) echo "";;
+  esac
+}
+
+# verify_file <type> <path> — run quality checks on a single file.
+verify_file() {
+  local type="$1" path="$2"
+  [[ -f "$path" ]] || { err "文件不存在: $path"; return 1; }
+  [[ -s "$path" ]] || { err "空文件: $path"; return 1; }
+
+  # UTF-8 validity check
+  if ! iconv -f UTF-8 -t UTF-8 "$path" >/dev/null 2>&1; then
+    err "不是有效的 UTF-8 编码"; return 1;
+  fi
+
+  # BOM check
+  if head -1 "$path" | grep -q $'\xEF\xBB\xBF' 2>/dev/null; then
+    err "包含 BOM 头（建议移除）"; return 1;
+  fi
+
+  case "$type" in
+    html)
+      local errors=0
+      # <script> must have closing tag
+      if grep -qi '<script' "$path" && ! grep -qi '</script>' "$path"; then
+        err "缺少 </script> 闭合标签"; errors=1
+      fi
+      # viewport meta required for mobile
+      if ! grep -qi 'viewport' "$path"; then
+        err "缺少 viewport meta 标签（移动端适配必需）"; errors=1
+      fi
+      # console.error pattern check
+      if grep -q 'console\.error' "$path"; then
+        warn "检测到 console.error 调用"
+      fi
+      # event binding check
+      if ! grep -q 'addEventListener\|onclick\|onchange\|onsubmit' "$path"; then
+        warn "未检测到事件绑定（如果页面需要交互请确认）"
+      fi
+      [[ $errors -eq 0 ]] && return 0 || return 1
+      ;;
+    md)
+      # Check frontmatter completeness
+      if head -1 "$path" | grep -q '^---$'; then
+        local fm_end; fm_end=$(tail -n+2 "$path" | grep -n '^---$' | head -1 | cut -d: -f1)
+        if [[ -z "$fm_end" ]]; then
+          warn "frontmatter 未闭合"
+        fi
+      fi
+      # Check for broken local links
+      while IFS= read -r link; do
+        local url; url=$(printf '%s' "$link" | sed -n 's/.*\[[^]]*\](\([^)]*\)).*/\1/p')
+        [[ -z "$url" ]] && continue
+        echo "$url" | grep -qE '^https?://|^#|^/' && continue
+        local base_dir; base_dir="$(dirname "$path")"
+        if echo "$url" | grep -qE '\.md$|\.html$' && [[ ! -f "$base_dir/$url" ]]; then
+          warn "可能断开的本地链接: $url"
+        fi
+      done < <(grep -oP '\[[^\]]+\]\([^)]+\)' "$path" 2>/dev/null || true)
+      return 0
+      ;;
+    sh)
+      local errors=0
+      if ! bash -n "$path" 2>/dev/null; then
+        err "bash 语法检查失败"; errors=1
+      fi
+      # Check for rm -rf with variable
+      if grep -q 'rm -rf.*\$' "$path" 2>/dev/null; then
+        warn "使用 rm -rf + 变量（请确认路径安全）"
+      fi
+      [[ $errors -eq 0 ]] && return 0 || return 1
+      ;;
+    json)
+      if ! python3 -c "import json,sys; json.load(open('$path'))" 2>/dev/null; then
+        err "JSON 格式错误"; return 1
+      fi
+      return 0
+      ;;
+    yaml|yml)
+      if command -v python3 >/dev/null 2>&1; then
+        python3 -c "
+import json, sys
+try:
+    # Try JSON first (valid JSON is also valid YAML)
+    json.load(open('$path'))
+except:
+    # Need yaml lib — skip if not available, it's optional
+    pass
+" 2>/dev/null || true
+      fi
+      return 0
+      ;;
+    css)
+      local opens; opens=$(grep -c '{' "$path" 2>/dev/null || echo 0)
+      local closes; closes=$(grep -c '}' "$path" 2>/dev/null || echo 0)
+      if [[ "$opens" -ne "$closes" ]]; then
+        err "CSS 大括号不匹配（{ $opens / } $closes）"; return 1
+      fi
+      return 0
+      ;;
+    js|ts)
+      if command -v node >/dev/null 2>&1; then
+        if ! node --check "$path" 2>/dev/null; then
+          err "JavaScript 语法错误"; return 1
+        fi
+      fi
+      return 0
+      ;;
+    py)
+      if command -v python3 >/dev/null 2>&1; then
+        if ! python3 -c "import ast; ast.parse(open('$path').read())" 2>/dev/null; then
+          err "Python 语法错误"; return 1
+        fi
+      fi
+      return 0
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+# verify_directory <path> — run verify on all files in a directory.
+verify_directory() {
+  local path="$1"
+  local any_failed=false
+  while IFS= read -r -d '' f; do
+    local vtype; vtype=$(detect_type "$f")
+    if [[ -n "$vtype" ]]; then
+      if verify_file "$vtype" "$f"; then
+        echo "    ✅ $(basename "$f"): 通过"
+      else
+        any_failed=true
+        echo "    ❌ $(basename "$f"): 质量检查未通过"
+      fi
+    fi
+  done < <(find "$path" -type f -print0 2>/dev/null)
+  $any_failed && return 1 || return 0
 }
 
 # scan_artifacts <path> <requirements-list> — match files to required items
@@ -262,12 +424,47 @@ print('  记录: ' + '$json_file')
 JSONFALLBACK
   }
 
+  # Auto-verify deliverable quality (only if completeness passed)
+  echo ""
+  echo "  质量验证..."
+  local verify_failed=false
+  local is_ready; is_ready=false
+  grep -q '"status": "ready"' "$json_file" 2>/dev/null && is_ready=true
+
+  while IFS= read -r -d '' f; do
+    local vtype; vtype=$(detect_type "$f")
+    if [[ -n "$vtype" ]]; then
+      if verify_file "$vtype" "$f"; then
+        echo "    ✅ $(basename "$f"): 通过"
+      else
+        verify_failed=true
+        echo "    ❌ $(basename "$f"): 质量检查未通过"
+      fi
+    fi
+  done < <(find "$path" -type f -print0 2>/dev/null)
+
+  if $verify_failed; then
+    if $is_ready; then
+      sed -i 's/"status": "ready"/"status": "needs_fix"/' "$json_file"
+      is_ready=false
+    fi
+    echo ""
+    echo "  ⚠️  状态已更新为 needs_fix（交付物存在但质量检查未通过）"
+  else
+    echo ""
+    echo "  ✓ 质量验证通过"
+  fi
+
   # Auto-notify receiver's inbox
   local status_text
-  if grep -q '"status": "ready"' "$json_file" 2>/dev/null; then
+  if $is_ready; then
     status_text="$from_slug 创建了交接 #$id，所有交付物已就绪"
   else
-    status_text="$from_slug 创建了交接 #$id，存在缺失项待补充"
+    if $verify_failed; then
+      status_text="$from_slug 创建了交接 #$id，交付物存在但质量检查未通过"
+    else
+      status_text="$from_slug 创建了交接 #$id，存在缺失项待补充"
+    fi
   fi
   add_inbox_item "$to_slug" "handoff_incoming" "$from_slug" \
     "handoff_id=$id" \
@@ -402,6 +599,7 @@ print(d['id'], d['from'], d['to'], d['status'], d['timestamp'][:19])
     case "$status" in
       ready) icon="✅";;
       incomplete) icon="⚠️";;
+      needs_fix) icon="🔧";;
       accepted) icon="✔️";;
       *) icon="📋";;
     esac
@@ -447,6 +645,81 @@ cmd_accept() {
   [[ -f "$json_file" ]] || die "Handoff #$id not found"
 
   echo "接收交接 #$id ..."
+  echo ""
+
+  # ── Quality Gates ──
+  local current_status
+  current_status=$(python3 -c "import json; print(json.load(open('$json_file'))['status'])" 2>/dev/null)
+
+  local reject_reasons=""
+
+  # Gate 1: Status must be "ready"
+  if [[ "$current_status" != "ready" ]]; then
+    case "$current_status" in
+      incomplete)
+        reject_reasons="${reject_reasons}  - 交接不完整（存在缺失项）\n"
+        ;;
+      needs_fix)
+        reject_reasons="${reject_reasons}  - 质量验证未通过（需要修复后重新 handoff）\n"
+        ;;
+      accepted)
+        reject_reasons="${reject_reasons}  - 交接已被接收\n"
+        ;;
+      *)
+        reject_reasons="${reject_reasons}  - 交接状态异常: $current_status\n"
+        ;;
+    esac
+  fi
+
+  # Gate 2: Verify all files in the handoff's path
+  if [[ "$current_status" == "ready" ]]; then
+    local handoff_path
+    handoff_path=$(python3 -c "import json; print(json.load(open('$json_file'))['path'])" 2>/dev/null)
+    if [[ -d "$handoff_path" ]]; then
+      local verify_ok=true
+      while IFS= read -r -d '' f; do
+        local vtype; vtype=$(detect_type "$f")
+        if [[ -n "$vtype" ]]; then
+          if ! verify_file "$vtype" "$f" >/dev/null 2>&1; then
+            verify_ok=false
+            reject_reasons="${reject_reasons}  - 质量验证未通过: $(basename "$f")\n"
+            break
+          fi
+        fi
+      done < <(find "$handoff_path" -type f -print0 2>/dev/null)
+    fi
+  fi
+
+  # Gate 3: Check for open critical bugs on this handoff
+  if [[ -d "$FEEDBACK_DIR" ]]; then
+    local open_criticals=""
+    for ff in "$FEEDBACK_DIR"/fb-*.json; do
+      [[ -f "$ff" ]] || continue
+      local fb_hid fb_sev fb_status fb_summary fb_id
+      read -r fb_hid fb_sev fb_status fb_summary fb_id <<< $(python3 -c "
+import json
+d = json.load(open('$ff'))
+print(d.get('handoff_id',''), d.get('severity',''), d.get('status',''), d.get('summary',''), d.get('id',''))
+" 2>/dev/null) || true
+
+      if [[ "$fb_hid" == "$id" && "$fb_status" == "open" && "$fb_sev" == "critical" ]]; then
+        open_criticals="${open_criticals}  - $fb_id ($fb_summary)\n"
+      fi
+    done
+    if [[ -n "$open_criticals" ]]; then
+      reject_reasons="${reject_reasons}关联的未解决关键 bug:\n${open_criticals}"
+    fi
+  fi
+
+  # If any gate failed, reject
+  if [[ -n "$reject_reasons" ]]; then
+    err "无法接收:"
+    echo -e "$reject_reasons"
+    echo "→ 请修复后重新 handoff"
+    return 1
+  fi
+
+  # ── All gates passed — proceed with accept ──
   python3 -c "
 import json, sys
 with open('$json_file') as f:
@@ -675,6 +948,291 @@ if req_missing > 0:
     fi
   done
   $any_inbox || echo "  所有收件箱为空"
+}
+
+# ── cmd_verify ───────────────────────────────────────────────────────
+
+# Usage: guild verify --type <type> --file <path>
+#        guild verify --path <dir>
+#        guild verify --handoff <id>
+
+cmd_verify() {
+  local verify_type="" file_path="" dir_path="" handoff_id=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --type) verify_type="$2"; shift 2;;
+      --file) file_path="$2"; shift 2;;
+      --path) dir_path="$2"; shift 2;;
+      --handoff) handoff_id="$2"; shift 2;;
+      *) shift;;
+    esac
+  done
+
+  # Resolve handoff path
+  if [[ -n "$handoff_id" ]]; then
+    local json_file=""
+    for f in "$HANDOFFS_DIR"/*.json; do
+      [[ -f "$f" ]] || continue
+      local fid
+      fid=$(python3 -c "import json; print(json.load(open('$f'))['id'])" 2>/dev/null)
+      if [[ "$fid" == "$handoff_id" ]]; then
+        json_file="$f"
+        break
+      fi
+    done
+    [[ -f "$json_file" ]] || die "Handoff #$handoff_id not found"
+    dir_path=$(python3 -c "import json; print(json.load(open('$json_file'))['path'])" 2>/dev/null)
+    [[ -d "$dir_path" ]] || die "Handoff #$handoff_id path not found: $dir_path"
+  fi
+
+  if [[ -n "$file_path" ]]; then
+    # Single file verify
+    [[ -n "$verify_type" ]] || verify_type=$(detect_type "$file_path")
+    [[ -n "$verify_type" ]] || die "Cannot detect type for $file_path. Use --type."
+    echo "验证: $file_path"
+    echo "  类型: $verify_type"
+    if verify_file "$verify_type" "$file_path"; then
+      ok "通过"
+      return 0
+    else
+      return 1
+    fi
+  elif [[ -n "$dir_path" ]]; then
+    # Directory verify
+    echo "验证目录: $dir_path"
+    echo ""
+    if verify_directory "$dir_path"; then
+      echo ""
+      ok "目录验证通过"
+      return 0
+    else
+      echo ""
+      err "目录验证存在未通过项"
+      return 1
+    fi
+  else
+    die "需要 --type --file <path>, --path <dir>, 或 --handoff <id>"
+  fi
+}
+
+# ── cmd_feedback ──────────────────────────────────────────────────────
+
+# Usage: guild feedback --handoff <id> --type bug|improvement --summary "..." [--severity low|medium|high|critical] [--repro "..."]
+#        guild feedback --list [--handoff <id>] [--status open|fixed]
+#        guild feedback --fix <feedback-id> --handoff <new-handoff-id>
+
+cmd_feedback() {
+  local handoff_id="" fb_type="" severity="medium" summary="" repro=""
+  local list_mode=false list_status="" fix_id="" fix_handoff=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --handoff) handoff_id="$2"; shift 2;;
+      --type) fb_type="$2"; shift 2;;
+      --severity) severity="$2"; shift 2;;
+      --summary) summary="$2"; shift 2;;
+      --repro) repro="$2"; shift 2;;
+      --list) list_mode=true; shift;;
+      --status) list_status="$2"; shift 2;;
+      --fix) fix_id="$2"; shift 2;;
+      *) shift;;
+    esac
+  done
+
+  # List mode
+  if $list_mode; then
+    mkdir -p "$FEEDBACK_DIR"
+    echo "=== 反馈列表 ==="
+    echo ""
+    local count=0
+    for f in "$FEEDBACK_DIR"/fb-*.json; do
+      [[ -f "$f" ]] || continue
+      local id hid type severity summary status created
+      read -r id hid type severity summary status created <<< $(python3 -c "
+import json
+d = json.load(open('$f'))
+print(d['id'], d['handoff_id'], d['type'], d['severity'], d['summary'], d['status'], d['created'][:19])
+" 2>/dev/null) || true
+
+      [[ -n "$id" ]] || continue
+      [[ -n "$handoff_id" && "$hid" != "$handoff_id" ]] && continue
+      [[ -n "$list_status" && "$status" != "$list_status" ]] && continue
+
+      local icon
+      case "$type" in
+        bug) icon="🐛";;
+        improvement) icon="💡";;
+        *) icon="📋";;
+      esac
+
+      local sev_icon
+      case "$severity" in
+        critical) sev_icon="🔴";;
+        high) sev_icon="🟠";;
+        medium) sev_icon="🟡";;
+        low) sev_icon="🟢";;
+        *) sev_icon="⚪";;
+      esac
+
+      echo "  $icon $id [$sev_icon$severity] $summary"
+      echo "    Handoff #$hid | 状态: $status | $created"
+      echo ""
+      count=$((count + 1))
+    done
+    [[ $count -eq 0 ]] && echo "  (无反馈记录)"
+    return 0
+  fi
+
+  # Fix/link mode
+  if [[ -n "$fix_id" ]]; then
+    [[ -n "$fix_handoff" ]] || { handoff_id="${handoff_id:-}"; fix_handoff="$handoff_id"; }
+    [[ -n "$fix_handoff" ]] || die "--handoff <new-handoff-id> is required with --fix"
+
+    local fb_file="$FEEDBACK_DIR/$fix_id.json"
+    [[ -f "$fb_file" ]] || die "反馈 $fix_id 不存在"
+
+    python3 -c "
+import json, datetime
+d = json.load(open('$fb_file'))
+d['status'] = 'fixed'
+d['linked_fix_handoff'] = '$fix_handoff'
+d['resolved'] = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+with open('$fb_file', 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+print('反馈 $fix_id 已标记为已修复（关联 Handoff #$fix_handoff）')
+" 2>/dev/null || ok "反馈 $fix_id 已链接"
+    return
+  fi
+
+  # Create mode
+  [[ -n "$handoff_id" ]] || die "--handoff <id> is required"
+  [[ -n "$fb_type" ]] || die "--type <bug|improvement> is required"
+  [[ -n "$summary" ]] || die "--summary is required"
+
+  mkdir -p "$FEEDBACK_DIR"
+
+  local max=0
+  for f in "$FEEDBACK_DIR"/fb-*.json; do
+    [[ -f "$f" ]] || continue
+    local num; num=$(basename "$f" .json | sed 's/fb-//')
+    ((10#$num > max)) && max=$((10#$num))
+  done
+  local fb_id_num=$((max + 1))
+  local fb_id
+  fb_id=$(printf "fb-%03d" $fb_id_num)
+  local date; date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  local fb_file="$FEEDBACK_DIR/$fb_id.json"
+
+  cat > "$fb_file" << JSONEOF
+{
+  "id": "$fb_id",
+  "handoff_id": $handoff_id,
+  "type": "$fb_type",
+  "severity": "$severity",
+  "summary": "$summary",
+  "repro_steps": "$repro",
+  "status": "open",
+  "linked_fix_handoff": null,
+  "created": "$date",
+  "resolved": null
+}
+JSONEOF
+
+  ok "反馈已记录: $fb_id ($summary)"
+  echo "  文件: $fb_file"
+}
+
+# ── cmd_changelog ──────────────────────────────────────────────────────
+
+# Usage: guild changelog [--since <version|date>]
+
+cmd_changelog() {
+  local since=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --since) since="$2"; shift 2;;
+      *) shift;;
+    esac
+  done
+
+  local -a handoff_files=()
+  for f in "$HANDOFFS_DIR"/*.json; do
+    [[ -f "$f" ]] || continue
+    local status
+    status=$(python3 -c "import json; print(json.load(open('$f')).get('status',''))" 2>/dev/null)
+    [[ "$status" != "accepted" ]] && continue
+    handoff_files+=("$f")
+  done
+
+  if [[ ${#handoff_files[@]} -eq 0 ]]; then
+    echo "暂无已接受的交接记录。"
+    return
+  fi
+
+  # Sort by timestamp
+  local sorted
+  sorted=$(for f in "${handoff_files[@]}"; do
+    python3 -c "
+import json
+d = json.load(open('$f'))
+ts = d.get('timestamp','')
+msg = d.get('message','')
+print(ts, d['id'], d['from'], d['to'], msg)
+" 2>/dev/null
+  done | sort)
+
+  echo "变更日志"
+  echo "========"
+  echo ""
+
+  local count=0
+  local version_minor=0
+
+  while IFS=' ' read -r ts id from to msg; do
+    [[ -z "$ts" ]] && continue
+    count=$((count + 1))
+    if (( count % 5 == 1 )); then
+      version_minor=$((version_minor + 1))
+      local date_str; date_str=$(echo "$ts" | cut -d'T' -f1)
+      echo ""
+      echo "v0.${version_minor}.0 ($date_str)"
+      echo "------------------------------"
+    fi
+
+    # Check if this handoff is linked to any feedback
+    local fb_ref=""
+    for ff in "$FEEDBACK_DIR"/fb-*.json; do
+      [[ -f "$ff" ]] || continue
+      local linked
+      linked=$(python3 -c "
+import json
+d = json.load(open('$ff'))
+lh = d.get('linked_fix_handoff')
+print(lh or '')
+" 2>/dev/null)
+      if [[ "$linked" != "" ]]; then
+        # Check if linked handoff id matches this handoff's id as string
+        local h_id_str="$id"
+        if [[ "$linked" == "$h_id_str" ]]; then
+          local fb_summary
+          fb_summary=$(python3 -c "import json; print(json.load(open('$ff')).get('summary',''))" 2>/dev/null)
+          local fb_id_name
+          fb_id_name=$(python3 -c "import json; print(json.load(open('$ff')).get('id',''))" 2>/dev/null)
+          fb_ref="$fb_id_name: $fb_summary"
+          break
+        fi
+      fi
+    done
+
+    if [[ -n "$fb_ref" ]]; then
+      echo "  ✅ 修复: $fb_ref"
+      [[ -n "$msg" ]] && echo "     $msg"
+      echo "     [handoff #$id]"
+    else
+      local display_msg="${msg:-交付完成}"
+      echo "  ✅ $from → $to: $display_msg [handoff #$id]"
+    fi
+  done <<< "$sorted"
 }
 
 # ── cmd_decide ────────────────────────────────────────────────────────
@@ -1142,7 +1700,10 @@ if [[ $# -eq 0 ]]; then
   echo "  guild handoff   — 创建交接 (Agent A → Agent B)"
   echo "  guild check     — 检查交接完整性"
   echo "  guild status    — 查看所有交接状态"
-  echo "  guild accept    — 接收交接并开始工作"
+  echo "  guild accept    — 接收交接并开始工作（自动运行质量门禁）"
+  echo "  guild verify    — 验证交付物质量（按文件类型检查）"
+  echo "  guild feedback  — 记录/列出/链接 bug 和改进反馈"
+  echo "  guild changelog — 基于已接受的交接生成变更日志"
   echo "  guild list      — 列出契约或交接记录"
   echo "  guild decide    — 记录结构化决策 (ADR)"
   echo "  guild context   — 显示/检查决策图谱和冲突"
@@ -1159,19 +1720,22 @@ CMD="$1"
 shift
 
 case "$CMD" in
-  handoff) cmd_handoff "$@";;
-  check)   cmd_check "$@";;
-  status)  cmd_status "$@";;
-  accept)  cmd_accept "$@";;
-  list)    cmd_list "$@";;
-  run)     cmd_run "$@";;
-  decide)  cmd_decide "$@";;
-  context) cmd_context "$@";;
-  inbox)   cmd_inbox "$@";;
-  read)    cmd_read "$@";;
-  resolve) cmd_resolve "$@";;
+  handoff)   cmd_handoff "$@";;
+  check)     cmd_check "$@";;
+  status)    cmd_status "$@";;
+  accept)    cmd_accept "$@";;
+  verify)    cmd_verify "$@";;
+  feedback)  cmd_feedback "$@";;
+  changelog) cmd_changelog "$@";;
+  list)      cmd_list "$@";;
+  run)       cmd_run "$@";;
+  decide)    cmd_decide "$@";;
+  context)   cmd_context "$@";;
+  inbox)     cmd_inbox "$@";;
+  read)      cmd_read "$@";;
+  resolve)   cmd_resolve "$@";;
   --help|-h|help)
-    sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: handoff, check, status, accept, list, run, decide, context, inbox, read, resolve";;
+  *) die "Unknown command: $CMD. Valid: handoff, check, status, accept, verify, feedback, changelog, list, run, decide, context, inbox, read, resolve";;
 esac
