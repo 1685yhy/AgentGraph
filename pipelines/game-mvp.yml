@@ -1,0 +1,23 @@
+---
+name: 游戏MVP开发
+description: 从概念到可玩原型的游戏开发流水线（概念 → 设计 → 原型 → 测试）
+phases:
+  - phase: 概念设计
+    agents: [game-designer, narrative-designer, monetization-designer]
+    delivers: [游戏概念文档, 核心循环定义, 变现模型]
+  - phase: 关卡与系统
+    agents: [level-designer, game-programmer, game-producer]
+    requires_from: 概念设计
+    delivers: [关卡设计文档, 技术方案, 开发计划]
+  - phase: 原型开发
+    agents: [game-programmer, unity-developer, technical-artist]
+    requires_from: 关卡与系统
+    delivers: [可玩原型, 核心玩法验证, 性能基准]
+  - phase: 视觉与音频
+    agents: [game-ui-designer, game-audio-engineer, technical-artist]
+    requires_from: 原型开发
+    delivers: [UI设计稿, 音频资源, 视觉效果]
+  - phase: 质量验证
+    agents: [game-qa-engineer, qa-engineer, performance-tester]
+    requires_from: 视觉与音频
+    delivers: [游戏测试报告, 趣味性评估, 性能报告, 发布就绪]

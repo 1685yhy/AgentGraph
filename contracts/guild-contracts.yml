@@ -1,5 +1,5 @@
 # AgentGuild Collaboration Contracts
-# Auto-generated: 2026-07-24T12:32:08+08:00
+# Auto-generated: 2026-07-24T12:51:43+08:00
 # Source: agents/*/ section 13 (协作契约)
 #
 # Schema:
@@ -871,5 +871,305 @@ contracts:
             description: "经过验证的用户行为数据和指标定义。事件埋点的完整性和准确性保证。用于构建模型的历史趋势数据。"
             required: true
 
+# ── Game Designer ──
+  game-designer:
+    delivers:
+      - name: "包含完整系统规格、边界情况和故障模式的核心循环定义文档"
+        description: "包含完整系统规格、边界情况和故障模式的核心循环定义文档"
+      - name: "带有可调参数和衰减曲线的数值模型"
+        description: "带有可调参数和衰减曲线的数值模型"
+      - name: "区分"系统问题"和"调参问题"的已知风险清单"
+        description: "区分"系统问题"和"调参问题"的已知风险清单"
+      - name: "玩家行为预测（预期行为、替代策略、破坏性策略）"
+        description: "玩家行为预测（预期行为、替代策略、破坏性策略）"
+      - name: "每个系统的输入/输出规格和错误处理说明"
+        description: "每个系统的输入/输出规格和错误处理说明"
+    requires:
+      - from: "产品经理"
+        items:
+          - name: "目标用户画像、核心体验定位、商业约束条件和发布里程碑。"
+            description: "目标用户画像、核心体验定位、商业约束条件和发布里程碑。"
+            required: true
+      - from: "游戏程序员"
+        items:
+          - name: "对设计的技术可行性评估——哪些机制在当前技术栈下可行，哪些需要替代方案。"
+            description: "对设计的技术可行性评估——哪些机制在当前技术栈下可行，哪些需要替代方案。"
+            required: true
 
-# ── Generated 2026-07-24T12:32:09+08:00 ──
+# ── Level Designer ──
+  level-designer:
+    delivers:
+      - name: "包含节拍图表、地标系统和视觉引导元素的白盒关卡布局"
+        description: "包含节拍图表、地标系统和视觉引导元素的白盒关卡布局"
+      - name: "区分"预期路径"和"潜在序列破坏路径"的导航示意图"
+        description: "区分"预期路径"和"潜在序列破坏路径"的导航示意图"
+      - name: "试玩测试结果和基于证据的迭代清单"
+        description: "试玩测试结果和基于证据的迭代清单"
+      - name: "关卡内所有关键交互点的触发条件和失败模式文档"
+        description: "关卡内所有关键交互点的触发条件和失败模式文档"
+      - name: "情绪曲线预期与实际测试结果的对比分析"
+        description: "情绪曲线预期与实际测试结果的对比分析"
+    requires:
+      - from: "游戏设计师"
+        items:
+          - name: "需要在关卡中展示的机制规格、核心体验目标和已知的风险行为。"
+            description: "需要在关卡中展示的机制规格、核心体验目标和已知的风险行为。"
+            required: true
+      - from: "叙事设计师"
+        items:
+          - name: "关卡内的剧情节点、对话触发条件和叙事情绪目标。"
+            description: "关卡内的剧情节点、对话触发条件和叙事情绪目标。"
+            required: true
+      - from: "游戏程序员"
+        items:
+          - name: "关卡构建的技术约束——支持哪些交互类型、关卡块尺寸约束、性能预算。"
+            description: "关卡构建的技术约束——支持哪些交互类型、关卡块尺寸约束、性能预算。"
+            required: true
+
+# ── Narrative Designer ──
+  narrative-designer:
+    delivers:
+      - name: "包含世界观、角色设定、世界规则和叙事时间线的叙事圣经"
+        description: "包含世界观、角色设定、世界规则和叙事时间线的叙事圣经"
+      - name: "带有分支结构、情感目标和对话条件的对话树文档"
+        description: "带有分支结构、情感目标和对话条件的对话树文档"
+      - name: "与每个关卡对应的叙事节点地图（叙事+关卡绑定）"
+        description: "与每个关卡对应的叙事节点地图（叙事+关卡绑定）"
+      - name: "环境叙事指南（每个场景应传达什么信息、通过什么方式）"
+        description: "环境叙事指南（每个场景应传达什么信息、通过什么方式）"
+      - name: "叙事一致性与连续性检查清单"
+        description: "叙事一致性与连续性检查清单"
+    requires:
+      - from: "游戏设计师"
+        items:
+          - name: "核心机制列表、系统规格和玩家能力框架——叙事必须与系统对齐，我不能写一个与游戏机制矛盾的故事。"
+            description: "核心机制列表、系统规格和玩家能力框架——叙事必须与系统对齐，我不能写一个与游戏机制矛盾的故事。"
+            required: true
+      - from: "产品经理"
+        items:
+          - name: "目标受众的叙事偏好和游戏的主题定位——硬核军事向和温暖治愈向的叙事风格完全不同。"
+            description: "目标受众的叙事偏好和游戏的主题定位——硬核军事向和温暖治愈向的叙事风格完全不同。"
+            required: true
+
+# ── Game Programmer ──
+  game-programmer:
+    delivers:
+      - name: "带有单元测试和集成测试的核心游戏运行时框架"
+        description: "带有单元测试和集成测试的核心游戏运行时框架"
+      - name: "每秒/每帧的性能分析报告和优化指南"
+        description: "每秒/每帧的性能分析报告和优化指南"
+      - name: "可供设计师自主调参的数据驱动配置工具"
+        description: "可供设计师自主调参的数据驱动配置工具"
+      - name: "构建验证在CI中自动化的所有目标平台"
+        description: "构建验证在CI中自动化的所有目标平台"
+      - name: "技术可行性评估和替代方案分析"
+        description: "技术可行性评估和替代方案分析"
+    requires:
+      - from: "游戏设计师"
+        items:
+          - name: "包含完整系统规格、输入/输出定义和异常处理要求的系统设计文档。不要"这个功能让玩家转身"——要"输入→处理→输出"的规格。"
+            description: "包含完整系统规格、输入/输出定义和异常处理要求的系统设计文档。不要"这个功能让玩家转身"——要"输入→处理→输出"的规格。"
+            required: true
+      - from: "技术美术"
+        items:
+          - name: "资产规格（多边形数量、纹理尺寸、LOD层级）、渲染效果的技术要求和性能预算。"
+            description: "资产规格（多边形数量、纹理尺寸、LOD层级）、渲染效果的技术要求和性能预算。"
+            required: true
+      - from: "QA工程师"
+        items:
+          - name: "测试策略和重点关注区域——哪些系统风险最高、哪些交互最容易出错。"
+            description: "测试策略和重点关注区域——哪些系统风险最高、哪些交互最容易出错。"
+            required: true
+
+# ── Unity Developer ──
+  unity-developer:
+    delivers:
+      - name: "带有资源管理和性能分析的可运行Unity项目"
+        description: "带有资源管理和性能分析的可运行Unity项目"
+      - name: "可复用的Unity组件和编辑器扩展工具"
+        description: "可复用的Unity组件和编辑器扩展工具"
+      - name: "跨平台构建配置和自动化脚本"
+        description: "跨平台构建配置和自动化脚本"
+      - name: "性能预算文档和当前状态追踪"
+        description: "性能预算文档和当前状态追踪"
+      - name: "设计师/美术师自主使用的编辑器工具（无需程序员介入）"
+        description: "设计师/美术师自主使用的编辑器工具（无需程序员介入）"
+    requires:
+      - from: "技术美术"
+        items:
+          - name: "包含资源规格（多边形预算、纹理尺寸、Shader需求）的资产文档。在游戏开发中，资源和代码同等重要。"
+            description: "包含资源规格（多边形预算、纹理尺寸、Shader需求）的资产文档。在游戏开发中，资源和代码同等重要。"
+            required: true
+
+# ── Unreal Developer ──
+  unreal-developer:
+    delivers:
+      - name: "带有UPROPERTY反射和Blueprint接口的Unreal C++核心系统"
+        description: "带有UPROPERTY反射和Blueprint接口的Unreal C++核心系统"
+      - name: "设计师可独立配置数值的Blueprint调参层"
+        description: "设计师可独立配置数值的Blueprint调参层"
+      - name: "性能分析报告（Unreal Insights Profiler数据）"
+        description: "性能分析报告（Unreal Insights Profiler数据）"
+      - name: "自动化跨平台构建和部署脚本"
+        description: "自动化跨平台构建和部署脚本"
+      - name: "C++与Blueprint的分工规范和编码标准"
+        description: "C++与Blueprint的分工规范和编码标准"
+    requires:
+      - from: "游戏设计师"
+        items:
+          - name: "需要暴露给设计师调参的参数列表（哪些数值、什么范围、默认值）。系统行为和边界条件的完整规格。"
+            description: "需要暴露给设计师调参的参数列表（哪些数值、什么范围、默认值）。系统行为和边界条件的完整规格。"
+            required: true
+      - from: "技术美术"
+        items:
+          - name: "资产的技术规格（多边形预算、材质需求、LOD策略）。是否需要自定义渲染功能。"
+            description: "资产的技术规格（多边形预算、材质需求、LOD策略）。是否需要自定义渲染功能。"
+            required: true
+
+# ── Technical Artist ──
+  technical-artist:
+    delivers:
+      - name: "经过目标平台验证的Shader和材质库（带性能文档）"
+        description: "经过目标平台验证的Shader和材质库（带性能文档）"
+      - name: "资产优化管线指南和自动化处理脚本"
+        description: "资产优化管线指南和自动化处理脚本"
+      - name: "每种视觉效果的性能评估和预算占用报告"
+        description: "每种视觉效果的性能评估和预算占用报告"
+      - name: "美术师手册（调参指南、性能提示、常见问题）"
+        description: "美术师手册（调参指南、性能提示、常见问题）"
+      - name: "渲染性能预算和当前状态追踪"
+        description: "渲染性能预算和当前状态追踪"
+    requires:
+      - from: "游戏程序员"
+        items:
+          - name: "目标硬件平台、帧率目标和性能预算。没有预算就没有明确的优化目标。"
+            description: "目标硬件平台、帧率目标和性能预算。没有预算就没有明确的优化目标。"
+            required: true
+
+# ── Game UI Designer ──
+  game-ui-designer:
+    delivers:
+      - name: "包含每个界面所有状态（加载、空态、错误、边界）的完整UI设计稿"
+        description: "包含每个界面所有状态（加载、空态、错误、边界）的完整UI设计稿"
+      - name: "动态/非动态/空间/元分类的HUD元素矩阵"
+        description: "动态/非动态/空间/元分类的HUD元素矩阵"
+      - name: "交互式原型（Figma或引擎中可交互版本）"
+        description: "交互式原型（Figma或引擎中可交互版本）"
+      - name: "视觉规范文档（颜色、字体排印、间距、动画）"
+        description: "视觉规范文档（颜色、字体排印、间距、动画）"
+      - name: "所有输入方式的交互流程图（手柄/键盘/触摸）"
+        description: "所有输入方式的交互流程图（手柄/键盘/触摸）"
+    requires:
+      - from: "游戏设计师"
+        items:
+          - name: "玩家在每个游戏状态下需要知道和操作的关键信息列表。核心循环和系统规格。"
+            description: "玩家在每个游戏状态下需要知道和操作的关键信息列表。核心循环和系统规格。"
+            required: true
+      - from: "叙事设计师"
+        items:
+          - name: "对话系统和叙事界面的内容结构和交互需求。"
+            description: "对话系统和叙事界面的内容结构和交互需求。"
+            required: true
+      - from: "技术美术"
+        items:
+          - name: "UI渲染的性能预算限制——实时特效和动画的可用性能预算。"
+            description: "UI渲染的性能预算限制——实时特效和动画的可用性能预算。"
+            required: true
+      - from: "前端工程师/Unity开发者"
+        items:
+          - name: "UI引擎的能力和限制——我设计的界面是否能在Figma/引擎中忠实地复现？"
+            description: "UI引擎的能力和限制——我设计的界面是否能在Figma/引擎中忠实地复现？"
+            required: true
+
+# ── Game Audio Engineer ──
+  game-audio-engineer:
+    delivers:
+      - name: "集成到游戏引擎中的音频系统（空间化、遮挡、混音层）"
+        description: "集成到游戏引擎中的音频系统（空间化、遮挡、混音层）"
+      - name: "程序化音频生成模块（脚步声、撞击、环境）"
+        description: "程序化音频生成模块（脚步声、撞击、环境）"
+      - name: "经过性能分析和优化的音频资源库"
+        description: "经过性能分析和优化的音频资源库"
+      - name: "音频事件系统——设计师可以自主为关卡添加音效"
+        description: "音频事件系统——设计师可以自主为关卡添加音效"
+      - name: "音频性能报告（延迟、内存、CPU占用）"
+        description: "音频性能报告（延迟、内存、CPU占用）"
+    requires:
+      - from: "游戏设计师"
+        items:
+          - name: "需要音频反馈的完整游戏事件清单以及每个事件的优先级和情感目标。什么事件、何时触发、玩家应该感受到什么。"
+            description: "需要音频反馈的完整游戏事件清单以及每个事件的优先级和情感目标。什么事件、何时触发、玩家应该感受到什么。"
+            required: true
+
+# ── Monetization Designer ──
+  monetization-designer:
+    delivers:
+      - name: "包含定价策略、商品组合和付费漏斗的变现模型设计文档"
+        description: "包含定价策略、商品组合和付费漏斗的变现模型设计文档"
+      - name: "基于玩家行为数据的付费漏斗分析报告"
+        description: "基于玩家行为数据的付费漏斗分析报告"
+      - name: "A/B测试计划和结果分析"
+        description: "A/B测试计划和结果分析"
+      - name: "收入预测模型和LTV估算"
+        description: "收入预测模型和LTV估算"
+      - name: "定价调整建议（基于数据，而非直觉）"
+        description: "定价调整建议（基于数据，而非直觉）"
+    requires:
+      - from: "游戏设计师"
+        items:
+          - name: "核心循环、进度系统和经济模型——我必须知道游戏如何运转才能设计变现。"
+            description: "核心循环、进度系统和经济模型——我必须知道游戏如何运转才能设计变现。"
+            required: true
+      - from: "产品经理"
+        items:
+          - name: "目标市场的付费偏好、地区定价参考和发布策略。不同地区的货币价值和付费习惯差异巨大。"
+            description: "目标市场的付费偏好、地区定价参考和发布策略。不同地区的货币价值和付费习惯差异巨大。"
+            required: true
+      - from: "数据分析师"
+        items:
+          - name: "玩家行为数据、留存曲线和付费转化的统计数据基线——没有数据支撑的变现设计是盲人摸象。"
+            description: "玩家行为数据、留存曲线和付费转化的统计数据基线——没有数据支撑的变现设计是盲人摸象。"
+            required: true
+
+# ── Game Producer ──
+  game-producer:
+    delivers:
+      - name: "包含里程碑、交付标准和退出标准的生产计划"
+        description: "包含里程碑、交付标准和退出标准的生产计划"
+      - name: "每周更新的风险登记册和健康检查报告"
+        description: "每周更新的风险登记册和健康检查报告"
+      - name: "范围变更日志（每次变更附带时间和成本影响）"
+        description: "范围变更日志（每次变更附带时间和成本影响）"
+      - name: "阶段评审报告和Go/No-Go建议"
+        description: "阶段评审报告和Go/No-Go建议"
+      - name: "无障碍的团队工作环境——团队可以专注于工作，不需要为资源/审批/权限分心"
+        description: "无障碍的团队工作环境——团队可以专注于工作，不需要为资源/审批/权限分心"
+    requires:
+      - from: "市场团队"
+        items:
+          - name: "营销时间线和商店页面需求——发布需要与市场活动同步。"
+            description: "营销时间线和商店页面需求——发布需要与市场活动同步。"
+            required: true
+
+# ── Game QA Engineer ──
+  game-qa-engineer:
+    delivers:
+      - name: "包含自动化测试和探索性测试结果的质量报告"
+        description: "包含自动化测试和探索性测试结果的质量报告"
+      - name: "序列破坏场景清单和复现步骤"
+        description: "序列破坏场景清单和复现步骤"
+      - name: "趣味性评估（每个维度的评分和发现）"
+        description: "趣味性评估（每个维度的评分和发现）"
+      - name: "已知设计盲区和风险清单"
+        description: "已知设计盲区和风险清单"
+      - name: "发布建议（通过/有条件通过/阻塞）"
+        description: "发布建议（通过/有条件通过/阻塞）"
+    requires:
+      - from: "游戏程序员"
+        items:
+          - name: "已知的技术限制和已知bug列表——我不需要重新发现团队已经知道的问题。"
+            description: "已知的技术限制和已知bug列表——我不需要重新发现团队已经知道的问题。"
+            required: true
+
+
+# ── Generated 2026-07-24T12:51:44+08:00 ──

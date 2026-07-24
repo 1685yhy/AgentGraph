@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-23T14:51:23Z",
+  "updated": "2026-07-24T04:36:51Z",
   "decisions": [
     {
       "id": 1784818279,
@@ -16,6 +16,14 @@
       "type": "api-design",
       "topic": "教师数据API响应格式",
       "file": "1784818283-frontend-engineer-api.json",
+      "status": "active"
+    },
+    {
+      "id": 1784867811,
+      "agent": "product-manager",
+      "type": "scope",
+      "topic": "Color Clash 游戏MVP",
+      "file": "1784867811-product-manager-color-clash-mvp.json",
       "status": "active"
     }
   ],

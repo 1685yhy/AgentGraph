@@ -17,7 +17,8 @@
     "project-management": { "label": "Project Management", "icon": "Clipboard", "color": "#0EA5E9" },
     "sales": { "label": "Sales", "icon": "DollarSign", "color": "#10B981" },
     "support": { "label": "Support", "icon": "Headphones", "color": "#84CC16" },
-    "finance": { "label": "Finance", "icon": "TrendingUp", "color": "#22C55E" }
+    "finance": { "label": "Finance", "icon": "TrendingUp", "color": "#22C55E" },
+    "game-development": { "label": "Game Development", "icon": "Gamepad2", "color": "#A855F7" }
   },
   "tools": {
     "claude-code": {
@@ -65,6 +66,18 @@
     { "slug": "sales-engineer", "division": "sales", "file": "agents/sales/sales-engineer.md" },
     { "slug": "deal-strategist", "division": "sales", "file": "agents/sales/deal-strategist.md" },
     { "slug": "customer-support", "division": "support", "file": "agents/support/customer-support.md" },
-    { "slug": "financial-analyst", "division": "finance", "file": "agents/finance/financial-analyst.md" }
+    { "slug": "financial-analyst", "division": "finance", "file": "agents/finance/financial-analyst.md" },
+    { "slug": "game-designer", "division": "game-development", "file": "agents/game-development/game-designer.md" },
+    { "slug": "level-designer", "division": "game-development", "file": "agents/game-development/level-designer.md" },
+    { "slug": "narrative-designer", "division": "game-development", "file": "agents/game-development/narrative-designer.md" },
+    { "slug": "game-programmer", "division": "game-development", "file": "agents/game-development/game-programmer.md" },
+    { "slug": "unity-developer", "division": "game-development", "file": "agents/game-development/unity/unity-developer.md" },
+    { "slug": "unreal-developer", "division": "game-development", "file": "agents/game-development/unreal/unreal-developer.md" },
+    { "slug": "technical-artist", "division": "game-development", "file": "agents/game-development/technical-artist.md" },
+    { "slug": "game-ui-designer", "division": "game-development", "file": "agents/game-development/game-ui-designer.md" },
+    { "slug": "game-audio-engineer", "division": "game-development", "file": "agents/game-development/game-audio-engineer.md" },
+    { "slug": "monetization-designer", "division": "game-development", "file": "agents/game-development/monetization-designer.md" },
+    { "slug": "game-producer", "division": "game-development", "file": "agents/game-development/game-producer.md" },
+    { "slug": "game-qa-engineer", "division": "game-development", "file": "agents/game-development/game-qa-engineer.md" }
   ]
 }
