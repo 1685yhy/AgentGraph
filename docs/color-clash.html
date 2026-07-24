@@ -232,6 +232,7 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     <div class="high-score">最高纪录: <span id="hs-display">0</span></div>
     <div id="daily-badge" title="每日挑战 — 所有人同一序列">&#127775; 今日挑战</div>
     <button class="btn btn-primary" id="btn-start">开始试炼</button>
+    <div id="start-error" style="color:#ff4757;font-size:13px;margin-top:8px;text-align:center;display:none"></div>
   </div>
 
   <!-- ===== GAME OVER SCREEN ===== -->
@@ -1364,73 +1365,93 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
   }
 
   function startGame(practiceColors){
-    Audio.init();
-    Audio.startAmbience(0);
+    const errEl = $('start-error');
+    try {
+      // Clear any previous error
+      if(errEl) errEl.style.display = 'none';
 
-    startScreen.classList.add('hidden');
-    gameoverScreen.classList.remove('chromatic');
-    gameoverScreen.classList.add('hidden');
-    shareOverlay.classList.add('hidden');
-    practiceOverlay.classList.add('hidden');
-    deathReplayWrap.classList.remove('show');
+      Audio.init();
+      Audio.startAmbience(0);
 
-    // Reset state
-    G.phase = 'playing';
-    G.score = 0;
-    G.combo = 0;
-    G.maxCombo = 0;
-    G.lives = CONFIG.maxLives;
-    G.correctTaps = 0;
-    G.wrongTaps = 0;
-    G.missedTargets = 0;
-    G.dots = [];
-    G.particles = [];
-    G.floatingTexts = [];
-    G.scoreFlyTexts = [];
-    G.level = 0;
-    G.prevLevel = -1;
-    G.spawnCount = 0;
-    G.isNewHighScore = false;
-    G.survived = 0;
-    G.tapHistory = [];
-    G.weakPairs = [];
-    G.deathReplayFrames = [];
-    G.isDeathReplay = false;
-    G.cbPromptShown = false;
-    G.comboIntensity = 0;
-    G.lastCorrectTime = 0;
-    G.practiceColors = practiceColors || null;
-    G.levelTransitionCount = 0;
-    G.colorBlind = false;
-    G.retryCount = 0;
+      startScreen.classList.add('hidden');
+      gameoverScreen.classList.remove('chromatic');
+      gameoverScreen.classList.add('hidden');
+      shareOverlay.classList.add('hidden');
+      practiceOverlay.classList.add('hidden');
+      deathReplayWrap.classList.remove('show');
 
-    // Seeded RNG for daily or fresh
-    rng = new SeededRng(G.seed || Date.now());
+      // Reset state — use 'starting' phase to prevent race conditions
+      G.phase = 'starting';
+      G.score = 0;
+      G.combo = 0;
+      G.maxCombo = 0;
+      G.lives = CONFIG.maxLives;
+      G.correctTaps = 0;
+      G.wrongTaps = 0;
+      G.missedTargets = 0;
+      G.dots = [];
+      G.particles = [];
+      G.floatingTexts = [];
+      G.scoreFlyTexts = [];
+      G.level = 0;
+      G.prevLevel = -1;
+      G.spawnCount = 0;
+      G.isNewHighScore = false;
+      G.survived = 0;
+      G.tapHistory = [];
+      G.weakPairs = [];
+      G.deathReplayFrames = [];
+      G.isDeathReplay = false;
+      G.cbPromptShown = false;
+      G.comboIntensity = 0;
+      G.lastCorrectTime = 0;
+      G.practiceColors = practiceColors || null;
+      G.levelTransitionCount = 0;
+      G.colorBlind = false;
+      G.retryCount = 0;
 
-    // Reset HUD
-    hudCombo.classList.remove('show');
-    hudLevel.textContent = LEVELS[0].name;
-    comboBorder.style.opacity = '0';
-    chaosMeterIcon.textContent = '●';
-    updateChaosMeter();
+      // Seeded RNG for daily or fresh
+      rng = new SeededRng(G.seed || Date.now());
 
-    // First target
-    generateNewTarget();
-    G.nextSpawn = performance.now() + 1000;
-    G.nextBonus = performance.now() + CONFIG.bonusInterval;
-    G.startTime = performance.now();
-    G.nextTargetChange = performance.now() + CONFIG.targetChangeInterval;
+      // Reset HUD
+      hudCombo.classList.remove('show');
+      hudLevel.textContent = LEVELS[0].name;
+      comboBorder.style.opacity = '0';
+      chaosMeterIcon.textContent = '●';
+      updateChaosMeter();
 
-    // If practice mode, set first target to a practice pair color
-    if(G.practiceColors){
-      G.targetColor = {...G.practiceColors};
-      G.colorSet = Color.generateSet(G.level, G.targetColor);
-      updateTargetUI();
+      // First target
+      generateNewTarget();
+      G.nextSpawn = performance.now() + 1000;
+      G.nextBonus = performance.now() + CONFIG.bonusInterval;
+      G.startTime = performance.now();
+      G.nextTargetChange = performance.now() + CONFIG.targetChangeInterval;
+
+      // If practice mode, set first target to a practice pair color
+      if(G.practiceColors){
+        G.targetColor = {...G.practiceColors};
+        G.colorSet = Color.generateSet(G.level, G.targetColor);
+        updateTargetUI();
+      }
+
+      lastTime = performance.now();
+      if(animId) cancelAnimationFrame(animId);
+
+      // Defensive start delay: prevent race conditions where the game loop
+      // fires before all state is fully initialized
+      setTimeout(() => {
+        G.phase = 'playing';
+        animId = requestAnimationFrame(gameLoop);
+      }, 100);
+    } catch(e) {
+      console.error('startGame error:', e);
+      if(animId) { cancelAnimationFrame(animId); animId = null; }
+      showStart();
+      if(errEl) {
+        errEl.textContent = '⚠️ 启动失败: ' + (e.message || '未知错误');
+        errEl.style.display = 'block';
+      }
     }
-
-    lastTime = performance.now();
-    if(animId) cancelAnimationFrame(animId);
-    animId = requestAnimationFrame(gameLoop);
   }
 
   function showGameOver(){
@@ -1510,6 +1531,7 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
   //  SHARE
   // ============================================================
   function showShare(){
+    if(G.phase !== 'gameover') return; // SAFEGUARD: only show share overlay after game over
     const s = G.score;
     let rating, emoji, pct;
     if(s<=100){ rating='🌱 色觉萌新'; emoji='🌱'; pct='5'; }
@@ -1678,6 +1700,16 @@ https://colorclash.app`;
     Pool.init();
     resizeCanvas();
     setupEvents();
+
+    // Validate canvas is usable
+    if(!ctx || W === 0 || H === 0){
+      const errEl = $('start-error');
+      if(errEl) {
+        errEl.textContent = '⚠️ Canvas初始化失败，请使用现代浏览器';
+        errEl.style.display = 'block';
+      }
+    }
+
     showStart();
 
     // Set initial background gradient
