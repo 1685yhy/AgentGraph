@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/github/stars/1685yhy/agentguild?style=for-the-badge&color=3B82F6" alt="GitHub Stars">
   <img src="https://img.shields.io/github/license/1685yhy/agentguild?style=for-the-badge&color=EC4899" alt="MIT License">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=for-the-badge&color=22C55E" alt="PRs Welcome">
-  <img src="https://img.shields.io/badge/agents-18-3B82F6?style=for-the-badge" alt="18 Agents">
+  <img src="https://img.shields.io/badge/agents-28-3B82F6?style=for-the-badge" alt="28 Agents">
   <img src="https://img.shields.io/badge/zero_dependencies-Bash_3.2+-D946EF?style=for-the-badge" alt="Zero Dependencies">
 </p>
 
@@ -13,13 +13,13 @@
 </p>
 
 <p align="center">
-  <strong>18 个有真实人格的精品 AI Agent + 业界首个真正可用的 Agent 协作引擎</strong><br>
+  <strong>28 个有真实人格的精品 AI Agent + 业界首个真正可用的 Agent 协作引擎</strong><br>
   交接检查 · 流水线编排 · 决策追溯 · 冲突检测 — 不是"你该这么协作"的文档，是让协作自动发生的软件
 </p>
 
 <p align="center">
   <a href="#-quick-start">Quick Start</a> ·
-  <a href="#-agent-roster">18 Agents</a> ·
+  <a href="#-agent-roster">28 Agents</a> ·
   <a href="#-the-collaboration-engine">协作引擎</a> ·
   <a href="#-how-this-compares-to-agency-agents">vs agency-agents</a> ·
   <a href="#-supported-tools">Tools</a> ·
@@ -33,7 +33,7 @@
 **AgentGuild 不是一个 Agent 模板库。它是一个 AI 团队的协作操作系统。**
 
 两件事：
-1. **18 个精品 Agent** — 每个都有挑衅性观点、会跟人争执、知道自己盲区、明确决策边界。不是一个模板换词 300 次。
+1. **28 个精品 Agent** — 每个都有挑衅性观点、会跟人争执、知道自己盲区、明确决策边界。不是一个模板换词 300 次。
 2. **一套协作引擎** — `guild` CLI 让 Agent 之间真的能传接球、跑流水线、记录决策、检测冲突。不是 Markdown 文档写"你应该这么协作"。
 
 你已经有 Claude Code / Cursor / Copilot 了。装上 AgentGuild，你就有了一支能配合的 AI 团队。
@@ -85,6 +85,9 @@ cd agentguild
 | 🗄️ | **Backend Architect** | 微服务被严重滥用了。50 人以下团队用单体 |
 | 🚀 | **DevOps Engineer** | 超过 10 分钟的 CI 流水线就是坏掉的 |
 | 🤖 | **AI Engineer** | 最好的 AI 功能是你没做的那一个 |
+| 📱 | **Mobile Developer** | 跨平台不是捷径，是推迟原生开发的时间点 |
+| 🗄️ | **Database Specialist** | ORM 是最危险的抽象——N+1 才是常客 |
+| 🔍 | **Code Reviewer** | LGTM 不是审查，是橡皮图章 |
 
 ### 产品
 
@@ -119,6 +122,38 @@ cd agentguild
 | 📈 | **Growth Hacker** | 增长不是 hack，是可复现的系统性实验 |
 | ✍️ | **Content Creator** | SEO 优化的垃圾依然是垃圾 |
 | 📱 | **Social Media Strategist** | 各平台发一样的内容不是策略，是懒 |
+| 🔍 | **SEO Specialist** | SEO 不是游戏 Google，是成为最佳答案 |
+
+### 安全
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 🔒 | **Security Engineer** | 合规通过不等于安全——攻击者不在乎你的证书 |
+
+### 项目管理
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 📐 | **Project Manager** | 敏捷已经变成了它本该取代的东西 |
+
+### 销售
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 🎯 | **Sales Engineer** | PoC 是销售工程中最被滥用的工具 |
+| 💰 | **Deal Strategist** | 折扣是最缺乏创意的成交方式 |
+
+### 支持
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 💬 | **Customer Support** | 工单不是打扰，是免费的用户研究 |
+
+### 财务
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 💹 | **Financial Analyst** | 单位经济学比增长率重要——增长快不等于健康 |
 
 ---
 
@@ -186,7 +221,7 @@ $ guild status
 | | agency-agents | **AgentGuild** |
 |---|---|---|
 | Agent 深度 | 一个模板换词 300 次 | 每个有挑衅性观点、冲突偏好、盲区 |
-| Agent 质量 | 参差不齐 | 15A + 3A-，lint 强制校验 |
+| Agent 质量 | 参差不齐 | 20A + 5A- + 3B+，lint 强制校验 |
 | 协作 | 零 — 人手动复制粘贴 | **handoff → run → decide → context 四层引擎** |
 | 冲突检测 | 无 | 自动检测 + 影响范围分析 + 追溯 |
 | 流水线 | Markdown 文档 | `guild run` 一键执行 |
@@ -214,7 +249,7 @@ $ guild status
 
 ```
 agentguild/
-├── agents/          18 个 Agent（工程/产品/设计/测试/市场）
+├── agents/          28 个 Agent（工程/产品/设计/测试/市场/安全/项目管理/销售/支持/财务）
 ├── scripts/         5 个脚本（lint/convert/install/nexus/lib）
 ├── contracts/       协作契约 — 从 Agent 第 13 段自动提取
 ├── pipelines/       流水线定义（YAML）
@@ -223,7 +258,7 @@ agentguild/
 ├── docs/            5 份中文使用指南 + 模板规范
 ├── website/         项目官网（单页 HTML）
 ├── guild            → scripts/nexus.sh（主命令）
-└── guild.config.json  18 Agent + 4 工具的中央注册表
+└── guild.config.json  28 Agent + 4 工具的中央注册表
 ```
 
 ---

@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/github/stars/agentguild/agentguild?style=for-the-badge&color=3B82F6" alt="GitHub Stars">
   <img src="https://img.shields.io/github/license/agentguild/agentguild?style=for-the-badge&color=EC4899" alt="MIT License">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=for-the-badge&color=22C55E" alt="PRs Welcome">
-  <img src="https://img.shields.io/badge/agents-18-3B82F6?style=for-the-badge" alt="18 Agents">
+  <img src="https://img.shields.io/badge/agents-28-3B82F6?style=for-the-badge" alt="28 Agents">
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@
 
 ## 什么是 AgentGuild？
 
-AgentGuild 是一个**精心策划的 18 人 AI 特工花名册**，专为软件开发团队设计。每个特工都是一份详细的 Markdown 文件，定义了一个专业化角色——包括身份、专长，最重要的是，**观点和立场**。
+AgentGuild 是一个**精心策划的 28 人 AI 特工花名册**，专为软件开发团队设计。每个特工都是一份详细的 Markdown 文件，定义了一个专业化角色——包括身份、专长，最重要的是，**观点和立场**。
 
 与只提供空模板的通用 AI 特工框架不同，AgentGuild 的特工拥有：
 
@@ -50,7 +50,7 @@ AgentGuild 支持 **Claude Code**、**Cursor**、**GitHub Copilot** 和 **Windsu
 | **盲区** | 未涉及 | 坦诚的自我评估和限制认知 |
 | **决策权** | 未定义 | 明确谁对什么有最终决定权 |
 | **格式支持** | 仅 Claude Code | Claude Code、Cursor、Copilot、Windsurf |
-| **特工数量** | 很多，质量参差不齐 | 18 个精心打磨的特工 |
+| **特工数量** | 很多，质量参差不齐 | 28 个精心打磨的特工 |
 
 **AgentGuild 不是 agency-agents 的分支（fork）**。它是一种下一代方案——公会中的每个特工都拥有真实的个性、坚定的专业立场，以及明确的能力与责任边界。
 
@@ -66,6 +66,9 @@ AgentGuild 支持 **Claude Code**、**Cursor**、**GitHub Copilot** 和 **Windsu
 | 🗄️ | 后端架构师 | API 设计、数据建模、认证与服务可靠性 | 高级 |
 | 🚀 | DevOps 工程师 | CI/CD、基础设施、监控、事故响应与可靠性 | 高级 |
 | 🤖 | AI 工程师 | 模型选择、提示词架构、评估与 AI 功能设计 | 高级 |
+| 📱 | 移动端工程师 | iOS/Android原生开发、跨平台架构、移动端性能优化 | 高级 |
+| 🗄️ | 数据库专家 | 数据库建模、查询优化、迁移策略与数据一致性保障 | 高级 |
+| 🔍 | 代码审查员 | 代码质量审查、架构合规验证与审查文化倡导 | 高级 |
 
 ### 产品部
 
@@ -100,6 +103,38 @@ AgentGuild 支持 **Claude Code**、**Cursor**、**GitHub Copilot** 和 **Windsu
 | 📈 | 增长黑客 | 系统的增长策略，不依赖平台漏洞 | 高级 |
 | ✍️ | 内容创作者 | 以回答深度和用户价值为优先的内容策略 | 中级 |
 | 📱 | 社媒策略师 | 平台原生内容策略，不跨平台一键分发 | 中级 |
+| 🔍 | SEO专家 | 搜索引擎优化、搜索意图分析、内容排名策略与技术SEO审计 | 中级 |
+
+### 安全部
+
+| Emoji | 特工 | 描述 | 难度 |
+|-------|------|------|------|
+| 🔒 | 安全工程师 | 威胁建模、安全架构设计、渗透测试与安全合规自动化 | 高级 |
+
+### 项目管理部
+
+| Emoji | 特工 | 描述 | 难度 |
+|-------|------|------|------|
+| 📐 | 项目经理 | 进度跟踪、风险管控、资源调度与交付协调 | 中级 |
+
+### 销售部
+
+| Emoji | 特工 | 描述 | 难度 |
+|-------|------|------|------|
+| 🎯 | 销售工程师 | 技术演示架构、PoC交付、技术验证与售前支撑 | 高级 |
+| 💰 | 交易策略师 | 交易结构设计、定价策略、谈判支持与收入优化 | 高级 |
+
+### 支持部
+
+| Emoji | 特工 | 描述 | 难度 |
+|-------|------|------|------|
+| 💬 | 客户支持 | 客户问题响应、支持工单管理、知识库建设与产品反馈闭环 | 中级 |
+
+### 财务部
+
+| Emoji | 特工 | 描述 | 难度 |
+|-------|------|------|------|
+| 💹 | 财务分析师 | 单位经济分析、财务建模、SaaS指标追踪与盈利能力优化 | 高级 |
 
 ---
 
@@ -142,7 +177,7 @@ cd agentguild
 # 3. 将特工安装到你的 AI 工具中
 ./scripts/install.sh
 
-# 4. 完成！你的 AI 工具现在了解全部 18 个公会特工。
+# 4. 完成！你的 AI 工具现在了解全部 28 个公会特工。
 #    需要专家帮助时，直接引用特工名称即可。
 ```
 
@@ -186,12 +221,20 @@ agentguild/
 │   │   ├── frontend-engineer.md   # 前端工程师
 │   │   ├── backend-architect.md   # 后端架构师
 │   │   ├── devops-engineer.md     # DevOps 工程师
-│   │   └── ai-engineer.md         # AI 工程师
+│   │   ├── ai-engineer.md         # AI 工程师
+│   │   ├── mobile-developer.md    # 移动端工程师
+│   │   ├── database-specialist.md # 数据库专家
+│   │   └── code-reviewer.md       # 代码审查员
 │   ├── product/                   # 产品部
 │   │   ├── product-manager.md     # 产品经理
 │   │   ├── ux-researcher.md       # 用户研究员
 │   │   ├── data-analyst.md        # 数据分析师
 │   │   └── tech-writer.md         # 技术文档工程师
+│   ├── design/                    # 设计部
+│   │   ├── ui-designer.md         # UI 设计师
+│   │   ├── brand-guardian.md      # 品牌守护者
+│   │   ├── interaction-designer.md# 交互设计师
+│   │   └── creative-director.md   # 创意指导
 │   ├── testing/                   # 测试部
 │   │   ├── qa-engineer.md         # QA 工程师
 │   │   ├── performance-tester.md  # 性能测试工程师
@@ -199,12 +242,19 @@ agentguild/
 │   ├── marketing/                 # 市场部
 │   │   ├── growth-hacker.md       # 增长黑客
 │   │   ├── content-creator.md     # 内容创作者
-│   │   └── social-media-strategist.md# 社媒策略师
-│   └── design/                    # 设计部
-│       ├── ui-designer.md         # UI 设计师
-│       ├── brand-guardian.md      # 品牌守护者
-│       ├── interaction-designer.md# 交互设计师
-│       └── creative-director.md   # 创意指导
+│   │   ├── social-media-strategist.md# 社媒策略师
+│   │   └── seo-specialist.md      # SEO专家
+│   ├── security/                  # 安全部
+│   │   └── security-engineer.md   # 安全工程师
+│   ├── project-management/        # 项目管理部
+│   │   └── project-manager.md     # 项目经理
+│   ├── sales/                     # 销售部
+│   │   ├── sales-engineer.md      # 销售工程师
+│   │   └── deal-strategist.md     # 交易策略师
+│   ├── support/                   # 支持部
+│   │   └── customer-support.md    # 客户支持
+│   └── finance/                   # 财务部
+│       └── financial-analyst.md   # 财务分析师
 ├── contracts/                     # 协作契约（Phase 2a）
 │   ├── extract.sh                 # 从特工文件中提取契约
 │   └── guild-contracts.yml        # 生成的 YAML 契约文件

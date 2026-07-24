@@ -1,5 +1,5 @@
 name: 创业 MVP 开发
-description: 从零到 MVP 的完整产品开发流水线（发现 → 设计 → 实现 → 验证）
+description: 从零到 MVP 的完整产品开发流水线（发现 → 设计 → 实现 → 安全审查 → 验证）
 phases:
   - phase: 发现与定义
     agents: [product-manager, ux-researcher]
@@ -9,10 +9,14 @@ phases:
     requires_from: 发现与定义
     delivers: [设计规范, 交互规范, 视觉稿]
   - phase: 工程实现
-    agents: [frontend-engineer, backend-architect, devops-engineer]
+    agents: [frontend-engineer, backend-architect, devops-engineer, mobile-developer, database-specialist]
     requires_from: 设计
-    delivers: [可运行构建, API 规范, 部署流水线]
+    delivers: [可运行构建, API 规范, 部署流水线, 数据库迁移, 移动端构建]
+  - phase: 安全审查
+    agents: [security-engineer, code-reviewer]
+    requires_from: 工程实现
+    delivers: [威胁模型文档, 安全审计报告, 代码质量报告]
   - phase: 质量验证
     agents: [qa-engineer, performance-tester, accessibility-auditor, creative-director]
-    requires_from: 工程实现
+    requires_from: 安全审查
     delivers: [质量报告, 性能报告, 无障碍审计, 设计评审, 发布决策]
