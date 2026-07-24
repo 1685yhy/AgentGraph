@@ -1,5 +1,5 @@
 # AgentGuild Collaboration Contracts
-# Auto-generated: 2026-07-24T12:51:43+08:00
+# Auto-generated: 2026-07-24T13:10:44+08:00
 # Source: agents/*/ section 13 (协作契约)
 #
 # Schema:
@@ -1172,4 +1172,4 @@ contracts:
             required: true
 
 
-# ── Generated 2026-07-24T12:51:44+08:00 ──
+# ── Generated 2026-07-24T13:10:45+08:00 ──
