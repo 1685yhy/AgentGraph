@@ -129,58 +129,150 @@ yaml_escape() {
 
 # parse_contract <agent_file> — extract structured contract from section 13.
 # Outputs YAML fragment to stdout.
+# Produces cleaner item names by extracting text before —— (Chinese em dash),
+# truncating long names, sanitizing markdown formatting, and escaping YAML special chars.
+# Handles role-grouped delivery paragraphs (**对XX交付**：content).
 parse_contract() {
   local file="$1"
   local body; body="$(get_body "$file")"
   local slug; slug="$(agent_slug "$file")"
 
   # Extract section 13 (after "## 13." heading, until next ## heading or EOF)
-  local section13; section13=$(echo "$body" | awk '/^## 13\./{found=1; next} /^## /{if(found) exit} found{print}')
+  local section13
+  section13=$(echo "$body" | awk '/^## 13\./{found=1; next} /^## /{if(found) exit} found{print}')
+
+  # If no section 13 found, output empty contracts
+  if [[ -z "$section13" ]]; then
+    echo "  ${slug}:"
+    echo "    delivers: []"
+    echo "    requires: []"
+    return
+  fi
 
   echo "  ${slug}:"
   echo "    delivers:"
 
-  # Extract deliverables.
-  # Matches both "**我向下游交付：**" and "**我交付：**" (and English fallback).
-  echo "$section13" | awk '
-    /我向下游交付|我交付|I deliver/ { in_delivers=1; next }
-    /我需要上游提供|我需要|I require/ { in_delivers=0; next }
-    in_delivers && /^- / {
-      sub(/^- /, "")
-      gsub(/\*\*/, "")
-      sub(/[：:].*/, "")
-      sub(/:.*/, "")
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-      if (length > 3 && length < 80)
-        printf "      - name: \"%s\"\n        description: \"%s\"\n", $0, $0
+  # Extract deliverables:
+  #   Pattern 1 — Bullet items after "我向下游交付/我交付/I deliver" header
+  #   Pattern 2 — Role-grouped delivery paragraphs (**对XX交付**：content) split by 。
+  echo "$section13" | awk -v q='"' '
+    BEGIN { in_del = 0 }
+
+    # short_name: extract concise name from a description string
+    function short_name(s,    idx) {
+      if (index(s, "——") > 0) {
+        idx = index(s, "——")
+        s = substr(s, 1, idx - 1)
+      }
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
+      if (length(s) > 60)
+        s = substr(s, 1, 57) "..."
+      return s
+    }
+
+    # yaml_escape: escape double-quotes and backslashes for YAML double-quoted strings
+    function yaml_escape(s) {
+      gsub(/\\/, "\\\\", s)
+      gsub(/"/, "\\" q, s)
+      return s
+    }
+
+    # Enter/exit delivery section
+    /我向下游交付|我交付|I deliver/ { in_del = 1; next }
+    /^\*\*我需要|我需要上游提供|I require/ { in_del = 0; next }
+    in_del == 0 { next }
+
+    # Pattern 1: Bullet items (e.g., "- 包含问题陈述和成功标准的 PRD")
+    /^- / {
+      item = $0
+      sub(/^- [[:space:]]*/, "", item)
+      gsub(/\*\*/, "", item)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", item)
+      if (length(item) < 2) next
+
+      name = short_name(item)
+      if (length(name) < 2) name = item
+
+      printf "      - name: %s%s%s\n        description: %s%s%s\n", \
+        q, yaml_escape(name), q, q, yaml_escape(item), q
+      next
+    }
+
+    # Pattern 2: Role-grouped delivery paragraphs (e.g., "**对设计团队交付**：")
+    /^\*\*对[^*]+\*\*[：:]/ {
+      line = $0
+      sub(/^\*\*对[^*]+\*\*[：:][[:space:]]*/, "", line)
+      gsub(/\*\*/, "", line)
+      if (length(line) < 4) next
+
+      n = split(line, sentences, "。")
+      for (i = 1; i <= n; i++) {
+        s = sentences[i]
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
+        if (length(s) < 4) continue
+
+        sname = short_name(s)
+        if (length(sname) < 2) sname = s
+
+        printf "      - name: %s%s%s\n        description: %s%s%s\n", \
+          q, yaml_escape(sname), q, q, yaml_escape(s), q
+      }
+      next
     }
   '
 
   echo "    requires:"
 
-  # Extract requirements.
-  # Matches both "**我需要上游提供：**" and "**我需要：**" (and English fallback).
-  # Lines are like: `- **Role Name**：description`
-  echo "$section13" | awk '
+  # Extract requirements (lines after "我需要上游提供" with "- **Role**：description" format)
+  echo "$section13" | awk -v q='"' '
     BEGIN { in_rq = 0 }
-    /我需要上游提供|我需要|I require/ { in_rq = 1; next }
+
+    function short_name(s,    idx) {
+      if (index(s, "——") > 0) {
+        idx = index(s, "——")
+        s = substr(s, 1, idx - 1)
+      }
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
+      if (length(s) > 60)
+        s = substr(s, 1, 57) "..."
+      return s
+    }
+
+    function yaml_escape(s) {
+      gsub(/\\/, "\\\\", s)
+      gsub(/"/, "\\" q, s)
+      return s
+    }
+
+    # Enter/exit requires section
+    # NOTE: DO NOT use bare "|我需要" as a trigger — it matches descriptions
+    # containing "我需要" (e.g., 叙事设计师的描述: "我需要知道故事中的世界规则")
+    # anchored to line start) to handle agents using "**我需要：**" format
+    /^\*\*我需要|我需要上游提供|I require/ { in_rq = 1; next }
     /我向下游交付|我交付|I deliver/ { in_rq = 0; next }
-    in_rq && /^- .*\*\*/ {
-      # Extract role name between ** markers
+    in_rq == 0 { next }
+
+    # Match: "- **Role Name**：description"
+    /^- [[:space:]]*\*\*/ {
       if (match($0, /\*\*[^*]+\*\*/)) {
         role = substr($0, RSTART, RLENGTH)
         gsub(/\*\*/, "", role)
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", role)
 
-        # Extract description after the closing **
         desc = substr($0, RSTART + RLENGTH)
         sub(/^[：:][[:space:]]*/, "", desc)
-        sub(/^[[:space:]]+|[[:space:]]+$/, "", desc)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", desc)
         gsub(/\*\*/, "", desc)
 
-        if (length(role) > 1 && length(role) < 60 && length(desc) > 0) {
-          printf "      - from: \"%s\"\n        items:\n", role
-          printf "          - name: \"%s\"\n            description: \"%s\"\n            required: true\n", desc, desc
+        name = short_name(desc)
+        if (length(name) < 2) name = desc
+        if (length(name) > 60) name = substr(name, 1, 57) "..."
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+
+        if (length(role) > 1 && length(role) < 60 && length(name) > 0) {
+          printf "      - from: %s%s%s\n        items:\n", q, yaml_escape(role), q
+          printf "          - name: %s%s%s\n            description: %s%s%s\n            required: true\n", \
+            q, yaml_escape(name), q, q, yaml_escape(desc), q
         }
       }
       next
