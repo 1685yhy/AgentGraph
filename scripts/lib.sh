@@ -50,6 +50,61 @@ get_agent_slugs() {
   awk -F'"' '/"slug":/ { print $4 }' "$config"
 }
 
+# ── Inbox helpers ─────────────────────────────────────────────────
+
+# add_inbox_item <agent> <type> <from> <meta> <summary> <action>
+# Appends a notification item to an agent's inbox JSON file.
+add_inbox_item() {
+  local agent="$1" type="$2" from="$3" meta="$4" summary="$5" action="$6"
+  local inbox_dir="$REPO_ROOT/context/inbox"
+  mkdir -p "$inbox_dir"
+
+  local inbox_file="$inbox_dir/${agent}.json"
+  local timestamp; timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  local msg_id="msg-$(date +%s)-$((RANDOM % 1000))"
+
+  if [[ -f "$inbox_file" ]]; then
+    python3 -c "
+import json
+d = json.load(open('$inbox_file'))
+d['unread'] = d.get('unread', 0) + 1
+d['updated'] = '$timestamp'
+d['items'].append({
+    'id': '$msg_id',
+    'type': '$type',
+    'from': '$from',
+    'timestamp': '$timestamp',
+    'summary': '$summary',
+    'action': '$action',
+    'meta': '$meta',
+    'read': False
+})
+with open('$inbox_file', 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+" 2>/dev/null || true
+  else
+    cat > "$inbox_file" << JSONEOF
+{
+  "agent": "$agent",
+  "updated": "$timestamp",
+  "unread": 1,
+  "items": [
+    {
+      "id": "$msg_id",
+      "type": "$type",
+      "from": "$from",
+      "timestamp": "$timestamp",
+      "summary": "$summary",
+      "action": "$action",
+      "meta": "$meta",
+      "read": false
+    }
+  ]
+}
+JSONEOF
+  fi
+}
+
 # ── Terminal helpers ──────────────────────────────────────────────
 
 if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != "dumb" ]]; then

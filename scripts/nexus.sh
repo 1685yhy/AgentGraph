@@ -262,6 +262,19 @@ print('  记录: ' + '$json_file')
 JSONFALLBACK
   }
 
+  # Auto-notify receiver's inbox
+  local status_text
+  if grep -q '"status": "ready"' "$json_file" 2>/dev/null; then
+    status_text="$from_slug 创建了交接 #$id，所有交付物已就绪"
+  else
+    status_text="$from_slug 创建了交接 #$id，存在缺失项待补充"
+  fi
+  add_inbox_item "$to_slug" "handoff_incoming" "$from_slug" \
+    "handoff_id=$id" \
+    "$status_text" \
+    "检查交付物并运行 guild accept --handoff $id"
+  echo "  📨 已通知 $to_slug"
+
   # Context check: are there relevant decisions this handoff should follow?
   echo ""
   echo "  上下文检查..."
@@ -306,6 +319,15 @@ JSONFALLBACK
           echo "    $dec_agent vs $g_agent"
           echo "    建议: 运行 guild context check 查看详情"
           echo "    建议: 在继续交接前解决此冲突"
+          # Auto-notify conflicting agents
+          add_inbox_item "$dec_agent" "conflict_active" "$g_agent" \
+            "topic=$dec_topic" \
+            "与 $g_agent 在 $dec_topic 上存在矛盾决策" \
+            "基于决策权重协商解决。运行 guild resolve --topic '$dec_topic'"
+          add_inbox_item "$g_agent" "conflict_active" "$dec_agent" \
+            "topic=$g_topic" \
+            "与 $dec_agent 在 $g_topic 上存在矛盾决策" \
+            "基于决策权重协商解决。运行 guild resolve --topic '$g_topic'"
         fi
       fi
     done
@@ -523,12 +545,11 @@ cmd_run() {
     echo "  产出后交给: $next_agents"
     echo ""
     echo "  请在 $path 目录中准备好 $current_phase 阶段的交付物"
-    echo "  完成后按 Enter 继续（或输入 'skip' 跳过此阶段）..."
-
-    if ! $dry_run; then
-      if $auto_yes; then
-        echo "  (自动继续)"
-      else
+    if $auto_yes; then
+      echo "  (全自动模式 - 跳过用户提示)"
+    else
+      echo "  完成后按 Enter 继续（或输入 'skip' 跳过此阶段）..."
+      if ! $dry_run; then
         read -r input
         [[ "$input" == "skip" ]] && { echo "  已跳过"; echo ""; continue; }
       fi
@@ -614,12 +635,12 @@ if req_missing > 0:
 
     if ! $all_ready && ! $dry_run; then
       echo ""
-      echo "  ⚠️  存在缺失项。请补充后按 Enter 重试（或输入 'skip' 跳过）..."
-      if $auto_yes; then
-        echo "  (自动继续)"
-      else
+      if ! $auto_yes; then
+        echo "  ⚠️  存在缺失项。请补充后按 Enter 重试（或输入 'skip' 跳过）..."
         read -r input
         [[ "$input" == "skip" ]] && { echo "  已跳过"; echo ""; continue; }
+      else
+        echo "  (全自动模式 - 跳过缺失项检查)"
       fi
     fi
 
@@ -639,6 +660,21 @@ if req_missing > 0:
   echo "============================================"
   echo "  流水线完成: $pipeline"
   echo "============================================"
+
+  # Show inbox summary
+  echo ""
+  echo "=== 收件箱摘要 ==="
+  local any_inbox=false
+  for f in "$REPO_ROOT/context/inbox"/*.json; do
+    [[ -f "$f" ]] || continue
+    local a; a=$(basename "$f" .json)
+    local unread; unread=$(python3 -c "import json; print(json.load(open('$f'))['unread'])" 2>/dev/null || echo "?")
+    if [[ "$unread" != "0" ]]; then
+      echo "  $a: $unread 未读"
+      any_inbox=true
+    fi
+  done
+  $any_inbox || echo "  所有收件箱为空"
 }
 
 # ── cmd_decide ────────────────────────────────────────────────────────
@@ -774,6 +810,15 @@ with open('$tmpidx', 'w') as f:
   ok "决策 #$id 已记录: $agent_slug / $type / $topic"
   ok "文件: $filename"
   if [[ -n "$affected" ]]; then echo "  受影响方: $affected"; fi
+
+  # Auto-notify affected agents about this decision
+  if [[ -n "$affected" ]]; then
+    echo "  📨 正在通知受影响方..."
+    for a in $affected; do
+      add_inbox_item "$a" "decision_relevant" "$agent_slug"         "topic=$topic"         "$agent_slug 做出了关于 $topic 的决策: $summary"         "确认你的工作是否受此决策影响"
+      echo "    → 已通知 $a"
+    done
+  fi
 }
 
 # ── cmd_context ────────────────────────────────────────────────────────
@@ -869,6 +914,31 @@ print(f'CONFLICT_COUNT={found}')
       conflict_count=${conflict_count:-0}
       if [[ "$conflict_count" -gt 0 ]]; then
         conflicts=$conflict_count
+        # Auto-notify conflicting agents from context check
+        local conflict_notify_done=false
+        for f in "$REPO_ROOT/context/decisions"/*.json; do
+          [[ -f "$f" ]] || continue
+          local dec_agent; dec_agent=$(grep -o '"agent": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+          local dec_topic; dec_topic=$(grep -o '"topic": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+          for g in "$REPO_ROOT/context/decisions"/*.json; do
+            [[ -f "$g" ]] || continue
+            [[ "$f" == "$g" ]] && continue
+            local g_agent; g_agent=$(grep -o '"agent": "[^"]*"' "$g" | head -1 | cut -d'"' -f4)
+            local g_topic; g_topic=$(grep -o '"topic": "[^"]*"' "$g" | head -1 | cut -d'"' -f4)
+            if [[ "$dec_topic" == "$g_topic" && "$dec_agent" != "$g_agent" ]]; then
+              $conflict_notify_done && continue
+              conflict_notify_done=true
+          add_inbox_item "$dec_agent" "conflict_active" "$g_agent" \
+            "topic=$dec_topic" \
+            "与 $g_agent 在 $dec_topic 上存在矛盾决策" \
+            "基于决策权重协商解决。运行 guild resolve --topic '$dec_topic'"
+          add_inbox_item "$g_agent" "conflict_active" "$dec_agent" \
+            "topic=$g_topic" \
+            "与 $dec_agent 在 $g_topic 上存在矛盾决策" \
+            "基于决策权重协商解决。运行 guild resolve --topic '$g_topic'"
+            fi
+          done
+        done
       fi
 
       # Check 2: Handoff traceability
@@ -893,6 +963,177 @@ print(f'CONFLICT_COUNT={found}')
   esac
 }
 
+# ── cmd_inbox ──────────────────────────────────────────────────────
+
+cmd_inbox() {
+  local agent="" unread_only=false
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent) agent="$2"; shift 2;;
+      --unread) unread_only=true; shift;;
+      *) shift;;
+    esac
+  done
+
+  if [[ -n "$agent" ]]; then
+    local agent_slug; agent_slug="$(resolve_agent "$agent")"
+    local inbox="$REPO_ROOT/context/inbox/${agent_slug}.json"
+    if [[ ! -f "$inbox" ]]; then
+      echo "  ${agent_slug} 收件箱为空"
+      return 0
+    fi
+
+    echo "=== ${agent_slug} 的收件箱 ==="
+    if ! python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+ur = sys.argv[2] == "true"
+print("  未读: " + str(d["unread"]) + " / 总计: " + str(len(d["items"])))
+print()
+for item in d["items"]:
+    if ur and item["read"]: continue
+    icon = {"handoff_incoming": "\U0001f4e8", "conflict_active": "⚠️", "decision_relevant": "\U0001f4cb"}.get(item["type"], "\U0001f4cc")
+    read_mark = "  " if item["read"] else "\U0001f535"
+    print(read_mark + " " + icon + " [" + item["from"] + "] " + item["summary"])
+    print("      → " + item["action"])
+    print()
+' "$inbox" "$unread_only" 2>/dev/null; then
+      echo "  (python3 不可用，直接显示原始 JSON)"
+      cat "$inbox"
+    fi
+  else
+    # Show all agents with unread
+    echo "=== 所有收件箱 ==="
+    local any=false
+    for f in "$REPO_ROOT/context/inbox"/*.json; do
+      [[ -f "$f" ]] || continue
+      local a; a=$(basename "$f" .json)
+      local unread; unread=$(python3 -c "import json; print(json.load(open('$f'))['unread'])" 2>/dev/null || echo "?")
+      if [[ "$unread" != "0" ]]; then
+        echo "  $a: $unread 未读"
+        any=true
+      fi
+    done
+    $any || echo "  所有收件箱为空"
+  fi
+}
+
+# ── cmd_read ──────────────────────────────────────────────────────
+
+cmd_read() {
+  local agent="" all=false
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent) agent="$2"; shift 2;;
+      --all) all=true; shift;;
+      *) shift;;
+    esac
+  done
+
+  [[ -n "$agent" ]] || die "--agent is required"
+  local agent_slug; agent_slug="$(resolve_agent "$agent")"
+  local inbox="$REPO_ROOT/context/inbox/${agent_slug}.json"
+  [[ -f "$inbox" ]] || { echo "  收件箱为空"; return 0; }
+
+  if ! python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+all_flag = sys.argv[2] == "true"
+for item in d["items"]:
+    if all_flag or not item["read"]:
+        item["read"] = True
+d["unread"] = 0
+with open(sys.argv[1], "w") as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+print("已标记所有消息为已读")
+' "$inbox" "$all" 2>/dev/null; then
+    echo "已标记为已读"
+  fi
+}
+
+# ── cmd_resolve ────────────────────────────────────────────────────
+
+cmd_resolve() {
+  local topic=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --topic) topic="$2"; shift 2;;
+      *) shift;;
+    esac
+  done
+
+  [[ -n "$topic" ]] || die "--topic is required"
+
+  echo "=== 冲突解决: $topic ==="
+
+  # Find conflicting decisions
+  local parties=""
+  for f in "$REPO_ROOT/context/decisions"/*.json; do
+    [[ -f "$f" ]] || continue
+    local t; t=$(grep -o '"topic": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+    [[ "$t" == "$topic" ]] || continue
+    local a; a=$(grep -o '"agent": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+    local s; s=$(grep -o '"summary": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+    echo "  $a: $s"
+    parties="$parties $a"
+  done
+
+  if [[ -z "$parties" ]]; then
+    echo "  未找到与主题“$topic”相关的决策"
+    return 0
+  fi
+
+  echo ""
+  echo "  决策权重分析:"
+
+  # Determine authority based on topic keywords
+  local authority=""
+  case "$topic" in
+    *api*|*API*|*schema*|*database*|*db*|*model*|*endpoint*|*auth*|*认证*|*api*)
+      # api-design, backend related
+      if echo "$parties" | grep -q "backend-architect"; then
+        authority="backend-architect"
+      fi
+      ;;
+    *ui*|*UX*|*design*|*component*|*style*|*layout*|*interface*|*ui*|*设计*)
+      if echo "$parties" | grep -q "ui-designer"; then
+        authority="ui-designer"
+      elif echo "$parties" | grep -q "creative-director"; then
+        authority="creative-director"
+      fi
+      ;;
+    *game*|*mechanic*|*gameplay*|*循环*|*game*)
+      if echo "$parties" | grep -q "game-designer"; then
+        authority="game-designer"
+      fi
+      ;;
+    *scope*|*feature*|*priority*|*prd*|*范围*|*功能*)
+      if echo "$parties" | grep -q "product-manager"; then
+        authority="product-manager"
+      fi
+      ;;
+    *security*|*auth*|*permission*|*安全*)
+      if echo "$parties" | grep -q "security-engineer"; then
+        authority="security-engineer"
+      fi
+      ;;
+  esac
+
+  if [[ -n "$authority" ]]; then
+    echo "  → 此领域拥有最终决策权的 Agent: $authority"
+    echo "  建议: 由 $authority 做出最终裁决"
+    echo "  处理方式:"
+    echo "    1. $authority 运行 guild decide 记录最终决策"
+    echo "    2. 受影响方确认并更新自己的工作"
+  else
+    echo "  警告: 无法自动确定此领域的决策权威"
+    echo "  建议: 由 PM 协调决策或运行 guild decide --authority <agent> 人工指定"
+  fi
+
+  echo ""
+  echo "  受影响方应被通知最终决定"
+}
+
 # ── Main ────────────────────────────────────────────────────────────
 
 if [[ $# -eq 0 ]]; then
@@ -907,6 +1148,9 @@ if [[ $# -eq 0 ]]; then
   echo "  guild decide    — 记录结构化决策 (ADR)"
   echo "  guild context   — 显示/检查决策图谱和冲突"
   echo "  guild run       — 执行流水线"
+  echo "  guild inbox     — 查看 Agent 收件箱"
+  echo "  guild read      — 标记收件箱消息为已读"
+  echo "  guild resolve   — 基于决策权重自动解决冲突"
   echo ""
   echo "Run 'guild <command> --help' for details."
   exit 0
@@ -924,8 +1168,11 @@ case "$CMD" in
   run)     cmd_run "$@";;
   decide)  cmd_decide "$@";;
   context) cmd_context "$@";;
+  inbox)   cmd_inbox "$@";;
+  read)    cmd_read "$@";;
+  resolve) cmd_resolve "$@";;
   --help|-h|help)
     sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: handoff, check, status, accept, list, run, decide, context";;
+  *) die "Unknown command: $CMD. Valid: handoff, check, status, accept, list, run, decide, context, inbox, read, resolve";;
 esac
