@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>色谱守护者 - Color Clash</title>
+<meta name="description" content="色彩混沌正在蔓延。作为色谱守护者，你的使命是恢复平衡。">
+<meta property="og:title" content="色谱守护者 - 测测你的色彩感知力">
+<meta property="og:description" content="我的色觉击败了99%的人！你的弱点可能是蓝色系。测测你的。">
+<meta name="theme-color" content="#0a0a0f">
+<style>
+/* ============================================================
+   BASE
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'Noto Sans SC',sans-serif;-webkit-tap-highlight-color:transparent;touch-action:none;-webkit-user-select:none;user-select:none}
+#app{position:relative;width:100%;height:100%;max-width:500px;margin:0 auto;overflow:hidden;background:#0a0a0f;transition:background 0.8s}
+canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:block;touch-action:none}
+
+/* ---- Combo Border Glow ---- */
+#combo-border{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:5;transition:opacity 0.3s;opacity:0}
+#combo-border::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,var(--cb-color,#ffd700),transparent);box-shadow:0 0 20px var(--cb-color,#ffd700),0 0 40px var(--cb-color,#ffd70044)}
+#combo-border::after{content:'';position:absolute;bottom:0;left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,var(--cb-color,#ffd700),transparent);box-shadow:0 0 20px var(--cb-color,#ffd700),0 0 40px var(--cb-color,#ffd70044)}
+
+/* ---- UI Overlay ---- */
+#ui-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+#hud{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:linear-gradient(180deg,rgba(10,10,15,0.95) 0%,rgba(10,10,15,0) 100%);height:64px;position:relative;z-index:2}
+#hud-left{display:flex;align-items:center;gap:10px;pointer-events:auto}
+#hud-center{text-align:center;flex:1}
+#hud-score{font-size:20px;font-weight:700;letter-spacing:1px;font-variant-numeric:tabular-nums;transition:transform 0.1s}
+#hud-score.pop{transform:scale(1.25)}
+#hud-score span{font-size:11px;font-weight:400;color:#666;margin-right:2px}
+
+/* ---- Chaos Meter (Circular Gauge) ---- */
+#chaos-meter-wrap{position:relative;width:44px;height:44px;pointer-events:auto}
+#chaos-meter-svg{width:44px;height:44px;transform:rotate(-90deg)}
+#chaos-meter-bg{fill:none;stroke:rgba(255,255,255,0.06);stroke-width:3}
+#chaos-meter-fill{fill:none;stroke:url(#chaosGrad);stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset 0.3s}
+#chaos-meter-icon{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:14px;transition:opacity 0.3s}
+.chaos-particle{position:absolute;width:3px;height:3px;border-radius:50%;pointer-events:none;background:#ff4757;opacity:0}
+
+/* ---- Target Color with Segmented Progress Ring ---- */
+#target-progress-wrap{position:relative;width:54px;height:54px;pointer-events:auto}
+#target-circle{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,0.15);box-shadow:0 0 12px var(--target-glow,#fff3);transition:background 0.3s,box-shadow 0.3s;animation:breathing 2.5s ease-in-out infinite}
+#target-ring{position:absolute;top:0;left:0;width:100%;height:100%}
+#target-label{font-size:8px;color:#888;letter-spacing:1px;text-transform:uppercase;text-align:center;margin-top:2px}
+
+/* ---- Combo Display ---- */
+#hud-right{display:flex;align-items:center;gap:8px}
+#hud-combo-wrap{position:relative;width:40px;height:28px;display:flex;align-items:center;justify-content:center}
+#hud-combo{color:#ffd700;font-weight:700;font-size:14px;min-width:30px;text-align:right;opacity:0;transition:opacity 0.2s,transform 0.2s}
+#hud-combo.show{opacity:1}
+#hud-combo.pop{transform:scale(1.4)}
+#hud-level{background:rgba(255,255,255,0.08);padding:2px 8px;border-radius:8px;color:#888;font-size:10px;font-weight:600;letter-spacing:0.5px;transition:all 0.3s}
+#hud-level.flash{background:rgba(124,58,237,0.3);color:#c084fc;transform:scale(1.1)}
+
+/* ---- Screens ---- */
+.screen{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;transition:opacity 0.5s,transform 0.5s;padding:24px}
+.screen.hidden{opacity:0;pointer-events:none;transform:scale(0.93)}
+
+/* Start Screen */
+#start-screen{background:linear-gradient(180deg,#0a0a0f 0%,#111130 50%,#0a0a0f 100%);gap:8px}
+#start-screen .logo{font-size:40px;font-weight:800;background:linear-gradient(135deg,#f0f,#00f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:2px;margin-bottom:2px}
+#start-screen .story-text{font-size:13px;color:#999;line-height:1.7;text-align:center;max-width:300px;margin:4px 0 12px;opacity:0.8}
+#start-screen .story-text span{color:#7c3aed;font-weight:600}
+#start-screen .high-score{font-size:13px;color:#555;margin-bottom:4px}
+#start-screen .high-score span{color:#ffd700}
+
+.btn{pointer-events:auto;border:none;border-radius:12px;padding:14px 40px;font-size:18px;font-weight:700;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;outline:none;position:relative;overflow:hidden;min-width:200px;text-align:center}
+.btn:active{transform:scale(0.96)}
+.btn-primary{background:linear-gradient(135deg,#7c3aed,#e040c0);color:#fff;box-shadow:0 4px 24px rgba(124,58,237,0.4)}
+.btn-secondary{background:rgba(255,255,255,0.08);color:#ccc;border:1px solid rgba(255,255,255,0.12)}
+.btn-secondary:hover{background:rgba(255,255,255,0.16)}
+
+/* Daily Challenge */
+#daily-badge{display:inline-block;background:linear-gradient(135deg,#7c3aed22,#e040c022);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:4px 12px;font-size:11px;color:#c084fc;margin-bottom:8px;pointer-events:auto;cursor:pointer;transition:all 0.2s}
+#daily-badge:active{transform:scale(0.95)}
+
+/* Game Over Screen */
+#gameover-screen{background:linear-gradient(180deg,#0a0a0f 0%,#111120 50%,#0a0a0f 100%);gap:6px}
+#gameover-screen .final-score{font-size:52px;font-weight:800;letter-spacing:2px;font-variant-numeric:tabular-nums}
+#gameover-screen .final-score-label{font-size:12px;color:#666;text-transform:uppercase;letter-spacing:2px}
+#gameover-screen .new-hs{font-size:13px;color:#ffd700;animation:pulse 1.5s ease-in-out infinite}
+#gameover-screen .rating{font-size:28px;font-weight:700;margin-top:2px}
+#gameover-screen .rating-sub{font-size:13px;color:#888;margin-bottom:4px}
+#gameover-screen .narrative-end{font-size:12px;color:#666;font-style:italic;margin-bottom:6px;line-height:1.5;text-align:center;padding:0 20px;opacity:0.7}
+#gameover-screen .weakness{font-size:12px;background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.2);border-radius:8px;padding:6px 14px;color:#ff6b81;margin:4px 0;max-width:260px;text-align:center;line-height:1.4}
+#gameover-screen .btn-group{display:flex;flex-direction:column;gap:8px;width:80%;max-width:280px;align-items:center;margin-top:4px}
+
+/* Retry Countdown */
+#retry-countdown{font-size:24px;font-weight:800;color:#7c3aed;opacity:0;transition:opacity 0.3s;margin:2px 0;height:30px}
+#retry-countdown.show{opacity:1}
+#btn-retry.pulse{animation:retryPulse 0.6s ease-in-out infinite alternate}
+@keyframes retryPulse{0%{box-shadow:0 4px 24px rgba(124,58,237,0.2)}100%{box-shadow:0 4px 40px rgba(124,58,237,0.7)}}
+
+/* Death Replay */
+#death-replay-wrap{position:absolute;top:0;left:0;width:100%;height:100%;z-index:60;pointer-events:none;opacity:0;transition:opacity 0.3s}
+#death-replay-wrap.show{opacity:1;pointer-events:auto}
+#death-replay-wrap canvas{width:100%;height:100%}
+#death-replay-overlay{position:absolute;bottom:20px;left:0;right:0;text-align:center;font-size:12px;color:#888;letter-spacing:1px;text-transform:uppercase}
+
+/* Share Overlay */
+#share-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:200;display:flex;align-items:center;justify-content:center;transition:opacity 0.3s;pointer-events:auto}
+#share-overlay.hidden{opacity:0;pointer-events:none}
+#share-card{width:85%;max-width:340px;background:linear-gradient(145deg,#1a1a2e,#16213e);border-radius:20px;padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.06)}
+#share-card .share-title{font-size:20px;font-weight:800;margin-bottom:2px}
+#share-card .share-sub{font-size:11px;color:#888;margin-bottom:16px}
+#share-card .share-target{width:44px;height:44px;border-radius:50%;margin:0 auto 10px;border:2px solid rgba(255,255,255,0.1);box-shadow:0 0 16px var(--share-glow,#fff3)}
+#share-card .share-score{font-size:44px;font-weight:800;font-variant-numeric:tabular-nums}
+#share-card .share-rating{font-size:20px;font-weight:700;margin:2px 0 8px}
+#share-card .share-weak{font-size:12px;color:#ff6b81;margin-bottom:8px}
+#share-card .share-text{font-size:14px;color:#aaa;margin-bottom:16px;line-height:1.5}
+
+/* Practice Mode Overlay */
+#practice-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);z-index:150;display:flex;align-items:center;justify-content:center;transition:opacity 0.3s;pointer-events:auto}
+#practice-overlay.hidden{opacity:0;pointer-events:none}
+#practice-card{width:85%;max-width:340px;background:linear-gradient(145deg,#1a1a2e,#16213e);border-radius:20px;padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.06)}
+#practice-card h3{font-size:18px;font-weight:700;margin-bottom:4px}
+#practice-card p{font-size:13px;color:#888;margin-bottom:16px;line-height:1.5}
+#practice-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px}
+.practice-btn{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 6px;color:#ccc;font-size:11px;cursor:pointer;transition:all 0.2s;pointer-events:auto}
+.practice-btn:active{transform:scale(0.94)}
+
+/* Combo Toast */
+#combo-toast{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:38px;font-weight:800;pointer-events:none;z-index:50;opacity:0;transition:opacity 0.15s;text-shadow:0 0 30px currentColor44,0 0 60px currentColor22}
+#combo-toast.show{opacity:1}
+
+/* Level Transition */
+#level-transition{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:30;opacity:0;transition:opacity 0.1s}
+#level-transition.active{opacity:1}
+#level-transition .flash{position:absolute;top:0;left:0;width:100%;height:100%;background:var(--lt-color,#7c3aed);opacity:0;transition:opacity 0.05s}
+#level-transition .label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:32px;font-weight:800;color:#fff;text-shadow:0 0 40px #fff88,0 0 80px #fff44;white-space:nowrap}
+
+/* Level Preview Warning */
+#level-preview{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:25;pointer-events:none;opacity:0;transition:opacity 0.3s;text-align:center}
+#level-preview.show{opacity:1}
+#level-preview .name{font-size:22px;font-weight:800;color:#c084fc;text-shadow:0 0 20px #7c3aed88}
+#level-preview .flavor{font-size:13px;color:#888;margin-top:4px}
+
+/* Animations */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+@keyframes breathing{0%,100%{box-shadow:0 0 12px var(--target-glow,#fff3)}50%{box-shadow:0 0 24px var(--target-glow,#fff6)}}
+@keyframes scoreFly{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-80px) scale(0.5)}}
+@keyframes chaosRise{0%{transform:translateY(0) scale(1);opacity:0.8}100%{transform:translateY(-40px) scale(0.3);opacity:0}}
+
+/* Chromatic Aberration on Game Over */
+#gameover-screen.chromatic{filter:url(#chromatic-filter)}
+</style>
+</head>
+<body>
+<svg style="position:absolute;width:0;height:0">
+  <defs>
+    <linearGradient id="chaosGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#50fa7b"/>
+      <stop offset="50%" stop-color="#ffd700"/>
+      <stop offset="100%" stop-color="#ff4757"/>
+    </linearGradient>
+    <filter id="chromatic-filter">
+      <feOffset in="SourceGraphic" dx="2" dy="0" result="r"/>
+      <feOffset in="SourceGraphic" dx="-2" dy="0" result="b"/>
+      <feColorMatrix in="r" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r2"/>
+      <feColorMatrix in="b" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b2"/>
+      <feBlend mode="screen" in="r2" in2="b2" result="rb"/>
+      <feBlend mode="screen" in="rb" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+</svg>
+<div id="app">
+  <canvas id="gameCanvas"></canvas>
+  <div id="combo-border"></div>
+
+  <!-- Death Replay Layer -->
+  <div id="death-replay-wrap">
+    <canvas id="deathCanvas"></canvas>
+    <div id="death-replay-overlay">死亡回放 · 慢动作</div>
+  </div>
+
+  <!-- UI Overlay -->
+  <div id="ui-overlay">
+    <div id="hud">
+      <div id="hud-left">
+        <div id="target-progress-wrap">
+          <svg id="target-ring" viewBox="0 0 54 54">
+            <circle cx="27" cy="27" r="24" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2"/>
+            <circle id="target-ring-fill" cx="27" cy="27" r="24" fill="none" stroke="#c084fc" stroke-width="2" stroke-dasharray="150.8" stroke-dashoffset="150.8" stroke-linecap="round" style="transition:stroke-dashoffset 0.5s"/>
+          </svg>
+          <div id="target-circle"></div>
+        </div>
+      </div>
+      <div id="hud-center">
+        <div id="hud-score"><span>分</span> 0</div>
+      </div>
+      <div id="hud-right">
+        <div id="hud-combo-wrap">
+          <div id="hud-combo"></div>
+        </div>
+        <div id="hud-level">Lv.1</div>
+        <div id="chaos-meter-wrap">
+          <svg id="chaos-meter-svg" viewBox="0 0 44 44">
+            <circle id="chaos-meter-bg" cx="22" cy="22" r="18"/>
+            <circle id="chaos-meter-fill" cx="22" cy="22" r="18" stroke-dasharray="113.1" stroke-dashoffset="0"/>
+          </svg>
+          <div id="chaos-meter-icon">&#9679;</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Level Preview -->
+  <div id="level-preview">
+    <div class="name"></div>
+    <div class="flavor"></div>
+  </div>
+
+  <!-- Level Transition Flash -->
+  <div id="level-transition">
+    <div class="flash"></div>
+    <div class="label"></div>
+  </div>
+
+  <!-- Combo Toast -->
+  <div id="combo-toast"></div>
+
+  <!-- ===== START SCREEN ===== -->
+  <div id="start-screen" class="screen">
+    <div class="logo">色谱守护者</div>
+    <div class="story-text">
+      色彩混沌正在蔓延。<br>
+      作为<span>色谱守护者</span>，你的使命是恢复平衡。<br>
+      点击正确的颜色，驱散混沌。
+    </div>
+    <div class="high-score">最高纪录: <span id="hs-display">0</span></div>
+    <div id="daily-badge" title="每日挑战 — 所有人同一序列">&#127775; 今日挑战</div>
+    <button class="btn btn-primary" id="btn-start">开始试炼</button>
+  </div>
+
+  <!-- ===== GAME OVER SCREEN ===== -->
+  <div id="gameover-screen" class="screen hidden">
+    <div class="final-score-label">最终得分</div>
+    <div class="final-score" id="go-score">0</div>
+    <div class="new-hs hidden" id="go-newhs">&#11088; 新纪录已刻入色谱档案馆</div>
+    <div class="rating" id="go-rating"></div>
+    <div class="rating-sub" id="go-rating-sub"></div>
+    <div class="weakness hidden" id="go-weakness"></div>
+    <div class="narrative-end" id="go-narrative">混沌暂时退去...但你的分数已刻入色谱档案馆。</div>
+    <div id="retry-countdown"></div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btn-retry">再来一局</button>
+      <button class="btn btn-secondary" id="btn-practice" style="display:none">&#128209; 弱项训练</button>
+      <button class="btn btn-secondary" id="btn-share">&#128205; 挑战朋友</button>
+    </div>
+  </div>
+
+  <!-- ===== PRACTICE MODE ===== -->
+  <div id="practice-overlay" class="hidden">
+    <div id="practice-card">
+      <h3>弱项训练</h3>
+      <p>选择你失误最多的颜色组合进行针对性训练。</p>
+      <div id="practice-grid"></div>
+      <button class="btn btn-secondary" id="btn-practice-close" style="pointer-events:auto;padding:10px 24px;font-size:14px">返回</button>
+    </div>
+  </div>
+
+  <!-- ===== SHARE ===== -->
+  <div id="share-overlay" class="hidden">
+    <div id="share-card">
+      <div class="share-title">色谱守护者</div>
+      <div class="share-sub">COLOR CLASH</div>
+      <div class="share-target" id="share-target-circle"></div>
+      <div class="share-score" id="share-score">0</div>
+      <div class="share-rating" id="share-rating"></div>
+      <div class="share-weak" id="share-weak"></div>
+      <div class="share-text" id="share-text">测测你的色彩感知力<br>你能超过我吗？</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        <button class="btn btn-primary" id="share-close" style="padding:12px 24px;font-size:14px;min-width:auto;flex:1">去炫耀!</button>
+        <button class="btn btn-secondary" id="share-copy" style="pointer-events:auto;padding:12px 16px;font-size:13px;flex:1;min-width:auto">&#128203; 复制挑战语</button>
+      </div>
+      <div id="copy-feedback" style="font-size:11px;color:#50fa7b;margin-top:6px;opacity:0;transition:opacity 0.3s">已复制到剪贴板！</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ============================================================
+  //  CONFIG
+  // ============================================================
+  const CONFIG = {
+    dotRadius: 28,
+    maxLives: 3,
+    maxCombo: 10,
+    bonusInterval: 12000,
+    targetChangeInterval: 15000,
+    tapDebounceMs: 60,
+    smoothDuration: 90,
+    totalSmoothDuration: 90,
+    firstDotCount: 5,
+    poolSize: 40,
+    particlePoolSize: 200
+  };
+
+  // ============================================================
+  //  LEVELS
+  // ============================================================
+  const LEVELS = [
+    { name:'Lv.1', index:1, colorCount:4, spawnInterval:1500, spread:280, speed:0.8, mult:1, duration:30,
+      title:'秩序初现', flavor:'光谱澄澈如镜，混沌尚未成形' },
+    { name:'Lv.2', index:2, colorCount:6, spawnInterval:1000, spread:180, speed:1.0, mult:2, duration:30,
+      title:'混沌涌动', flavor:'色彩开始扭曲，边界逐渐模糊' },
+    { name:'Lv.3', index:3, colorCount:8, spawnInterval:700,  spread:90,  speed:1.3, mult:3, duration:30,
+      title:'边界模糊', flavor:'真实与幻象交织，信任你的直觉' },
+    { name:'Lv.4', index:4, colorCount:12, spawnInterval:450,  spread:30,  speed:1.6, mult:5, duration:Infinity,
+      title:'色域崩塌', flavor:'混沌吞噬一切——唯有你眼中的光' }
+  ];
+
+  // ============================================================
+  //  DOM REFS
+  // ============================================================
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const $ = id => document.getElementById(id);
+  const startScreen   = $('start-screen');
+  const gameoverScreen = $('gameover-screen');
+  const shareOverlay  = $('share-overlay');
+  const practiceOverlay = $('practice-overlay');
+  const targetCircle  = $('target-circle');
+  const targetRingFill = $('target-ring-fill');
+  const hudScore      = $('hud-score');
+  const hudCombo      = $('hud-combo');
+  const hudLevel      = $('hud-level');
+  const comboBorder   = $('combo-border');
+  const comboToast    = $('combo-toast');
+  const chaosMeterFill = $('chaos-meter-fill');
+  const chaosMeterIcon = $('chaos-meter-icon');
+  const levelPreview  = $('level-preview');
+  const levelTrans    = $('level-transition');
+  const deathReplayWrap = $('death-replay-wrap');
+  const deathCanvas   = document.getElementById('deathCanvas');
+  const deathCtx      = deathCanvas.getContext('2d');
+  const retryCountdown = $('retry-countdown');
+
+  // ============================================================
+  //  GAME STATE
+  // ============================================================
+  const G = {
+    phase:'start',
+    score:0, combo:0, maxCombo:0, lives:CONFIG.maxLives,
+    level:0,
+    correctTaps:0, wrongTaps:0, missedTargets:0,
+    startTime:0, survived:0,
+    highScore:parseInt(localStorage.getItem('colorclash_hs')||'0',10),
+    targetColor:{h:0,s:80,l:55},
+    colorSet:[],
+    dots:[],
+    particles:[],
+    floatingTexts:[],
+    scoreFlyTexts:[],
+    nextSpawn:0, nextBonus:0, nextTargetChange:0,
+    spawnCount:0, lastTapTime:0,
+    isNewHighScore:false,
+    chaosParticles:[],
+    comboIntensity:0,
+    bgHueOffset:0,
+    levelProgress:0, levelProgressMax:0,
+    tapHistory:[], // for weakness analysis
+    levelTransitionCount:0,
+    lastCorrectTime:0,
+    prevLevel:-1,
+    seed:0,
+    isDaily:false,
+    practiceColors:null,
+    weakPairs:[],
+    deathReplayFrames:[],
+    isDeathReplay:false,
+    retryTimer:null,
+    retryCount:0,
+    audioCtx:null,
+    ambienceNode:null,
+    ambienceGain:null
+  };
+
+  let W, H, dpr;
+  let animId = null;
+  let lastTime = 0;
+
+  // ============================================================
+  //  SEEDED RNG
+  // ============================================================
+  class SeededRng {
+    constructor(seed) { this.s = seed || Date.now(); }
+    next() { this.s = (this.s * 1664525 + 1013904223) & 0xFFFFFFFF; return (this.s >>> 0) / 0xFFFFFFFF; }
+    range(min, max) { return min + this.next() * (max - min); }
+    int(min, max) { return Math.floor(this.range(min, max + 1)); }
+  }
+  let rng = new SeededRng(Date.now());
+
+  // ============================================================
+  //  AUDIO MANAGER
+  // ============================================================
+  const Audio = {
+    init() {
+      if (!G.audioCtx) {
+        G.audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      }
+      if (G.audioCtx.state === 'suspended') G.audioCtx.resume();
+    },
+    _t(freq, dur, type='sine', vol=0.15, time=0) {
+      if (!G.audioCtx) return;
+      try {
+        const osc = G.audioCtx.createOscillator();
+        const gain = G.audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        const t = time || G.audioCtx.currentTime;
+        gain.gain.setValueAtTime(vol, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.connect(gain);
+        gain.connect(G.audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + dur);
+      } catch(e) {}
+    },
+    // Pentatonic scale: C D E G A (do re mi sol la)
+    pentatonic: [262, 294, 330, 392, 440],
+    // Correct tap: pitch varies by combo (pentatonic)
+    correct(combo) {
+      const idx = (combo - 1) % this.pentatonic.length;
+      const freq = this.pentatonic[idx];
+      this._t(freq, 0.1, 'sine', 0.10);
+      setTimeout(() => this._t(freq * 1.5, 0.08, 'sine', 0.06), 50);
+    },
+    // Wrong tap: diminished triad (descending dissonance)
+    wrong() {
+      this._t(311, 0.12, 'sawtooth', 0.10); // Eb
+      setTimeout(() => this._t(277, 0.12, 'sawtooth', 0.08), 60); // Db
+      setTimeout(() => this._t(233, 0.15, 'sawtooth', 0.06), 120); // Bb
+    },
+    // Combo milestone (5x, 10x): ascending major chord arpeggio
+    comboMilestone(n) {
+      const base = 392; // G4
+      const notes = [base, base*5/4, base*3/2, base*2];
+      notes.forEach((f, i) => {
+        setTimeout(() => this._t(f, 0.12, 'triangle', 0.08 + i*0.03), i * 50);
+      });
+    },
+    // Level up: orchestral hit fanfare
+    levelUp() {
+      const notes = [523, 659, 784, 1047, 1319];
+      notes.forEach((f, i) => {
+        setTimeout(() => this._t(f, 0.15, 'sine', 0.08 + i*0.02), i * 80);
+      });
+      // Brass-like overtone
+      setTimeout(() => {
+        [784, 988, 1175].forEach((f, i) => {
+          this._t(f, 0.2, 'triangle', 0.04, G.audioCtx.currentTime + i * 0.05);
+        });
+      }, 400);
+    },
+    // Life restore (bonus dot)
+    lifeUp() {
+      this._t(880, 0.12, 'sine', 0.08);
+      setTimeout(() => this._t(1109, 0.1, 'sine', 0.06), 70);
+    },
+    // Start ambience drone
+    startAmbience(level) {
+      this.stopAmbience();
+      if (!G.audioCtx) return;
+      try {
+        const ctx = G.audioCtx;
+        const baseFreq = [55, 65, 73, 82][level] || 82; // A1, C2, D2, E2
+        const gain = ctx.createGain();
+        gain.gain.value = 0.035;
+        G.ambienceGain = gain;
+
+        const osc1 = ctx.createOscillator();
+        osc1.type = 'sine';
+        osc1.frequency.value = baseFreq;
+
+        const osc2 = ctx.createOscillator();
+        osc2.type = 'sine';
+        osc2.frequency.value = baseFreq * 2.01; // Slight detune for warmth
+
+        const osc3 = ctx.createOscillator();
+        osc3.type = 'triangle';
+        osc3.frequency.value = baseFreq * 4;
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 200 + level * 50;
+        filter.Q.value = 2;
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        osc3.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc1.start();
+        osc2.start();
+        osc3.start();
+        G.ambienceNode = [osc1, osc2, osc3];
+      } catch(e) {}
+    },
+    stopAmbience() {
+      if (G.ambienceNode) {
+        G.ambienceNode.forEach(o => { try{o.stop()}catch(e){} });
+        G.ambienceNode = null;
+      }
+    },
+    shiftAmbience(level) {
+      this.stopAmbience();
+      this.startAmbience(level);
+    }
+  };
+
+  // ============================================================
+  //  COLOR SYSTEM
+  // ============================================================
+  const Color = {
+    hslToRgb(h,s,l){
+      h/=360;s/=100;l/=100;
+      const k=n=>(n+h/30)%12;
+      const a=s*Math.min(l,1-l);
+      const f=n=>l-a*Math.max(-1,Math.min(k(n)-3,9-k(n),1));
+      return [f(0)*255|0,f(8)*255|0,f(4)*255|0];
+    },
+    rgbToCSS(r,g,b){ return `rgb(${r},${g},${b})` },
+    toCSS(c){ const[r,g,b]=this.hslToRgb(c.h,c.s,c.l); return `rgb(${r},${g},${b})` },
+    toGlowCSS(c){ const[r,g,b]=this.hslToRgb(c.h,c.s,c.l); return `rgba(${r},${g},${b},0.5)` },
+    rgbToLinear(c){ c=c/255; return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4); },
+    deltaE(c1,c2){
+      const[r1,g1,b1]=this.hslToRgb(c1.h,c1.s,c1.l);
+      const[r2,g2,b2]=this.hslToRgb(c2.h,c2.s,c2.l);
+      const l1=this.rgbToLinear(r1),l2=this.rgbToLinear(r2);
+      const m1=this.rgbToLinear(g1),m2=this.rgbToLinear(g2);
+      const n1=this.rgbToLinear(b1),n2=this.rgbToLinear(b2);
+      const x1=0.4124564*l1+0.3575761*m1+0.1804375*n1;
+      const y1=0.2126729*l1+0.7151522*m1+0.0721750*n1;
+      const z1=0.0193339*l1+0.1191920*m1+0.9503041*n1;
+      const x2=0.4124564*l2+0.3575762*m2+0.1804375*n2;
+      const y2=0.2126729*l2+0.7151522*m2+0.0721750*n2;
+      const z2=0.0193339*l2+0.1191920*m2+0.9503041*n2;
+      const fx1=x1/0.95047,fy1=y1/1.0,fz1=z1/1.08883;
+      const fx2=x2/0.95047,fy2=y2/1.0,fz2=z2/1.08883;
+      const eps=216/24389,kap=24389/27;
+      const f=t=>t>eps?Math.pow(t,1/3):(kap*t+16)/116;
+      const L1=116*f(fy1)-16,A1=500*(f(fx1)-f(fy1)),B1=200*(f(fy1)-f(fz1));
+      const L2=116*f(fy2)-16,A2=500*(f(fx2)-f(fy2)),B2=200*(f(fy2)-f(fz2));
+      return Math.sqrt((L1-L2)**2+(A1-A2)**2+(B1-B2)**2);
+    },
+    hslToStr(c){ return `${c.h.toFixed(0)} ${c.s.toFixed(0)} ${c.l.toFixed(0)}` },
+    strToHsl(s){ const p=s.split(' '); return {h:+p[0],s:+p[1],l:+p[2]}; },
+    generateSet(levelIdx, targetColor){
+      const lv = LEVELS[levelIdx];
+      const set = [];
+      for(let i=0;i<lv.colorCount;i++){
+        const t = lv.colorCount>1 ? i/(lv.colorCount-1) : 0;
+        const hueOff = (t-0.5)*lv.spread + (rng.next()-0.5)*lv.spread*0.3;
+        const satOff = (rng.next()-0.5)*20;
+        const litOff = (rng.next()-0.5)*20;
+        let h = targetColor.h + hueOff;
+        while(h<0) h+=360; while(h>=360) h-=360;
+        let s = Math.max(35, Math.min(95, targetColor.s + satOff));
+        let l = Math.max(30, Math.min(75, targetColor.l + litOff));
+        set.push({h,s,l});
+      }
+      if(!set.some(c=>Math.abs(c.h-targetColor.h)<0.1)){
+        set[0] = {...targetColor};
+      }
+      for(let i=set.length-1;i>0;i--){ const j=Math.floor(rng.next()*(i+1)); [set[i],set[j]]=[set[j],set[i]]; }
+      return set;
+    },
+    randomTarget(){
+      return { h: rng.next()*360, s: 55 + rng.next()*30, l: 40 + rng.next()*20 };
+    },
+    // Generate a hue name for weakness reporting
+    hueName(h){
+      const names = [
+        [0,'红'],[10,'橙红'],[30,'橙'],[50,'橙黄'],[70,'黄'],[90,'黄绿'],[120,'绿'],
+        [160,'青绿'],[190,'青'],[210,'蓝'],[240,'群青'],[270,'蓝紫'],[300,'紫'],[330,'紫红']
+      ];
+      let best = names[0][1], bestDiff = 360;
+      for(const [nh,name] of names){
+        let d = Math.abs(h - nh);
+        if(d > 180) d = 360 - d;
+        if(d < bestDiff){ bestDiff = d; best = name; }
+      }
+      return best;
+    }
+  };
+
+  // ============================================================
+  //  OBJECT POOL
+  // ============================================================
+  const Pool = {
+    dots: [],
+    particles: [],
+    init(){
+      this.dots = [];
+      this.particles = [];
+      for(let i=0;i<CONFIG.poolSize;i++){
+        this.dots.push(this._createDotObj());
+      }
+      for(let i=0;i<CONFIG.particlePoolSize;i++){
+        this.particles.push({x:0,y:0,vx:0,vy:0,radius:2,life:0,maxLife:500,color:{h:0,s:80,l:60},opacity:1,alive:false});
+      }
+    },
+    _createDotObj(){
+      return {x:0,y:0,vx:0,vy:0,color:{h:0,s:80,l:55},radius:CONFIG.dotRadius,isTarget:false,isBonus:false,life:0,maxLife:8000,opacity:0,alive:false,tapped:false,id:0};
+    },
+    acquireDot(){
+      for(const d of this.dots){ if(!d.alive) return d; }
+      const d = this._createDotObj();
+      this.dots.push(d);
+      return d;
+    },
+    releaseDot(dot){ dot.alive = false; dot.tapped = false; },
+    acquireParticle(){
+      for(const p of this.particles){ if(!p.alive) return p; }
+      return {x:0,y:0,vx:0,vy:0,radius:2,life:0,maxLife:500,color:{h:0,s:80,l:60},opacity:1,alive:true};
+    },
+    releaseParticle(p){ p.alive = false; }
+  };
+
+  // ============================================================
+  //  SPAWN SYSTEM
+  // ============================================================
+  const Spawner = {
+    spawnDot(){
+      const lv = LEVELS[G.level];
+      const isTarget = G.spawnCount < CONFIG.firstDotCount || rng.next() < 0.3 + G.level * 0.04;
+      const isBonus = G.spawnCount >= CONFIG.firstDotCount && performance.now() >= G.nextBonus;
+      const color = isTarget ? G.targetColor : pickDistractor(G.colorSet, G.targetColor);
+
+      const dot = Pool.acquireDot();
+      dot.alive = true;
+      dot.tapped = false;
+      dot.life = 0;
+      dot.maxLife = 6000 + rng.next() * 3000;
+      dot.isTarget = isTarget;
+      dot.isBonus = isBonus;
+      dot.id = G.spawnCount++;
+      Object.assign(dot.color, color);
+      dot.radius = CONFIG.dotRadius;
+
+      // Spawn from edge
+      const margin = -CONFIG.dotRadius * 2;
+      const edge = Math.floor(rng.next() * 4);
+      if(edge===0){ dot.x = rng.next()*W; dot.y = margin; }
+      else if(edge===1){ dot.x = rng.next()*W; dot.y = H-margin; }
+      else if(edge===2){ dot.x = margin; dot.y = rng.next()*H; }
+      else { dot.x = W-margin; dot.y = rng.next()*H; }
+
+      const tx = W*0.2 + rng.next()*W*0.6;
+      const ty = H*0.2 + rng.next()*H*0.6;
+      const dx = tx-dot.x, dy = ty-dot.y;
+      const dist = Math.sqrt(dx*dx+dy*dy)||1;
+      const elapsed = (performance.now()-G.startTime)/1000;
+      const speed = getSmoothSpeed(elapsed) * (55 + rng.next()*40);
+      dot.vx = dx/dist * speed;
+      dot.vy = dy/dist * speed;
+
+      if(isBonus) G.nextBonus = performance.now() + CONFIG.bonusInterval + rng.next()*5000;
+
+      return dot;
+    },
+    nextSpawnTime(){
+      const elapsed = (performance.now()-G.startTime)/1000;
+      return getSmoothSpawnInterval(elapsed) * (0.8 + rng.next()*0.4);
+    }
+  };
+
+  function pickDistractor(set, target){
+    const others = set.filter(c => c !== target && !(c.h === target.h && c.s === target.s && c.l === target.l));
+    return others.length ? others[Math.floor(rng.next() * others.length)] : set[0] || target;
+  }
+
+  // ============================================================
+  //  DIFFICULTY SYSTEM
+  // ============================================================
+  function getCurrentLevel(elapsed){
+    let t = 0;
+    for(let i=0;i<LEVELS.length;i++){
+      t += LEVELS[i].duration;
+      if(elapsed < t || LEVELS[i].duration === Infinity) return i;
+    }
+    return LEVELS.length-1;
+  }
+
+  function getSmoothSpawnInterval(elapsedSec){
+    const p = Math.min(elapsedSec / CONFIG.totalSmoothDuration, 1);
+    const start = LEVELS[0].spawnInterval;
+    const end = LEVELS[LEVELS.length-2].spawnInterval;
+    const eased = p<0.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2;
+    return start + (end-start)*(1-eased);
+  }
+
+  function getSmoothSpeed(elapsedSec){
+    const p = Math.min(elapsedSec / CONFIG.totalSmoothDuration, 1);
+    const start = LEVELS[0].speed;
+    const end = LEVELS[LEVELS.length-1].speed;
+    return start + (end-start)*p;
+  }
+
+  function updateDifficulty(elapsed){
+    const newLevel = getCurrentLevel(elapsed);
+    if(newLevel !== G.prevLevel && newLevel > 0 && G.prevLevel >= 0){
+      triggerLevelTransition(newLevel);
+    }
+    G.level = Math.min(newLevel, LEVELS.length-1);
+    G.prevLevel = newLevel;
+
+    // Update level progress (dots until next level)
+    const lv = LEVELS[G.level];
+    if(lv.duration !== Infinity){
+      const nextThreshold = LEVELS.slice(0, G.level+1).reduce((s,l) => s + l.duration, 0);
+      G.levelProgress = elapsed;
+      G.levelProgressMax = nextThreshold;
+    }
+  }
+
+  // ============================================================
+  //  TARGET COLOR
+  // ============================================================
+  function generateNewTarget(){
+    G.targetColor = Color.randomTarget();
+    G.colorSet = Color.generateSet(G.level, G.targetColor);
+    G.nextTargetChange = performance.now() + CONFIG.targetChangeInterval;
+    updateTargetUI();
+  }
+
+  function updateTargetUI(){
+    const css = Color.toCSS(G.targetColor);
+    targetCircle.style.background = css;
+    targetCircle.style.setProperty('--target-glow', Color.toGlowCSS(G.targetColor));
+  }
+
+  // ============================================================
+  //  LEVEL TRANSITION
+  // ============================================================
+  let ltFlashEl = null;
+  let ltLabelEl = null;
+
+  function triggerLevelTransition(levelIdx){
+    G.levelTransitionCount++;
+    const lv = LEVELS[levelIdx];
+    if(!lv) return;
+
+    Audio.levelUp();
+    Audio.shiftAmbience(levelIdx);
+
+    // Preview warning 3 seconds before
+    const previewEl = levelPreview;
+    previewEl.querySelector('.name').textContent = lv.title;
+    previewEl.querySelector('.flavor').textContent = lv.flavor;
+    previewEl.classList.add('show');
+    setTimeout(() => previewEl.classList.remove('show'), 2500);
+
+    // Transition flash
+    const lt = levelTrans;
+    const flash = lt.querySelector('.flash');
+    const label = lt.querySelector('.label');
+    const hue = [270, 200, 340, 10][levelIdx] || 270;
+    flash.style.background = `hsl(${hue}, 80%, 50%)`;
+    label.textContent = lv.title;
+    lt.classList.add('active');
+
+    // Flash sequence
+    flash.style.opacity = '0.7';
+    setTimeout(() => { flash.style.opacity = '0'; }, 80);
+    setTimeout(() => { flash.style.opacity = '0.5'; }, 150);
+    setTimeout(() => { flash.style.opacity = '0'; }, 230);
+    setTimeout(() => { flash.style.opacity = '0.3'; }, 300);
+    setTimeout(() => { flash.style.opacity = '0'; }, 380);
+    setTimeout(() => { lt.classList.remove('active'); }, 700);
+
+    // Level label flash
+    hudLevel.textContent = lv.name;
+    hudLevel.classList.add('flash');
+    setTimeout(() => hudLevel.classList.remove('flash'), 600);
+
+    // Particle explosion
+    const colors = [
+      [270,'#c084fc'],[200,'#60a5fa'],[340,'#f472b6'],[10,'#fb923c']
+    ];
+    for(let i=0;i<40;i++){
+      const a = Math.random() * Math.PI * 2;
+      const spd = 100 + Math.random() * 200;
+      G.particles.push({
+        x: W/2, y: H/2,
+        vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+        radius: 3 + Math.random()*4, life: 0, maxLife: 600 + Math.random()*400,
+        color: {h: (colors[levelIdx]||colors[0])[0] + Math.random()*40, s: 90, l: 60},
+        opacity: 1, alive: true
+      });
+    }
+  }
+
+  // ============================================================
+  //  PARTICLE SYSTEM
+  // ============================================================
+  function emitParticles(x,y,color,count,opts){
+    opts = opts || {};
+    for(let i=0;i<count;i++){
+      const angle = Math.random() * Math.PI * 2;
+      const speed = opts.speed || (60+Math.random()*140);
+      const p = Pool.acquireParticle();
+      p.x = x; p.y = y;
+      p.alive = true;
+      p.vx = Math.cos(angle)*speed;
+      p.vy = Math.sin(angle)*speed;
+      p.radius = (opts.radius||2) + Math.random()*(opts.radiusVar||4);
+      p.life = 0;
+      p.maxLife = opts.maxLife || (400+Math.random()*300);
+      p.color = color || {h:Math.random()*360,s:80,l:60};
+      p.opacity = 1;
+    }
+  }
+
+  function updateParticle(p,dt){
+    if(!p.alive) return false;
+    p.life += dt;
+    p.x += p.vx * dt/1000;
+    p.y += p.vy * dt/1000;
+    p.vy += 120 * dt/1000;
+    p.opacity = 1 - p.life/p.maxLife;
+    p.radius *= 0.98;
+    if(p.life >= p.maxLife || p.radius < 0.3){ p.alive = false; return false; }
+    return true;
+  }
+
+  // ============================================================
+  //  SCORE PARTICLES (fly to score counter)
+  // ============================================================
+  function addScoreFly(x, y, text){
+    G.scoreFlyTexts.push({
+      x, y, text,
+      startX: x, startY: y,
+      life: 0, maxLife: 500,
+      opacity: 1
+    });
+  }
+
+  // ============================================================
+  //  FLOATING TEXT
+  // ============================================================
+  function addFloatingText(x,y,text,color,size){
+    G.floatingTexts.push({
+      x,y,text,color:color||'#ffd700',
+      life:0, maxLife:700, opacity:1, vy:-50, size:size||24
+    });
+  }
+
+  // ============================================================
+  //  CHAOS METER
+  // ============================================================
+  function updateChaosMeter(){
+    const maxLives = CONFIG.maxLives;
+    const pct = 1 - (G.lives / maxLives);
+    const circ = 113.097; // 2*PI*18
+    const offset = circ * (1 - pct);
+    chaosMeterFill.style.strokeDashoffset = String(offset);
+
+    // Icon changes
+    if(G.lives >= 3) chaosMeterIcon.textContent = '●';
+    else if(G.lives === 2) chaosMeterIcon.textContent = '◐';
+    else if(G.lives === 1) chaosMeterIcon.textContent = '◑';
+    else chaosMeterIcon.textContent = '✖';
+
+    // Emit chaos particles on miss
+  }
+
+  function emitChaosParticles(){
+    const wrap = document.getElementById('chaos-meter-wrap');
+    for(let i=0;i<6;i++){
+      const el = document.createElement('div');
+      el.className = 'chaos-particle';
+      const a = Math.random()*Math.PI*2;
+      const dist = 20+Math.random()*30;
+      el.style.left = (22+Math.cos(a)*dist)+'px';
+      el.style.top = (22+Math.sin(a)*dist)+'px';
+      el.style.animation = `chaosRise ${0.4+Math.random()*0.3}s ease-out forwards`;
+      wrap.appendChild(el);
+      setTimeout(() => el.remove(), 800);
+    }
+  }
+
+  // ============================================================
+  //  COMBO BORDER
+  // ============================================================
+  function updateComboBorder(){
+    if(G.combo > 1){
+      const intensity = Math.min(G.combo / CONFIG.maxCombo, 1);
+      const hue = (G.combo * 40 + G.level * 60) % 360;
+      comboBorder.style.setProperty('--cb-color', `hsl(${hue}, 100%, 60%)`);
+      comboBorder.style.opacity = String(0.15 + intensity * 0.6);
+    } else {
+      comboBorder.style.opacity = '0';
+    }
+  }
+
+  // ============================================================
+  //  LEVEL PROGRESS RING
+  // ============================================================
+  function updateProgressRing(){
+    const lv = LEVELS[G.level];
+    if(lv.duration === Infinity || G.levelProgressMax === 0){
+      targetRingFill.style.strokeDashoffset = '0';
+      return;
+    }
+    const elapsed = (performance.now() - G.startTime) / 1000;
+    // Sum of previous level durations
+    let prevTotal = 0;
+    for(let i=0;i<G.level;i++) prevTotal += LEVELS[i].duration;
+    // Time in current level
+    const inLevel = elapsed - prevTotal;
+    const dur = lv.duration;
+    const pct = Math.min(inLevel / dur, 1);
+    const circ = 150.796;
+    targetRingFill.style.strokeDashoffset = String(circ * (1 - pct));
+  }
+
+  // ============================================================
+  //  TAP HISTORY & WEAKNESS ANALYSIS
+  // ============================================================
+  function recordTap(color, wasCorrect){
+    if(G.tapHistory.length > 200) G.tapHistory.shift();
+    G.tapHistory.push({
+      color: {...color},
+      target: {...G.targetColor},
+      correct: wasCorrect,
+      time: performance.now()
+    });
+  }
+
+  function analyzeWeakness(){
+    // Group misses by target color hue regions
+    const misses = G.tapHistory.filter(t => !t.correct);
+    if(misses.length === 0) return '';
+
+    // Find most confused color pair
+    const pairCount = {};
+    for(const m of misses){
+      const targetHue = Math.round(m.target.h / 30) * 30;
+      const dotHue = Math.round(m.color.h / 30) * 30;
+      const key = `${targetHue}-${dotHue}`;
+      pairCount[key] = (pairCount[key]||0) + 1;
+    }
+    let bestKey = '', bestCount = 0;
+    for(const [k,c] of Object.entries(pairCount)){
+      if(c > bestCount){ bestCount = c; bestKey = k; }
+    }
+    if(!bestKey) return '';
+    const [th, dh] = bestKey.split('-').map(Number);
+    const tName = Color.hueName(th);
+    const dName = Color.hueName(dh);
+    return `${tName}色 vs ${dName}色 是你的弱项`;
+  }
+
+  // ============================================================
+  //  INPUT HANDLER
+  // ============================================================
+  const Input = {
+    debounce: 0,
+    handle(clientX, clientY){
+      if(G.phase !== 'playing' || G.isDeathReplay) return;
+      const now = performance.now();
+      if(now - this.debounce < CONFIG.tapDebounceMs) return;
+      this.debounce = now;
+      Audio.init();
+
+      const rect = canvas.getBoundingClientRect();
+      const tx = clientX - rect.left;
+      const ty = clientY - rect.top;
+
+      // Hit test (topmost first)
+      let hit = false;
+      for(let i=G.dots.length-1;i>=0;i--){
+        const dot = G.dots[i];
+        if(!dot.alive || dot.tapped) continue;
+        const dx = dot.x - tx, dy = dot.y - ty;
+        if(dx*dx + dy*dy <= (dot.radius+8)*(dot.radius+8)){
+          dot.tapped = true;
+          Pool.releaseDot(dot);
+          hit = true;
+
+          if(dot.isTarget || dot.isBonus){
+            // CORRECT
+            const lv = LEVELS[G.level];
+            G.combo = Math.min(G.combo + 1, CONFIG.maxCombo);
+            G.maxCombo = Math.max(G.maxCombo, G.combo);
+            G.correctTaps++;
+            G.lastCorrectTime = now;
+
+            const points = 10 * G.combo * lv.mult;
+            G.score += points;
+
+            Audio.correct(G.combo);
+            recordTap(dot.color, true);
+
+            // Particles
+            emitParticles(dot.x, dot.y, dot.color, 10 + G.combo*3);
+            addFloatingText(dot.x, dot.y-20, `+${points}`, '#ffd700');
+            addScoreFly(dot.x, dot.y, `+${points}`);
+
+            // Score pop
+            hudScore.classList.add('pop');
+            setTimeout(() => hudScore.classList.remove('pop'), 120);
+
+            // Combo pop
+            if(G.combo > 1){
+              hudCombo.textContent = `×${G.combo}`;
+              hudCombo.classList.add('show');
+              hudCombo.classList.add('pop');
+              setTimeout(() => hudCombo.classList.remove('pop'), 200);
+            }
+
+            // Combo milestone
+            if(G.combo === 5 || G.combo === 8 || G.combo === 10){
+              const msgs = {5:'x5!',8:'x8!',10:'x10!'};
+              comboToast.textContent = msgs[G.combo];
+              comboToast.style.color = '#ffd700';
+              comboToast.classList.add('show');
+              setTimeout(() => comboToast.classList.remove('show'), 700);
+              Audio.comboMilestone(G.combo);
+              emitParticles(W/2, H/2, null, 25, {speed:120,maxLife:600});
+            }
+
+            // Bonus dot: restore life
+            if(dot.isBonus && G.lives < CONFIG.maxLives){
+              G.lives++;
+              Audio.lifeUp();
+              emitParticles(dot.x, dot.y, {h:140,s:80,l:60}, 15, {speed:80});
+              addFloatingText(dot.x, dot.y-50, '+1 ❤', '#50fa7b');
+            }
+
+            updateChaosMeter();
+            updateComboBorder();
+            updateHUDScore();
+          } else {
+            // WRONG
+            G.wrongTaps++;
+            G.combo = 0;
+            G.lives--;
+            recordTap(dot.color, false);
+
+            Audio.wrong();
+            emitParticles(dot.x, dot.y, {h:0,s:90,l:55}, 20, {speed:100});
+            addFloatingText(dot.x, dot.y-20, '✘', '#ff4757');
+            emitChaosParticles();
+            hudCombo.classList.remove('show');
+
+            // Auto CB detection: if miss 3 of first 5, offer
+            const totalFirst = G.correctTaps + G.wrongTaps;
+            if(totalFirst <= 5 && G.wrongTaps >= 2 && !G.cbPromptShown){
+              G.cbPromptShown = true;
+              setTimeout(() => {
+                if(confirm('检测到多次点击失误。是否启用辅助模式？\n（目标色块上将显示标记）')){
+                  G.colorBlind = true;
+                }
+              }, 300);
+            }
+
+            updateChaosMeter();
+            updateComboBorder();
+            updateHUDScore();
+
+            if(G.lives <= 0){
+              // Record death replay frames before game over
+              gameOver();
+              return;
+            }
+          }
+          break;
+        }
+      }
+    }
+  };
+
+  // ============================================================
+  //  GAME OVER
+  // ============================================================
+  function gameOver(){
+    G.phase = 'gameover';
+    G.survived = (performance.now() - G.startTime) / 1000;
+    Audio.stopAmbience();
+
+    G.isNewHighScore = G.score > G.highScore;
+    if(G.isNewHighScore){
+      G.highScore = G.score;
+      localStorage.setItem('colorclash_hs', String(G.highScore));
+    }
+
+    setTimeout(() => {
+      cancelAnimationFrame(animId);
+      showGameOver();
+    }, 400);
+  }
+
+  // ============================================================
+  //  RENDERER
+  // ============================================================
+  function resizeCanvas(){
+    const rect = canvas.parentElement.getBoundingClientRect();
+    dpr = window.devicePixelRatio || 1;
+    W = rect.width;
+    H = rect.height;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W+'px';
+    canvas.style.height = H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    // Death canvas
+    deathCanvas.width = W * dpr;
+    deathCanvas.height = H * dpr;
+    deathCanvas.style.width = W+'px';
+    deathCanvas.style.height = H+'px';
+  }
+
+  // Background ambient hue
+  let bgHue = 0, bgTargetHue = 0;
+
+  function render(time){
+    ctx.clearRect(0,0,W,H);
+
+    // Background ambient hue shift
+    bgTargetHue = G.targetColor.h;
+    bgHue += (bgTargetHue - bgHue) * 0.005;
+    const bgGrad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, W*0.8);
+    bgGrad.addColorStop(0, `hsla(${bgHue}, 30%, 12%, 1)`);
+    bgGrad.addColorStop(0.5, `hsla(${bgHue+60}, 20%, 8%, 0.8)`);
+    bgGrad.addColorStop(1, `hsla(${bgHue+120}, 15%, 4%, 1)`);
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0,0,W,H);
+
+    // Dots
+    for(const dot of G.dots){
+      if(!dot.alive || dot.tapped) continue;
+      const [r,g,b] = Color.hslToRgb(dot.color.h, dot.color.s, dot.color.l);
+      const alpha = dot.opacity;
+
+      // Glow
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.3;
+      const grad = ctx.createRadialGradient(dot.x, dot.y, 0, dot.x, dot.y, dot.radius*2.5);
+      grad.addColorStop(0, `rgba(${r},${g},${b},0.4)`);
+      grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(dot.x, dot.y, dot.radius*2.5, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+
+      // Dot body with 3D gradient
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const dg = ctx.createRadialGradient(
+        dot.x-dot.radius*0.3, dot.y-dot.radius*0.3, dot.radius*0.1,
+        dot.x, dot.y, dot.radius
+      );
+      dg.addColorStop(0, `rgb(${Math.min(255,r+70)},${Math.min(255,g+70)},${Math.min(255,b+70)})`);
+      dg.addColorStop(0.6, `rgb(${r},${g},${b})`);
+      dg.addColorStop(1, `rgb(${r*0.5|0},${g*0.5|0},${b*0.5|0})`);
+      ctx.fillStyle = dg;
+      ctx.beginPath();
+      ctx.arc(dot.x, dot.y, dot.radius, 0, Math.PI*2);
+      ctx.fill();
+
+      // Border
+      ctx.strokeStyle = `rgba(255,255,255,${alpha*0.12})`;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.restore();
+
+      // Color-blind marker
+      if(G.colorBlind && dot.isTarget){
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.7;
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('T', dot.x, dot.y+1);
+        ctx.restore();
+      }
+
+      // Bonus sparkle ring
+      if(dot.isBonus && dot.alive){
+        ctx.save();
+        ctx.globalAlpha = alpha * (0.3 + 0.5 * Math.sin(time*0.008));
+        for(let i=0;i<6;i++){
+          const a = (i/6)*Math.PI*2 + time*0.003;
+          const rd = dot.radius*1.8 + 8*Math.sin(time*0.01+i*1.5);
+          const sx = dot.x + Math.cos(a)*rd;
+          const sy = dot.y + Math.sin(a)*rd;
+          ctx.fillStyle = '#ffd700';
+          ctx.beginPath();
+          ctx.arc(sx, sy, 2+Math.sin(time*0.015+i*2)*1.5, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.strokeStyle = `rgba(255,215,0,${alpha*0.4})`;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3,5]);
+        ctx.lineDashOffset = -time*0.02;
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, dot.radius+5, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
+      // Bloom effect on newly tapped correct dots
+      if(dot.isTarget && dot.tapped && dot.life < 200){
+        ctx.save();
+        ctx.globalAlpha = 0.3 * (1 - dot.life/200);
+        const bloomSize = dot.radius * 3;
+        for(let i=3;i>=0;i--){
+          ctx.shadowColor = Color.toCSS(dot.color);
+          ctx.shadowBlur = 8 + i*12;
+          ctx.fillStyle = `rgba(${r},${g},${b},0.05)`;
+          ctx.beginPath();
+          ctx.arc(dot.x, dot.y, bloomSize + i*10, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    // Particles
+    for(const p of G.particles){
+      if(!p.alive) continue;
+      const [r,g,b] = Color.hslToRgb(p.color.h, p.color.s, p.color.l);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.opacity);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Floating texts
+    for(const ft of G.floatingTexts){
+      ctx.save();
+      ctx.globalAlpha = ft.opacity;
+      ctx.fillStyle = ft.color;
+      ctx.font = `bold ${ft.size}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.restore();
+    }
+
+    // Score fly particles
+    for(const sf of G.scoreFlyTexts){
+      const pct = sf.life / sf.maxLife;
+      const x = sf.x;
+      const y = sf.y - pct * 80;
+      ctx.save();
+      ctx.globalAlpha = 1 - pct;
+      ctx.fillStyle = '#ffd700';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(sf.text, x, y);
+      ctx.restore();
+    }
+  }
+
+  // ============================================================
+  //  HUD UPDATES
+  // ============================================================
+  function updateHUDScore(){
+    hudScore.innerHTML = `<span>分</span> ${G.score}`;
+  }
+
+  // ============================================================
+  //  GAME LOOP
+  // ============================================================
+  function gameLoop(time){
+    if(G.phase !== 'playing') return;
+
+    const dt = Math.min(time - lastTime, 50);
+    lastTime = time;
+    const elapsed = (time - G.startTime);
+
+    updateDifficulty(elapsed / 1000);
+
+    // Spawn dots
+    if(time >= G.nextSpawn){
+      const dot = Spawner.spawnDot();
+      G.dots.push(dot);
+      G.nextSpawn = time + Spawner.nextSpawnTime();
+    }
+
+    // Target change
+    if(time >= G.nextTargetChange && G.level < LEVELS.length-1){
+      generateNewTarget();
+    }
+
+    // Update dots
+    for(const dot of G.dots){
+      if(dot.alive && !dot.tapped){
+        dot.life += dt;
+        dot.x += dot.vx * dt/1000;
+        dot.y += dot.vy * dt/1000;
+        if(dot.life < 300) dot.opacity = dot.life/300;
+        else dot.opacity = 1 - Math.max(0, (dot.life - dot.maxLife + 1000) / 1000);
+        if(dot.life > dot.maxLife || dot.x < -200 || dot.x > W+200 || dot.y < -200 || dot.y > H+200){
+          dot.alive = false;
+          // Count as missed target for weakness analysis
+          if(dot.isTarget){
+            G.missedTargets++;
+            G.combo = 0;
+            hudCombo.classList.remove('show');
+            updateComboBorder();
+          }
+        }
+      }
+    }
+    G.dots = G.dots.filter(d => d.alive && !d.tapped);
+
+    // Update particles
+    G.particles = G.particles.filter(p => updateParticle(p, dt));
+
+    // Update floating texts
+    for(const ft of G.floatingTexts){
+      ft.life += dt;
+      ft.y += ft.vy * dt/1000;
+      ft.opacity = 1 - ft.life/ft.maxLife;
+    }
+    G.floatingTexts = G.floatingTexts.filter(ft => ft.life < ft.maxLife);
+
+    // Update score fly texts
+    for(const sf of G.scoreFlyTexts){
+      sf.life += dt;
+      sf.opacity = 1 - sf.life/sf.maxLife;
+    }
+    G.scoreFlyTexts = G.scoreFlyTexts.filter(sf => sf.life < sf.maxLife);
+
+    // Update progress ring
+    updateProgressRing();
+
+    // Render
+    render(time);
+    updateHUDScore();
+    animId = requestAnimationFrame(gameLoop);
+  }
+
+  // ============================================================
+  //  SCREEN MANAGEMENT
+  // ============================================================
+  function showStart(){
+    G.phase = 'start';
+    startScreen.classList.remove('hidden');
+    gameoverScreen.classList.remove('chromatic');
+    gameoverScreen.classList.add('hidden');
+    shareOverlay.classList.add('hidden');
+    practiceOverlay.classList.add('hidden');
+    $('hs-display').textContent = G.highScore;
+  }
+
+  function startGame(practiceColors){
+    Audio.init();
+    Audio.startAmbience(0);
+
+    startScreen.classList.add('hidden');
+    gameoverScreen.classList.remove('chromatic');
+    gameoverScreen.classList.add('hidden');
+    shareOverlay.classList.add('hidden');
+    practiceOverlay.classList.add('hidden');
+    deathReplayWrap.classList.remove('show');
+
+    // Reset state
+    G.phase = 'playing';
+    G.score = 0;
+    G.combo = 0;
+    G.maxCombo = 0;
+    G.lives = CONFIG.maxLives;
+    G.correctTaps = 0;
+    G.wrongTaps = 0;
+    G.missedTargets = 0;
+    G.dots = [];
+    G.particles = [];
+    G.floatingTexts = [];
+    G.scoreFlyTexts = [];
+    G.level = 0;
+    G.prevLevel = -1;
+    G.spawnCount = 0;
+    G.isNewHighScore = false;
+    G.survived = 0;
+    G.tapHistory = [];
+    G.weakPairs = [];
+    G.deathReplayFrames = [];
+    G.isDeathReplay = false;
+    G.cbPromptShown = false;
+    G.comboIntensity = 0;
+    G.lastCorrectTime = 0;
+    G.practiceColors = practiceColors || null;
+    G.levelTransitionCount = 0;
+    G.colorBlind = false;
+    G.retryCount = 0;
+
+    // Seeded RNG for daily or fresh
+    rng = new SeededRng(G.seed || Date.now());
+
+    // Reset HUD
+    hudCombo.classList.remove('show');
+    hudLevel.textContent = LEVELS[0].name;
+    comboBorder.style.opacity = '0';
+    chaosMeterIcon.textContent = '●';
+    updateChaosMeter();
+
+    // First target
+    generateNewTarget();
+    G.nextSpawn = performance.now() + 1000;
+    G.nextBonus = performance.now() + CONFIG.bonusInterval;
+    G.startTime = performance.now();
+    G.nextTargetChange = performance.now() + CONFIG.targetChangeInterval;
+
+    // If practice mode, set first target to a practice pair color
+    if(G.practiceColors){
+      G.targetColor = {...G.practiceColors};
+      G.colorSet = Color.generateSet(G.level, G.targetColor);
+      updateTargetUI();
+    }
+
+    lastTime = performance.now();
+    if(animId) cancelAnimationFrame(animId);
+    animId = requestAnimationFrame(gameLoop);
+  }
+
+  function showGameOver(){
+    G.phase = 'gameover';
+    gameoverScreen.classList.remove('hidden');
+    $('go-score').textContent = G.score;
+
+    // New high score
+    const hs = $('go-newhs');
+    if(G.isNewHighScore){
+      hs.classList.remove('hidden');
+    } else {
+      hs.classList.add('hidden');
+    }
+
+    // Chromatic aberration effect
+    setTimeout(() => gameoverScreen.classList.add('chromatic'), 100);
+
+    // Rating
+    const s = G.score;
+    let rating, ratingSub;
+    const tiers = [
+      {max:100, name:'🌱 色觉萌新', sub:'基本色觉识别'},
+      {max:300, name:'🎨 色彩学徒', sub:'开始掌握色彩'},
+      {max:600, name:'✨ 调色师', sub:'对色彩敏感'},
+      {max:1000, name:'👁️ 色谱大师', sub:'超凡色彩感知'},
+      {max:Infinity, name:'👑 绝对色感', sub:'Top 0.1% - 传说级'}
+    ];
+    for(const t of tiers){
+      if(s <= t.max){ rating = t.name; ratingSub = t.sub; break; }
+    }
+    $('go-rating').textContent = rating;
+    $('go-rating-sub').textContent = ratingSub;
+
+    // Narrative conclusion
+    $('go-narrative').textContent = `混沌暂时退去...但你的 ${s} 分已刻入色谱档案馆。`;
+
+    // Weakness analysis
+    const weakness = analyzeWeakness();
+    const weakEl = $('go-weakness');
+    if(weakness){
+      weakEl.textContent = '⚠️ ' + weakness;
+      weakEl.classList.remove('hidden');
+      // Show practice button
+      $('btn-practice').style.display = 'block';
+      $('btn-practice').textContent = '📄  ' + weakness + ' — 训练';
+    } else {
+      weakEl.classList.add('hidden');
+      $('btn-practice').style.display = 'none';
+    }
+
+    // Retry countdown: "3... 2... 1..."
+    retryCountdown.classList.remove('show');
+    retryCountdown.textContent = '';
+    G.retryCount = 3;
+    const retryBtn = $('btn-retry');
+    retryBtn.classList.add('pulse');
+    G.retryTimer = setInterval(() => {
+      G.retryCount--;
+      if(G.retryCount > 0){
+        retryCountdown.textContent = `重试 ${G.retryCount}...`;
+        retryCountdown.classList.add('show');
+      } else {
+        clearInterval(G.retryTimer);
+        retryCountdown.textContent = '';
+        retryCountdown.classList.remove('show');
+        retryBtn.textContent = '再来一局';
+        retryBtn.classList.remove('pulse');
+      }
+    }, 900);
+
+    // Cleanup
+    Audio.stopAmbience();
+  }
+
+  // ============================================================
+  //  SHARE
+  // ============================================================
+  function showShare(){
+    const s = G.score;
+    let rating, emoji, pct;
+    if(s<=100){ rating='🌱 色觉萌新'; emoji='🌱'; pct='5'; }
+    else if(s<=300){ rating='🎨 色彩学徒'; emoji='🎨'; pct='25'; }
+    else if(s<=600){ rating='✨ 调色师'; emoji='✨'; pct='50'; }
+    else if(s<=1000){ rating='👁️ 色谱大师'; emoji='👁️'; pct='75'; }
+    else { rating='👑 绝对色感'; emoji='👑'; pct='99'; }
+
+    const weakness = analyzeWeakness() || '暂无';
+
+    document.getElementById('share-score').textContent = s;
+    document.getElementById('share-rating').textContent = rating;
+    document.getElementById('share-weak').textContent = '⚠️ 弱点: ' + weakness;
+    const sc = document.getElementById('share-target-circle');
+    sc.style.background = Color.toCSS(G.targetColor);
+    sc.style.setProperty('--share-glow', Color.toGlowCSS(G.targetColor));
+    document.getElementById('share-text').innerHTML =
+      `我的色觉击败了 ${pct}% 的人！<br>你的弱点可能是 <strong>${weakness.split(' ')[0]||'蓝色系'}</strong>。<br>测测你的:`;
+
+    shareOverlay.classList.remove('hidden');
+  }
+
+  // ============================================================
+  //  PRACTICE MODE
+  // ============================================================
+  function showPractice(){
+    const misses = G.tapHistory.filter(t => !t.correct);
+    if(misses.length === 0) return;
+
+    // Extract unique missed color pairs
+    const pairs = [];
+    const seen = new Set();
+    for(const m of misses){
+      const targetH = Math.round(m.target.h / 30) * 30;
+      const key = `${targetH}`;
+      if(!seen.has(key)){
+        seen.add(key);
+        pairs.push({ h: m.target.h, s: m.target.s, l: m.target.l });
+        if(pairs.length >= 6) break;
+      }
+    }
+
+    const grid = document.getElementById('practice-grid');
+    grid.innerHTML = '';
+    for(const pair of pairs){
+      const btn = document.createElement('button');
+      btn.className = 'practice-btn';
+      const hueName = Color.hueName(pair.h);
+      btn.textContent = hueName;
+      btn.style.borderColor = Color.toCSS(pair);
+      btn.style.color = Color.toCSS(pair);
+      btn.addEventListener('click', () => {
+        practiceOverlay.classList.add('hidden');
+        startGame(pair);
+      });
+      grid.appendChild(btn);
+    }
+
+    practiceOverlay.classList.remove('hidden');
+  }
+
+  // ============================================================
+  //  DAILY CHALLENGE
+  // ============================================================
+  function startDaily(){
+    // Use date as seed so everyone gets same sequence
+    const d = new Date();
+    G.seed = d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
+    startGame(null);
+  }
+
+  // ============================================================
+  //  EVENT BINDING
+  // ============================================================
+  function setupEvents(){
+    // Touch
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      for(const t of e.changedTouches) Input.handle(t.clientX, t.clientY);
+    }, {passive: false});
+
+    // Mouse
+    canvas.addEventListener('mousedown', e => Input.handle(e.clientX, e.clientY));
+
+    // Prevent scroll
+    document.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+
+    // Buttons
+    $('btn-start').addEventListener('click', () => { G.seed = null; startGame(null); });
+    $('btn-retry').addEventListener('click', () => { G.seed = null; startGame(null); });
+    $('btn-share').addEventListener('click', showShare);
+    $('btn-practice').addEventListener('click', showPractice);
+    $('btn-practice-close').addEventListener('click', () => practiceOverlay.classList.add('hidden'));
+
+    // Daily challenge
+    $('daily-badge').addEventListener('click', startDaily);
+
+    // Share copy
+    $('share-copy').addEventListener('click', () => {
+      const s = G.score;
+      let emoji='🌱', pct='5';
+      if(s>100){ emoji='🎨'; pct='25'; }
+      if(s>300){ emoji='✨'; pct='50'; }
+      if(s>600){ emoji='👁️'; pct='75'; }
+      if(s>1000){ emoji='👑'; pct='99'; }
+      const weakness = analyzeWeakness() || '蓝色系';
+      const text =
+`🔴 色谱守护者 🔵
+
+我的得分: ${s} ${emoji}
+色觉击败了 ${pct}% 的人!
+
+你的弱点可能是: ${weakness}
+测测你的色彩感知力:
+https://colorclash.app`;
+      navigator.clipboard.writeText(text).then(() => {
+        const fb = document.getElementById('copy-feedback');
+        fb.style.opacity = '1';
+        setTimeout(() => { fb.style.opacity = '0'; }, 2000);
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+        const fb = document.getElementById('copy-feedback');
+        fb.style.opacity = '1';
+        setTimeout(() => { fb.style.opacity = '0'; }, 2000);
+      });
+    });
+
+    $('share-close').addEventListener('click', () => {
+      shareOverlay.classList.add('hidden');
+      if(navigator.share){
+        const s = G.score;
+        navigator.share({
+          title:'色谱守护者',
+          text:`我的色谱守护者得分: ${s}! 测测你的色彩感知力: 色谱守护者`
+        }).catch(()=>{});
+      }
+    });
+
+    // Visibility
+    document.addEventListener('visibilitychange', () => {
+      if(document.hidden && G.phase === 'playing'){
+        lastTime = performance.now();
+      } else if(!document.hidden && G.phase === 'playing'){
+        lastTime = performance.now();
+        G.nextSpawn = Math.max(G.nextSpawn, performance.now());
+        G.nextBonus = Math.max(G.nextBonus, performance.now());
+        G.nextTargetChange = Math.max(G.nextTargetChange, performance.now());
+      }
+    });
+
+    // Resize
+    const handleResize = () => {
+      resizeCanvas();
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', () => setTimeout(handleResize, 300));
+  }
+
+  // ============================================================
+  //  INIT
+  // ============================================================
+  function init(){
+    Pool.init();
+    resizeCanvas();
+    setupEvents();
+    showStart();
+
+    // Set initial background gradient
+    document.getElementById('app').style.background = 'radial-gradient(ellipse at center, #111130 0%, #0a0a0f 70%)';
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  // Low power mode
+  if(navigator.getBattery){
+    navigator.getBattery().then(batt => {
+      if(batt.energySaverModeEnabled || (batt.level < 0.2 && !batt.charging)){
+        G.isLowPower = true;
+      }
+    }).catch(()=>{});
+  }
+
+})();
+</script>
+</body>
+</html>
