@@ -12,7 +12,12 @@
     "product": { "label": "Product", "icon": "Box", "color": "#D946EF" },
     "design": { "label": "Design", "icon": "PenTool", "color": "#EC4899" },
     "testing": { "label": "Testing", "icon": "Bug", "color": "#F59E0B" },
-    "marketing": { "label": "Marketing", "icon": "TrendingUp", "color": "#F97316" }
+    "marketing": { "label": "Marketing", "icon": "TrendingUp", "color": "#F97316" },
+    "security": { "label": "Security", "icon": "Shield", "color": "#EF4444" },
+    "project-management": { "label": "Project Management", "icon": "Clipboard", "color": "#0EA5E9" },
+    "sales": { "label": "Sales", "icon": "DollarSign", "color": "#10B981" },
+    "support": { "label": "Support", "icon": "Headphones", "color": "#84CC16" },
+    "finance": { "label": "Finance", "icon": "TrendingUp", "color": "#22C55E" }
   },
   "tools": {
     "claude-code": {
@@ -37,6 +42,9 @@
     { "slug": "backend-architect", "division": "engineering", "file": "agents/engineering/backend-architect.md" },
     { "slug": "devops-engineer", "division": "engineering", "file": "agents/engineering/devops-engineer.md" },
     { "slug": "ai-engineer", "division": "engineering", "file": "agents/engineering/ai-engineer.md" },
+    { "slug": "mobile-developer", "division": "engineering", "file": "agents/engineering/mobile-developer.md" },
+    { "slug": "database-specialist", "division": "engineering", "file": "agents/engineering/database-specialist.md" },
+    { "slug": "code-reviewer", "division": "engineering", "file": "agents/engineering/code-reviewer.md" },
     { "slug": "product-manager", "division": "product", "file": "agents/product/product-manager.md" },
     { "slug": "ux-researcher", "division": "product", "file": "agents/product/ux-researcher.md" },
     { "slug": "data-analyst", "division": "product", "file": "agents/product/data-analyst.md" },
@@ -50,6 +58,13 @@
     { "slug": "accessibility-auditor", "division": "testing", "file": "agents/testing/accessibility-auditor.md" },
     { "slug": "growth-hacker", "division": "marketing", "file": "agents/marketing/growth-hacker.md" },
     { "slug": "content-creator", "division": "marketing", "file": "agents/marketing/content-creator.md" },
-    { "slug": "social-media-strategist", "division": "marketing", "file": "agents/marketing/social-media-strategist.md" }
+    { "slug": "social-media-strategist", "division": "marketing", "file": "agents/marketing/social-media-strategist.md" },
+    { "slug": "seo-specialist", "division": "marketing", "file": "agents/marketing/seo-specialist.md" },
+    { "slug": "security-engineer", "division": "security", "file": "agents/security/security-engineer.md" },
+    { "slug": "project-manager", "division": "project-management", "file": "agents/project-management/project-manager.md" },
+    { "slug": "sales-engineer", "division": "sales", "file": "agents/sales/sales-engineer.md" },
+    { "slug": "deal-strategist", "division": "sales", "file": "agents/sales/deal-strategist.md" },
+    { "slug": "customer-support", "division": "support", "file": "agents/support/customer-support.md" },
+    { "slug": "financial-analyst", "division": "finance", "file": "agents/finance/financial-analyst.md" }
   ]
 }
