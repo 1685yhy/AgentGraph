@@ -351,7 +351,7 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     level:0,
     correctTaps:0, wrongTaps:0, missedTargets:0,
     startTime:0, survived:0,
-    highScore:parseInt(localStorage.getItem('colorclash_hs')||'0',10),
+    highScore:0,
     targetColor:{h:0,s:80,l:55},
     colorSet:[],
     dots:[],
@@ -379,8 +379,12 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     retryCount:0,
     audioCtx:null,
     ambienceNode:null,
-    ambienceGain:null
+    ambienceGain:null,
+    colorBlind:false,
+    cbPromptShown:false,
+    isLowPower:false
   };
+  try { G.highScore = parseInt(localStorage.getItem('colorclash_hs')||'0', 10); } catch(e) {}
 
   let W, H, dpr;
   let animId = null;
@@ -402,10 +406,14 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
   // ============================================================
   const Audio = {
     init() {
-      if (!G.audioCtx) {
-        G.audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-      }
-      if (G.audioCtx.state === 'suspended') G.audioCtx.resume();
+      try {
+        if (!G.audioCtx) {
+          G.audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+        }
+        if (G.audioCtx && G.audioCtx.state === 'suspended') {
+          G.audioCtx.resume();
+        }
+      } catch(e) {}  // AudioContext may be unavailable in some browsers
     },
     _t(freq, dur, type='sine', vol=0.15, time=0) {
       if (!G.audioCtx) return;
@@ -789,13 +797,15 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     for(let i=0;i<40;i++){
       const a = Math.random() * Math.PI * 2;
       const spd = 100 + Math.random() * 200;
-      G.particles.push({
-        x: W/2, y: H/2,
-        vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
-        radius: 3 + Math.random()*4, life: 0, maxLife: 600 + Math.random()*400,
-        color: {h: (colors[levelIdx]||colors[0])[0] + Math.random()*40, s: 90, l: 60},
-        opacity: 1, alive: true
-      });
+      const p = Pool.acquireParticle();
+      p.x = W/2; p.y = H/2;
+      p.alive = true;
+      p.vx = Math.cos(a)*spd; p.vy = Math.sin(a)*spd;
+      p.radius = 3 + Math.random()*4;
+      p.life = 0; p.maxLife = 600 + Math.random()*400;
+      p.color = {h: (colors[levelIdx]||colors[0])[0] + Math.random()*40, s: 90, l: 60};
+      p.opacity = 1;
+      G.particles.push(p);
     }
   }
 
@@ -817,6 +827,7 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
       p.maxLife = opts.maxLife || (400+Math.random()*300);
       p.color = color || {h:Math.random()*360,s:80,l:60};
       p.opacity = 1;
+      G.particles.push(p);
     }
   }
 
@@ -1020,7 +1031,7 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
 
             // Combo milestone
             if(G.combo === 5 || G.combo === 8 || G.combo === 10){
-              const msgs = {5:'x5!',8:'x8!',10:'x10!'};
+              const msgs = {5:'×5!',8:'×8!',10:'×10!'};
               comboToast.textContent = msgs[G.combo];
               comboToast.style.color = '#ffd700';
               comboToast.classList.add('show');
@@ -1053,15 +1064,11 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
             emitChaosParticles();
             hudCombo.classList.remove('show');
 
-            // Auto CB detection: if miss 3 of first 5, offer
+            // Auto CB detection: if miss 3 of first 5, auto-enable helper marks
             const totalFirst = G.correctTaps + G.wrongTaps;
             if(totalFirst <= 5 && G.wrongTaps >= 2 && !G.cbPromptShown){
               G.cbPromptShown = true;
-              setTimeout(() => {
-                if(confirm('检测到多次点击失误。是否启用辅助模式？\n（目标色块上将显示标记）')){
-                  G.colorBlind = true;
-                }
-              }, 300);
+              G.colorBlind = true;
             }
 
             updateChaosMeter();
@@ -1091,7 +1098,7 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     G.isNewHighScore = G.score > G.highScore;
     if(G.isNewHighScore){
       G.highScore = G.score;
-      localStorage.setItem('colorclash_hs', String(G.highScore));
+      try { localStorage.setItem('colorclash_hs', String(G.highScore)); } catch(e) {}
     }
 
     setTimeout(() => {
@@ -1104,7 +1111,9 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
   //  RENDERER
   // ============================================================
   function resizeCanvas(){
+    if(!canvas.parentElement) return;
     const rect = canvas.parentElement.getBoundingClientRect();
+    if(!rect || rect.width === 0 || rect.height === 0) return;
     dpr = window.devicePixelRatio || 1;
     W = rect.width;
     H = rect.height;
@@ -1112,19 +1121,22 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     canvas.height = H * dpr;
     canvas.style.width = W+'px';
     canvas.style.height = H+'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
+    if(ctx) ctx.setTransform(dpr,0,0,dpr,0,0);
 
     // Death canvas
-    deathCanvas.width = W * dpr;
-    deathCanvas.height = H * dpr;
-    deathCanvas.style.width = W+'px';
-    deathCanvas.style.height = H+'px';
+    if(deathCtx) {
+      deathCanvas.width = W * dpr;
+      deathCanvas.height = H * dpr;
+      deathCanvas.style.width = W+'px';
+      deathCanvas.style.height = H+'px';
+    }
   }
 
   // Background ambient hue
   let bgHue = 0, bgTargetHue = 0;
 
   function render(time){
+    if(!ctx || W === 0 || H === 0) return;
     ctx.clearRect(0,0,W,H);
 
     // Background ambient hue shift
@@ -1382,6 +1394,10 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
 
       // Reset state — use 'starting' phase to prevent race conditions
       G.phase = 'starting';
+
+      // Stop any pending retry countdown timer
+      if(G.retryTimer) { clearInterval(G.retryTimer); G.retryTimer = null; }
+
       G.score = 0;
       G.combo = 0;
       G.maxCombo = 0;
@@ -1389,7 +1405,11 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
       G.correctTaps = 0;
       G.wrongTaps = 0;
       G.missedTargets = 0;
+
+      // Release pooled objects before clearing arrays
+      for(const d of G.dots) Pool.releaseDot(d);
       G.dots = [];
+      for(const p of G.particles) Pool.releaseParticle(p);
       G.particles = [];
       G.floatingTexts = [];
       G.scoreFlyTexts = [];
@@ -1444,7 +1464,6 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
         animId = requestAnimationFrame(gameLoop);
       }, 100);
     } catch(e) {
-      console.error('startGame error:', e);
       if(animId) { cancelAnimationFrame(animId); animId = null; }
       showStart();
       if(errEl) {
@@ -1607,113 +1626,140 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
   //  EVENT BINDING
   // ============================================================
   function setupEvents(){
-    // Touch
-    canvas.addEventListener('touchstart', e => {
-      e.preventDefault();
-      for(const t of e.changedTouches) Input.handle(t.clientX, t.clientY);
-    }, {passive: false});
+    try {
+      // Touch
+      if(canvas) {
+        canvas.addEventListener('touchstart', e => {
+          e.preventDefault();
+          for(const t of e.changedTouches) Input.handle(t.clientX, t.clientY);
+        }, {passive: false});
 
-    // Mouse
-    canvas.addEventListener('mousedown', e => Input.handle(e.clientX, e.clientY));
+        // Mouse
+        canvas.addEventListener('mousedown', e => Input.handle(e.clientX, e.clientY));
+      }
 
-    // Prevent scroll
-    document.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+      // Prevent scroll
+      document.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
 
-    // Buttons
-    $('btn-start').addEventListener('click', () => { G.seed = null; startGame(null); });
-    $('btn-retry').addEventListener('click', () => { G.seed = null; startGame(null); });
-    $('btn-share').addEventListener('click', showShare);
-    $('btn-practice').addEventListener('click', showPractice);
-    $('btn-practice-close').addEventListener('click', () => practiceOverlay.classList.add('hidden'));
+      // Buttons — guard each binding so a single missing DOM element doesn't crash everything
+      const bind = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
+      bind('btn-start', () => { G.seed = null; startGame(null); });
+      bind('btn-retry', () => { G.seed = null; startGame(null); });
+      bind('btn-share', showShare);
+      bind('btn-practice', showPractice);
+      bind('btn-practice-close', () => practiceOverlay.classList.add('hidden'));
+      bind('daily-badge', startDaily);
 
-    // Daily challenge
-    $('daily-badge').addEventListener('click', startDaily);
-
-    // Share copy
-    $('share-copy').addEventListener('click', () => {
-      const s = G.score;
-      let emoji='🌱', pct='5';
-      if(s>100){ emoji='🎨'; pct='25'; }
-      if(s>300){ emoji='✨'; pct='50'; }
-      if(s>600){ emoji='👁️'; pct='75'; }
-      if(s>1000){ emoji='👑'; pct='99'; }
-      const weakness = analyzeWeakness() || '蓝色系';
-      const text =
-`🔴 色谱守护者 🔵
-
-我的得分: ${s} ${emoji}
-色觉击败了 ${pct}% 的人!
-
-你的弱点可能是: ${weakness}
-测测你的色彩感知力:
-https://colorclash.app`;
-      navigator.clipboard.writeText(text).then(() => {
-        const fb = document.getElementById('copy-feedback');
-        fb.style.opacity = '1';
-        setTimeout(() => { fb.style.opacity = '0'; }, 2000);
-      }).catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = text; document.body.appendChild(ta);
-        ta.select(); document.execCommand('copy');
-        document.body.removeChild(ta);
-        const fb = document.getElementById('copy-feedback');
-        fb.style.opacity = '1';
-        setTimeout(() => { fb.style.opacity = '0'; }, 2000);
-      });
-    });
-
-    $('share-close').addEventListener('click', () => {
-      shareOverlay.classList.add('hidden');
-      if(navigator.share){
+      // Share copy
+      bind('share-copy', () => {
         const s = G.score;
-        navigator.share({
-          title:'色谱守护者',
-          text:`我的色谱守护者得分: ${s}! 测测你的色彩感知力: 色谱守护者`
-        }).catch(()=>{});
-      }
-    });
+        let emoji='🌱', pct='5';
+        if(s>100){ emoji='🎨'; pct='25'; }
+        if(s>300){ emoji='✨'; pct='50'; }
+        if(s>600){ emoji='👁️'; pct='75'; }
+        if(s>1000){ emoji='👑'; pct='99'; }
+        const weakness = analyzeWeakness() || '蓝色系';
+        const text =
+  `🔴 色谱守护者 🔵
 
-    // Visibility
-    document.addEventListener('visibilitychange', () => {
-      if(document.hidden && G.phase === 'playing'){
-        lastTime = performance.now();
-      } else if(!document.hidden && G.phase === 'playing'){
-        lastTime = performance.now();
-        G.nextSpawn = Math.max(G.nextSpawn, performance.now());
-        G.nextBonus = Math.max(G.nextBonus, performance.now());
-        G.nextTargetChange = Math.max(G.nextTargetChange, performance.now());
-      }
-    });
+  我的得分: ${s} ${emoji}
+  色觉击败了 ${pct}% 的人!
 
-    // Resize
-    const handleResize = () => {
-      resizeCanvas();
-    };
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', () => setTimeout(handleResize, 300));
+  你的弱点可能是: ${weakness}
+  测测你的色彩感知力:
+  https://colorclash.app`;
+        if(navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(() => {
+            const fb = document.getElementById('copy-feedback');
+            if(fb) { fb.style.opacity = '1'; setTimeout(() => { fb.style.opacity = '0'; }, 2000); }
+          }).catch(() => fallbackCopy(text));
+        } else {
+          fallbackCopy(text);
+        }
+      });
+
+      function fallbackCopy(text){
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          const fb = document.getElementById('copy-feedback');
+          if(fb) { fb.style.opacity = '1'; setTimeout(() => { fb.style.opacity = '0'; }, 2000); }
+        } catch(e) {/* clipboard unavailable */}
+      }
+
+      bind('share-close', () => {
+        shareOverlay.classList.add('hidden');
+        if(navigator.share && navigator.canShare){
+          try {
+            navigator.share({
+              title:'色谱守护者',
+              text:`我的色谱守护者得分: ${G.score}! 测测你的色彩感知力: 色谱守护者`
+            }).catch(()=>{});
+          } catch(e) {}
+        }
+      });
+
+      // Visibility
+      document.addEventListener('visibilitychange', () => {
+        if(!G.phase || G.phase === 'start' || G.phase === 'gameover') return;
+        const now = performance.now();
+        if(document.hidden && G.phase === 'playing'){
+          lastTime = now;
+        } else if(!document.hidden && G.phase === 'playing'){
+          lastTime = now;
+          if(G.nextSpawn) G.nextSpawn = Math.max(G.nextSpawn, now);
+          if(G.nextBonus) G.nextBonus = Math.max(G.nextBonus, now);
+          if(G.nextTargetChange) G.nextTargetChange = Math.max(G.nextTargetChange, now);
+        }
+      });
+
+      // Resize
+      const handleResize = () => { resizeCanvas(); };
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('orientationchange', () => setTimeout(handleResize, 300));
+    } catch(e) {
+      // Setup events failed — non-fatal, game will show error on start
+    }
   }
 
   // ============================================================
   //  INIT
   // ============================================================
   function init(){
-    Pool.init();
-    resizeCanvas();
-    setupEvents();
+    try {
+      Pool.init();
+      resizeCanvas();
+      setupEvents();
 
-    // Validate canvas is usable
-    if(!ctx || W === 0 || H === 0){
+      // Validate canvas is usable
+      if(!ctx || W === 0 || H === 0){
+        const errEl = $('start-error');
+        if(errEl) {
+          errEl.textContent = '⚠️ Canvas初始化失败，请使用现代浏览器';
+          errEl.style.display = 'block';
+        }
+      }
+
+      showStart();
+
+      // Set initial background gradient
+      const appEl = document.getElementById('app');
+      if(appEl) appEl.style.background = 'radial-gradient(ellipse at center, #111130 0%, #0a0a0f 70%)';
+    } catch(e) {
+      // Failed to init — showStart may not have run, so force start screen
+      if(startScreen) { startScreen.classList.remove('hidden'); }
+      if(shareOverlay) { shareOverlay.classList.add('hidden'); }
+      if(gameoverScreen) { gameoverScreen.classList.add('hidden'); }
       const errEl = $('start-error');
       if(errEl) {
-        errEl.textContent = '⚠️ Canvas初始化失败，请使用现代浏览器';
+        errEl.textContent = '⚠️ 初始化失败: ' + (e.message || '未知错误');
         errEl.style.display = 'block';
       }
     }
-
-    showStart();
-
-    // Set initial background gradient
-    document.getElementById('app').style.background = 'radial-gradient(ellipse at center, #111130 0%, #0a0a0f 70%)';
   }
 
   if(document.readyState === 'loading'){
