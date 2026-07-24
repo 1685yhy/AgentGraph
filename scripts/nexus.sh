@@ -357,72 +357,65 @@ cmd_handoff() {
   local json_file
   json_file="$HANDOFFS_DIR/$(date +%Y-%m-%d)-${from_slug}-to-${to_slug}.json"
 
-  python3 -c "
-import json, os
+  # Count stats and build artifacts array (pure bash — no python3)
+  local req_total=0 req_provided=0 req_missing_count=0
+  local artifacts_json=""
+  local first_item=true
 
-matched_lines = '''$matched'''.strip().split('\n') if '''$matched'''.strip() else []
-missing_lines = '''$missing'''.strip().split('\n') if '''$missing'''.strip() else []
+  # Parse matched items
+  while IFS='|' read -r name source status; do
+    [[ -z "$name" ]] && continue
+    req_total=$((req_total + 1))
+    req_provided=$((req_provided + 1))
+    if $first_item; then first_item=false; else artifacts_json+=","; fi
+    artifacts_json+="{\"name\":\"$name\",\"file\":\"$source\",\"status\":\"provided\"}"
+  done <<< "$(echo -e "$matched" | grep -v '^$')"
 
-artifacts = []
+  # Parse missing items
+  while IFS='|' read -r from_name name required; do
+    [[ -z "$name" ]] && continue
+    req_total=$((req_total + 1))
+    if $first_item; then first_item=false; else artifacts_json+=","; fi
+    local req_bool="false"
+    [[ "$required" == "True" ]] && req_bool="true"
+    artifacts_json+="{\"name\":\"$name\",\"file\":null,\"status\":\"missing\",\"required\":$req_bool}"
+    [[ "$required" == "True" ]] && req_missing_count=$((req_missing_count + 1))
+  done <<< "$(echo -e "$missing" | grep -v '^$')"
 
-for line in matched_lines:
-    parts = line.split('|')
-    if len(parts) >= 2:
-        artifacts.append({'name': parts[0], 'file': parts[1] if len(parts) > 1 else 'found', 'status': 'provided'})
+  local new_status="incomplete"
+  [[ $req_missing_count -eq 0 ]] && new_status="ready"
 
-for line in missing_lines:
-    parts = line.split('|')
-    if len(parts) >= 3:
-        artifacts.append({'name': parts[1], 'file': None, 'status': 'missing', 'required': parts[2] == 'True'})
+  mkdir -p "$HANDOFFS_DIR"
 
-req_total = len(artifacts)
-req_provided = sum(1 for a in artifacts if a['status'] == 'provided')
-req_missing = sum(1 for a in artifacts if a['status'] == 'missing' and a.get('required', True))
-
-record = {
-    'id': $id,
-    'from': '$from_slug',
-    'to': '$to_slug',
-    'timestamp': '$date',
-    'message': '''$message''' or '',
-    'path': '$path',
-    'artifacts': artifacts,
-    'checklist': {
-        'required_total': req_total,
-        'required_provided': req_provided,
-        'required_missing': req_missing
-    },
-    'status': 'ready' if req_missing == 0 else 'incomplete',
-    'accepted_by': None
-}
-
-os.makedirs('$HANDOFFS_DIR', exist_ok=True)
-with open('$json_file', 'w') as f:
-    json.dump(record, f, indent=2, ensure_ascii=False)
-
-print(f'  状态: {record[\"status\"]}')
-print(f'  完整度: {req_provided}/{req_total} 项已提供')
-if req_missing > 0:
-    print(f'  [!!] 缺失 {req_missing} 项:')
-    for a in artifacts:
-        if a['status'] == 'missing':
-            print(f'       - {a[\"name\"]}')
-print('  记录: ' + '$json_file')
-" 2>/dev/null || {
-    # Fallback: manual JSON if python3 fails
-    err "python3 unavailable — creating minimal record"
-    cat > "$json_file" << JSONFALLBACK
+  # Build JSON with pure bash heredoc — NO python3
+  cat > "$json_file" << JSONEOF
 {
   "id": $id,
   "from": "$from_slug",
   "to": "$to_slug",
   "timestamp": "$date",
   "message": "$message",
-  "status": "incomplete",
-  "note": "auto-check unavailable (python3 required)"
+  "path": "$path",
+  "artifacts": [$artifacts_json],
+  "checklist": {
+    "required_total": $req_total,
+    "required_provided": $req_provided,
+    "required_missing": $req_missing_count
+  },
+  "status": "$new_status",
+  "accepted_by": null
 }
-JSONFALLBACK
-  }
+JSONEOF
+
+  echo "  状态: $new_status"
+  echo "  完整度: $req_provided/$req_total 项已提供"
+  if [[ $req_missing_count -gt 0 ]]; then
+    echo "  [!!] 缺失 $req_missing_count 项:"
+    echo -e "$missing" | grep '|True$' | while IFS='|' read -r from_name name required; do
+      echo "       - $name"
+    done
+  fi
+  echo "  记录: $json_file"
 
   # Auto-verify deliverable quality (only if completeness passed)
   echo ""

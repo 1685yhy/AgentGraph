@@ -1,0 +1,12 @@
+{
+  "id": "fb-002",
+  "handoff_id": 1,
+  "type": "improvement",
+  "severity": "high",
+  "summary": "handoff/cmd_handoff 中 python3 JSON创建在WSL /mnt/e上超时——需改为纯Bash",
+  "repro_steps": "在/mnt/e上运行guild handoff，python3子进程卡住30秒+",
+  "status": "fixed",
+  "linked_fix_handoff": "commit-1feb591",
+  "created": "2026-07-24T07:28:29Z",
+  "resolved": "2026-07-24T07:31:09Z"
+}
