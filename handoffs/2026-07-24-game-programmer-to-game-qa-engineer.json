@@ -1,0 +1,23 @@
+{
+  "id": 2,
+  "from": "game-programmer",
+  "to": "game-qa-engineer",
+  "timestamp": "2026-07-24T05:12:15Z",
+  "message": "可玩原型交付测试",
+  "path": "/tmp/colorclash",
+  "artifacts": [
+    {
+      "name": "已知的技术限制和已知bug列表——我不需要重新发现团队已经知道的问题。",
+      "file": null,
+      "status": "missing",
+      "required": true
+    }
+  ],
+  "checklist": {
+    "required_total": 1,
+    "required_provided": 0,
+    "required_missing": 1
+  },
+  "status": "incomplete",
+  "accepted_by": null
+}

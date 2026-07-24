@@ -1,0 +1,22 @@
+{
+  "id": 1784869930,
+  "agent": "game-producer",
+  "timestamp": "2026-07-24T05:12:10Z",
+  "decision": {
+    "type": "scope",
+    "topic": "Color Clash发布标准",
+    "summary": "MVP必须满足：①移动端60fps ②3秒加载 ③单文件零依赖 ④完整的开始→游戏→结束循环 ⑤分享机制可用 ⑥色觉评级5档",
+    "rationale": "这是AgentGuild协作系统的验证项目，品质不能低于商业发布标准",
+    "constraints": "",
+    "authority": "game-producer"
+  },
+  "impact": {
+    "affects": [],
+    "breaking_changes": [],
+    "notified": [],
+    "confirmed": []
+  },
+  "traceability": [],
+  "status": "active",
+  "superseded_by": null
+}

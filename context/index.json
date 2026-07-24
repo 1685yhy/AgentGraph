@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-24T04:36:51Z",
+  "updated": "2026-07-24T05:13:58Z",
   "decisions": [
     {
       "id": 1784818279,
@@ -24,6 +24,38 @@
       "type": "scope",
       "topic": "Color Clash 游戏MVP",
       "file": "1784867811-product-manager-color-clash-mvp.json",
+      "status": "active"
+    },
+    {
+      "id": 1784869929,
+      "agent": "game-designer",
+      "type": "game-design",
+      "topic": "Color Clash核心循环",
+      "file": "1784869929-game-designer-color-clash.json",
+      "status": "active"
+    },
+    {
+      "id": 1784869930,
+      "agent": "game-producer",
+      "type": "scope",
+      "topic": "Color Clash发布标准",
+      "file": "1784869930-game-producer-color-clash.json",
+      "status": "active"
+    },
+    {
+      "id": 1784869931,
+      "agent": "monetization-designer",
+      "type": "game-design",
+      "topic": "Color Clash传播机制",
+      "file": "1784869931-monetization-designer-color-clash.json",
+      "status": "active"
+    },
+    {
+      "id": 1784870038,
+      "agent": "game-qa-engineer",
+      "type": "game-design",
+      "topic": "Color Clash验证结果",
+      "file": "1784870038-game-qa-engineer-color-clash.json",
       "status": "active"
     }
   ],

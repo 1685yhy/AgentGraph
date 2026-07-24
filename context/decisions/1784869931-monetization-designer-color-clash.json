@@ -1,0 +1,22 @@
+{
+  "id": 1784869931,
+  "agent": "monetization-designer",
+  "timestamp": "2026-07-24T05:12:11Z",
+  "decision": {
+    "type": "game-design",
+    "topic": "Color Clash传播机制",
+    "summary": "核心传播：色觉评级分享卡。'我的色觉超过X%的人，测测你的'。不内置付费，纯传播驱动。后续可接广告或皮肤系统",
+    "rationale": "先验证传播模型，再考虑变现。羊了个羊证明了好玩+难+分享=自然传播",
+    "constraints": "",
+    "authority": "monetization-designer"
+  },
+  "impact": {
+    "affects": [],
+    "breaking_changes": [],
+    "notified": [],
+    "confirmed": []
+  },
+  "traceability": [],
+  "status": "active",
+  "superseded_by": null
+}
