@@ -273,8 +273,9 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
       <div class="share-weak" id="share-weak"></div>
       <div class="share-text" id="share-text">测测你的色彩感知力<br>你能超过我吗？</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-        <button class="btn btn-primary" id="share-close" style="padding:12px 24px;font-size:14px;min-width:auto;flex:1">去炫耀!</button>
+        <button class="btn btn-primary" id="share-native" style="padding:12px 24px;font-size:14px;min-width:auto;flex:1">&#128241; 系统分享</button>
         <button class="btn btn-secondary" id="share-copy" style="pointer-events:auto;padding:12px 16px;font-size:13px;flex:1;min-width:auto">&#128203; 复制挑战语</button>
+        <button class="btn btn-secondary" id="share-close" style="pointer-events:auto;padding:8px 12px;font-size:11px;min-width:auto;flex:0 0 100%">关闭</button>
       </div>
       <div id="copy-feedback" style="font-size:11px;color:#50fa7b;margin-top:6px;opacity:0;transition:opacity 0.3s">已复制到剪贴板！</div>
     </div>
@@ -378,6 +379,7 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     retryTimer:null,
     retryCount:0,
     audioCtx:null,
+    audioMuted:false,
     ambienceNode:null,
     ambienceGain:null,
     colorBlind:false,
@@ -413,7 +415,7 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
         if (G.audioCtx && G.audioCtx.state === 'suspended') {
           G.audioCtx.resume();
         }
-      } catch(e) {}  // AudioContext may be unavailable in some browsers
+      } catch(e) { G.audioMuted = true; }
     },
     _t(freq, dur, type='sine', vol=0.15, time=0) {
       if (!G.audioCtx) return;
@@ -435,6 +437,7 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     pentatonic: [262, 294, 330, 392, 440],
     // Correct tap: pitch varies by combo (pentatonic)
     correct(combo) {
+      if(G.audioMuted) return;
       const idx = (combo - 1) % this.pentatonic.length;
       const freq = this.pentatonic[idx];
       this._t(freq, 0.1, 'sine', 0.10);
@@ -442,12 +445,14 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     },
     // Wrong tap: diminished triad (descending dissonance)
     wrong() {
+      if(G.audioMuted) return;
       this._t(311, 0.12, 'sawtooth', 0.10); // Eb
       setTimeout(() => this._t(277, 0.12, 'sawtooth', 0.08), 60); // Db
       setTimeout(() => this._t(233, 0.15, 'sawtooth', 0.06), 120); // Bb
     },
     // Combo milestone (5x, 10x): ascending major chord arpeggio
     comboMilestone(n) {
+      if(G.audioMuted) return;
       const base = 392; // G4
       const notes = [base, base*5/4, base*3/2, base*2];
       notes.forEach((f, i) => {
@@ -456,12 +461,14 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     },
     // Level up: orchestral hit fanfare
     levelUp() {
+      if(G.audioMuted) return;
       const notes = [523, 659, 784, 1047, 1319];
       notes.forEach((f, i) => {
         setTimeout(() => this._t(f, 0.15, 'sine', 0.08 + i*0.02), i * 80);
       });
       // Brass-like overtone
       setTimeout(() => {
+        if(G.audioMuted) return;
         [784, 988, 1175].forEach((f, i) => {
           this._t(f, 0.2, 'triangle', 0.04, G.audioCtx.currentTime + i * 0.05);
         });
@@ -469,11 +476,13 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
     },
     // Life restore (bonus dot)
     lifeUp() {
+      if(G.audioMuted) return;
       this._t(880, 0.12, 'sine', 0.08);
       setTimeout(() => this._t(1109, 0.1, 'sine', 0.06), 70);
     },
     // Start ambience drone
     startAmbience(level) {
+      if(G.audioMuted) return;
       this.stopAmbience();
       if (!G.audioCtx) return;
       try {
@@ -513,12 +522,14 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
       } catch(e) {}
     },
     stopAmbience() {
+      if(G.audioMuted) return;
       if (G.ambienceNode) {
         G.ambienceNode.forEach(o => { try{o.stop()}catch(e){} });
         G.ambienceNode = null;
       }
     },
     shiftAmbience(level) {
+      if(G.audioMuted) return;
       this.stopAmbience();
       this.startAmbience(level);
     }
@@ -1382,8 +1393,10 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
       // Clear any previous error
       if(errEl) errEl.style.display = 'none';
 
-      Audio.init();
-      Audio.startAmbience(0);
+      try {
+        Audio.init();
+        Audio.startAmbience(0);
+      } catch(e) { /* audio unavailable, game continues muted */ }
 
       startScreen.classList.add('hidden');
       gameoverScreen.classList.remove('chromatic');
@@ -1693,11 +1706,14 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
 
       bind('share-close', () => {
         shareOverlay.classList.add('hidden');
-        if(navigator.share && navigator.canShare){
+      });
+
+      bind('share-native', () => {
+        if(navigator.share){
           try {
             navigator.share({
               title:'色谱守护者',
-              text:`我的色谱守护者得分: ${G.score}! 测测你的色彩感知力: 色谱守护者`
+              text:`我的色谱守护者得分: ${G.score}! 测测你的色彩感知力`
             }).catch(()=>{});
           } catch(e) {}
         }
