@@ -169,6 +169,31 @@ verify_file() {
       if ! grep -q 'addEventListener\|onclick\|onchange\|onsubmit' "$path"; then
         warn "未检测到事件绑定（如果页面需要交互请确认）"
       fi
+
+      # Extract inline JS and validate
+      local js_content; js_content=$(sed -n '/<script>/,/<\/script>/p' "$path" | grep -v '<script>\|</script>')
+      if [[ -n "$js_content" ]]; then
+        # Run node --check if available
+        if command -v node &>/dev/null; then
+          echo "$js_content" > /tmp/_guild_verify.js
+          if ! node --check /tmp/_guild_verify.js 2>/dev/null; then
+            warn "JS 语法错误"
+            node --check /tmp/_guild_verify.js 2>&1 | head -3
+          else
+            ok "JS 语法通过"
+          fi
+          rm -f /tmp/_guild_verify.js
+        fi
+
+        # Check DOM ID references: find getElementById('X') and verify X exists in HTML
+        local js_ids; js_ids=$(echo "$js_content" | grep -oP "getElementById\s*\(\s*'[^']+'" | grep -oP "'[^']+'" | tr -d "'")
+        for id in $js_ids; do
+          if ! grep -q "id=\"$id\"\|id='$id'" "$path"; then
+            warn "JS 引用了不存在的 DOM ID: '$id'"
+          fi
+        done
+      fi
+
       [[ $errors -eq 0 ]] && return 0 || return 1
       ;;
     md)

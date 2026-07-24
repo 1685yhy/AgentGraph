@@ -1,0 +1,12 @@
+{
+  "id": "fb-003",
+  "handoff_id": 1,
+  "type": "improvement",
+  "severity": "medium",
+  "summary": "guild verify 对HTML只检查console.error——应增加JS语法检查和事件绑定完整性",
+  "repro_steps": "一个有JS运行时错误的HTML文件通过了verify",
+  "status": "fixed",
+  "linked_fix_handoff": null,
+  "created": "2026-07-24T07:28:29Z",
+  "resolved": null
+}
