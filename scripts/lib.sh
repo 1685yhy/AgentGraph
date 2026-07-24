@@ -53,56 +53,52 @@ get_agent_slugs() {
 # ── Inbox helpers ─────────────────────────────────────────────────
 
 # add_inbox_item <agent> <type> <from> <meta> <summary> <action>
-# Appends a notification item to an agent's inbox JSON file.
+# Creates a per-message JSON file in context/inbox/<agent>/ — no python3 needed.
 add_inbox_item() {
   local agent="$1" type="$2" from="$3" meta="$4" summary="$5" action="$6"
-  local inbox_dir="$REPO_ROOT/context/inbox"
+  local inbox_dir="$REPO_ROOT/context/inbox/${agent}"
   mkdir -p "$inbox_dir"
 
-  local inbox_file="$inbox_dir/${agent}.json"
   local timestamp; timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   local msg_id="msg-$(date +%s)-$((RANDOM % 1000))"
+  local msg_file="$inbox_dir/${msg_id}.json"
 
-  if [[ -f "$inbox_file" ]]; then
-    python3 -c "
-import json
-d = json.load(open('$inbox_file'))
-d['unread'] = d.get('unread', 0) + 1
-d['updated'] = '$timestamp'
-d['items'].append({
-    'id': '$msg_id',
-    'type': '$type',
-    'from': '$from',
-    'timestamp': '$timestamp',
-    'summary': '$summary',
-    'action': '$action',
-    'meta': '$meta',
-    'read': False
-})
-with open('$inbox_file', 'w') as f:
-    json.dump(d, f, indent=2, ensure_ascii=False)
-" 2>/dev/null || true
-  else
-    cat > "$inbox_file" << JSONEOF
+  cat > "$msg_file" << JSONEOF
 {
+  "id": "$msg_id",
   "agent": "$agent",
-  "updated": "$timestamp",
-  "unread": 1,
-  "items": [
-    {
-      "id": "$msg_id",
-      "type": "$type",
-      "from": "$from",
-      "timestamp": "$timestamp",
-      "summary": "$summary",
-      "action": "$action",
-      "meta": "$meta",
-      "read": false
-    }
-  ]
+  "type": "$type",
+  "from": "$from",
+  "timestamp": "$timestamp",
+  "summary": "$summary",
+  "action": "$action",
+  "meta": "$meta",
+  "read": false
 }
 JSONEOF
-  fi
+  echo "    📨 已通知 $agent"
+}
+
+# count_unread <agent-slug> — number of unread inbox messages
+count_unread() {
+  local agent="$1"
+  local inbox_dir="$REPO_ROOT/context/inbox/${agent}"
+  local count=0
+  for f in "$inbox_dir"/*.json; do
+    [[ -f "$f" ]] || continue
+    grep -q '"read": false' "$f" 2>/dev/null && count=$((count + 1))
+  done
+  echo $count
+}
+
+# mark_all_read <agent-slug> — mark all inbox messages as read
+mark_all_read() {
+  local agent="$1"
+  local inbox_dir="$REPO_ROOT/context/inbox/${agent}"
+  for f in "$inbox_dir"/*.json; do
+    [[ -f "$f" ]] || continue
+    sed -i 's/"read": false/"read": true/' "$f" 2>/dev/null
+  done
 }
 
 # ── Terminal helpers ──────────────────────────────────────────────

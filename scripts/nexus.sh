@@ -665,11 +665,11 @@ if req_missing > 0:
   echo ""
   echo "=== 收件箱摘要 ==="
   local any_inbox=false
-  for f in "$REPO_ROOT/context/inbox"/*.json; do
-    [[ -f "$f" ]] || continue
-    local a; a=$(basename "$f" .json)
-    local unread; unread=$(python3 -c "import json; print(json.load(open('$f'))['unread'])" 2>/dev/null || echo "?")
-    if [[ "$unread" != "0" ]]; then
+  for d in "$REPO_ROOT/context/inbox"/*/; do
+    [[ -d "$d" ]] || continue
+    local a; a=$(basename "$d")
+    local unread; unread=$(count_unread "$a")
+    if [[ "$unread" -gt 0 ]]; then
       echo "  $a: $unread 未读"
       any_inbox=true
     fi
@@ -977,39 +977,50 @@ cmd_inbox() {
 
   if [[ -n "$agent" ]]; then
     local agent_slug; agent_slug="$(resolve_agent "$agent")"
-    local inbox="$REPO_ROOT/context/inbox/${agent_slug}.json"
-    if [[ ! -f "$inbox" ]]; then
+    local inbox_dir="$REPO_ROOT/context/inbox/${agent_slug}"
+    if [[ ! -d "$inbox_dir" ]] || [[ -z "$(ls "$inbox_dir"/*.json 2>/dev/null)" ]]; then
       echo "  ${agent_slug} 收件箱为空"
       return 0
     fi
 
+    local unread; unread=$(count_unread "$agent_slug")
+    local total; total=$(ls "$inbox_dir"/*.json 2>/dev/null | wc -l)
     echo "=== ${agent_slug} 的收件箱 ==="
-    if ! python3 -c '
-import json, sys
-d = json.load(open(sys.argv[1]))
-ur = sys.argv[2] == "true"
-print("  未读: " + str(d["unread"]) + " / 总计: " + str(len(d["items"])))
-print()
-for item in d["items"]:
-    if ur and item["read"]: continue
-    icon = {"handoff_incoming": "\U0001f4e8", "conflict_active": "⚠️", "decision_relevant": "\U0001f4cb"}.get(item["type"], "\U0001f4cc")
-    read_mark = "  " if item["read"] else "\U0001f535"
-    print(read_mark + " " + icon + " [" + item["from"] + "] " + item["summary"])
-    print("      → " + item["action"])
-    print()
-' "$inbox" "$unread_only" 2>/dev/null; then
-      echo "  (python3 不可用，直接显示原始 JSON)"
-      cat "$inbox"
-    fi
+    echo "  未读: $unread / 总计: $total"
+    echo ""
+
+    for f in "$inbox_dir"/*.json; do
+      [[ -f "$f" ]] || continue
+      local is_read; is_read=$(grep -o '"read": [a-z]*' "$f" | cut -d' ' -f2)
+      $unread_only && [[ "$is_read" == "true" ]] && continue
+
+      local itype; itype=$(grep -o '"type": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+      local ifrom; ifrom=$(grep -o '"from": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+      local isummary; isummary=$(grep -o '"summary": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+      local iaction; iaction=$(grep -o '"action": "[^"]*"' "$f" | head -1 | cut -d'"' -f4)
+
+      local icon="📌"
+      case "$itype" in
+        handoff_incoming) icon="📨";;
+        conflict_active) icon="⚠️";;
+        decision_relevant) icon="📋";;
+      esac
+
+      local read_mark="🔵"
+      [[ "$is_read" == "true" ]] && read_mark="  "
+
+      echo "$read_mark $icon [$ifrom] $isummary"
+      echo "      → $iaction"
+      echo ""
+    done
   else
-    # Show all agents with unread
     echo "=== 所有收件箱 ==="
     local any=false
-    for f in "$REPO_ROOT/context/inbox"/*.json; do
-      [[ -f "$f" ]] || continue
-      local a; a=$(basename "$f" .json)
-      local unread; unread=$(python3 -c "import json; print(json.load(open('$f'))['unread'])" 2>/dev/null || echo "?")
-      if [[ "$unread" != "0" ]]; then
+    for d in "$REPO_ROOT/context/inbox"/*/; do
+      [[ -d "$d" ]] || continue
+      local a; a=$(basename "$d")
+      local unread; unread=$(count_unread "$a")
+      if [[ "$unread" -gt 0 ]]; then
         echo "  $a: $unread 未读"
         any=true
       fi
@@ -1032,23 +1043,11 @@ cmd_read() {
 
   [[ -n "$agent" ]] || die "--agent is required"
   local agent_slug; agent_slug="$(resolve_agent "$agent")"
-  local inbox="$REPO_ROOT/context/inbox/${agent_slug}.json"
-  [[ -f "$inbox" ]] || { echo "  收件箱为空"; return 0; }
+  local inbox_dir="$REPO_ROOT/context/inbox/${agent_slug}"
+  [[ -d "$inbox_dir" ]] || { echo "  收件箱为空"; return 0; }
 
-  if ! python3 -c '
-import json, sys
-d = json.load(open(sys.argv[1]))
-all_flag = sys.argv[2] == "true"
-for item in d["items"]:
-    if all_flag or not item["read"]:
-        item["read"] = True
-d["unread"] = 0
-with open(sys.argv[1], "w") as f:
-    json.dump(d, f, indent=2, ensure_ascii=False)
-print("已标记所有消息为已读")
-' "$inbox" "$all" 2>/dev/null; then
-    echo "已标记为已读"
-  fi
+  mark_all_read "$agent_slug"
+  ok "已标记 ${agent_slug} 的所有消息为已读"
 }
 
 # ── cmd_resolve ────────────────────────────────────────────────────
