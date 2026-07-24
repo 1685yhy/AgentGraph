@@ -1709,13 +1709,18 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
       });
 
       bind('share-native', () => {
-        if(navigator.share){
-          try {
-            navigator.share({
-              title:'色谱守护者',
-              text:`我的色谱守护者得分: ${G.score}! 测测你的色彩感知力`
-            }).catch(()=>{});
-          } catch(e) {}
+        const text = `🖌️ 色谱守护者\n得分: ${G.score}\n评级: ${document.getElementById('share-rating')?.textContent || '??'}\n\n测测你的色彩感知力:\nhttps://1685yhy.github.io/agentguild/color-clash.html`;
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          const fb = document.getElementById('copy-feedback');
+          if(fb) { fb.textContent = '✅ 已复制！发给朋友挑战'; fb.style.opacity = '1'; setTimeout(() => { fb.style.opacity = '0'; }, 2500); }
+        } catch(e) {
+          const fb = document.getElementById('copy-feedback');
+          if(fb) { fb.textContent = '📋 请截图分享'; fb.style.opacity = '1'; }
         }
       });
 
