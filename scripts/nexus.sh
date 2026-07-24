@@ -8,6 +8,8 @@
 #   guild status    [--agent <name>] [--status incomplete|needs_fix|ready|accepted]
 #   guild accept    --handoff <id> --as <agent>
 #   guild verify    --type <type> --file <path> | --path <dir> | --handoff <id>
+#   guild test      --file <path> [--spec <spec>] | --handoff <id>
+#   guild test      --generate --from-agent <agent> --file <path> [--output <file>]
 #   guild feedback  --handoff <id> --type bug|improvement --summary "..."
 #   guild feedback  --list [--handoff <id>] [--status open|fixed]
 #   guild feedback  --fix <fb-id> --handoff <id>
@@ -25,6 +27,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # shellcheck source=lib.sh
 . "$SCRIPT_DIR/lib.sh"
+
+# shellcheck source=test-runner.sh
+. "$SCRIPT_DIR/test-runner.sh"
 
 CONTRACTS="$REPO_ROOT/contracts/guild-contracts.yml"
 HANDOFFS_DIR="$REPO_ROOT/handoffs"
@@ -726,6 +731,34 @@ print(d.get('handoff_id',''), d.get('severity',''), d.get('status',''), d.get('s
     done
     if [[ -n "$open_criticals" ]]; then
       reject_reasons="${reject_reasons}关联的未解决关键 bug:\n${open_criticals}"
+    fi
+  fi
+
+  # Gate 4: Behavioral tests must pass (for HTML deliverables)
+  if [[ "$current_status" == "ready" ]]; then
+    local handoff_path
+    handoff_path=$(python3 -c "import json; print(json.load(open('$json_file'))['path'])" 2>/dev/null)
+    if [[ -d "$handoff_path" ]]; then
+      local html_files=()
+      while IFS= read -r -d '' f; do
+        html_files+=("$f")
+      done < <(find "$handoff_path" -name "*.html" -type f -print0 2>/dev/null)
+
+      if [[ ${#html_files[@]} -gt 0 ]]; then
+        echo ""
+        echo "  行为测试门禁 (Gate 4):"
+        local behavioral_ok=true
+        for html_file in "${html_files[@]}"; do
+          echo "  检查: $(basename "$html_file")"
+          # Redirect stdout to capture test results, but pass through stderr
+          local test_output
+          test_output=$(run_all_tests "$html_file" 2>&1) || behavioral_ok=false
+          echo "$test_output" | sed 's/^/    /'
+        done
+        if ! $behavioral_ok; then
+          reject_reasons="${reject_reasons}  - 行为测试未全部通过（见上方详情）\n"
+        fi
+      fi
     fi
   fi
 
@@ -1729,6 +1762,7 @@ if [[ $# -eq 0 ]]; then
   echo "  guild inbox     — 查看 Agent 收件箱"
   echo "  guild read      — 标记收件箱消息为已读"
   echo "  guild resolve   — 基于决策权重自动解决冲突"
+  echo "  guild test      — 运行交付物行为测试（超越静态验证）"
   echo ""
   echo "Run 'guild <command> --help' for details."
   exit 0
@@ -1752,8 +1786,9 @@ case "$CMD" in
   inbox)     cmd_inbox "$@";;
   read)      cmd_read "$@";;
   resolve)   cmd_resolve "$@";;
+  test)      cmd_test "$@";;
   --help|-h|help)
     sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: handoff, check, status, accept, verify, feedback, changelog, list, run, decide, context, inbox, read, resolve";;
+  *) die "Unknown command: $CMD. Valid: handoff, check, status, accept, verify, feedback, changelog, list, run, decide, context, inbox, read, resolve, test";;
 esac
