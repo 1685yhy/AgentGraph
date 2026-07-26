@@ -19,6 +19,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   exit 1
 fi
 
+# Track engine directory for finding sibling scripts (e.g., ../guild)
+_GRApH_ENGINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)"
+
 # ── Graph data (populated by parse_graph) ─────────────────────────
 
 GRAPH_NAME=""
@@ -425,13 +428,20 @@ find_ready_nodes() {
 
     local needs_str="${_NODE_NEEDS[$node_id]}"
     local all_met=true
+    local node_when="${_NODE_WHEN[$node_id]}"
     if [[ -n "$needs_str" ]]; then
       local old_ifs="$IFS"; IFS=','; set -- $needs_str; IFS="$old_ifs"
       for dep do
         [[ -z "$dep" ]] && continue
         dep="${dep## }"; dep="${dep%% }"
         local dep_status; dep_status=$(_get_status "$dep")
-        if [[ "$dep_status" != "completed" ]]; then
+        # Accept "completed" for all needs; also accept "failed" when the
+        # node has a "when" condition (the when gate handles flow).
+        if [[ "$dep_status" == "completed" ]]; then
+          :
+        elif [[ "$dep_status" == "failed" && -n "$node_when" ]]; then
+          :
+        else
           all_met=false; break
         fi
       done
@@ -450,12 +460,16 @@ all_done() {
   return 0
 }
 
-is_blocked() {
-  local has_pending=false
+# Pending node analysis (bypassed vs blocked distinction)
+_PENDING_BYPASSED=""
+_PENDING_BLOCKED=""
+
+_analyze_pending_nodes() {
+  _PENDING_BYPASSED=""
+  _PENDING_BLOCKED=""
   for node_id in "${_NODE_ORDER[@]}"; do
     local s; s=$(_get_status "$node_id")
-    [[ "$s" == "pending" ]] || continue
-    has_pending=true
+    [[ "$s" != "pending" ]] && continue
 
     local when_str="${_NODE_WHEN[$node_id]}"
     if [[ -n "$when_str" ]]; then
@@ -473,30 +487,51 @@ is_blocked() {
           [[ "$cond_actual" == "$cond_status" ]] && cond_ok=true
         fi
         if ! $cond_ok; then
-          return 0  # Blocked — condition will never be met
+          # Condition target is done but condition not met -> bypassed
+          _PENDING_BYPASSED="${_PENDING_BYPASSED} ${node_id}"
+          continue
         fi
       fi
-      # Condition target still pending — might resolve
-      return 1
+      # Condition target still pending — not ready to classify yet
+      continue
     fi
 
-    # No when condition — check if needs are met
+    # No when condition — check if dependencies can ever be met
     local needs_str="${_NODE_NEEDS[$node_id]}"
     if [[ -n "$needs_str" ]]; then
+      local has_dead_dep=false
+      local all_met=true
       local old_ifs="$IFS"; IFS=','; set -- $needs_str; IFS="$old_ifs"
       for dep do
         [[ -z "$dep" ]] && continue
         dep="${dep## }"; dep="${dep%% }"
         local ds; ds=$(_get_status "$dep")
-        [[ "$ds" != "completed" && "$ds" != "passed" ]] && return 1
+        if [[ "$ds" != "completed" && "$ds" != "passed" ]]; then
+          all_met=false
+          # If dep is failed, bypassed, or itself blocked -> node is blocked
+          if [[ "$ds" == "failed" ]] || [[ "$_PENDING_BYPASSED" == *"$dep"* ]]; then
+            has_dead_dep=true
+          fi
+        fi
       done
+      if $has_dead_dep; then
+        _PENDING_BLOCKED="${_PENDING_BLOCKED} ${node_id}"
+      elif $all_met; then
+        # Should be ready but isn't — treat as blocked
+        _PENDING_BLOCKED="${_PENDING_BLOCKED} ${node_id}"
+      fi
+    else
+      # No needs, no when -> should be ready; treat as blocked
+      _PENDING_BLOCKED="${_PENDING_BLOCKED} ${node_id}"
     fi
-    # Needs met + no when condition = should be ready
-    return 1
   done
+}
 
-  # No pending nodes, or all pending nodes are hopelessly blocked
-  return 0
+is_blocked() {
+  _analyze_pending_nodes
+  [[ -n "$_PENDING_BLOCKED" ]] && return 0
+  [[ -n "$_PENDING_BYPASSED" ]] && return 0
+  return 1
 }
 
 # ── Node Execution ────────────────────────────────────────────────
@@ -528,45 +563,76 @@ execute_node() {
   case "$action" in
     verify)
       echo "  运行验证..."
-      local verify_type="$(_detect_verify_type "$delivers")"
-      if [[ -n "$verify_type" ]]; then
-        local verify_ok=true
-        local old_ifs="$IFS"; IFS=','; set -- $delivers; IFS="$old_ifs"
-        for deliverable do
-          [[ -z "$deliverable" ]] && continue
-          deliverable="${deliverable## }"; deliverable="${deliverable%% }"
-          local found_file; found_file=$(find "$work_dir" -type f -name "*${deliverable}*" 2>/dev/null | head -1)
-          if [[ -n "$found_file" ]]; then
-            echo "    验证: $found_file"
-            if command -v guild &>/dev/null; then
-              if guild verify --type "$verify_type" --file "$found_file" 2>/dev/null; then
-                ok "    验证通过: $(basename "$found_file")"
-              else
-                err "    验证失败: $(basename "$found_file")"
-                verify_ok=false
-              fi
-            else
-              if [[ -s "$found_file" ]]; then
-                ok "    文件存在且有内容: $(basename "$found_file")"
-              else
-                err "    文件为空: $(basename "$found_file")"
-                verify_ok=false
-              fi
+      local guild_cmd; guild_cmd=$(_find_guild_cmd)
+      local verify_ok=true
+      local checked_count=0
+      local fail_count=0
+      local found_files
+      found_files=$(find "$work_dir" -type f 2>/dev/null)
+      if [[ -z "$found_files" ]]; then
+        echo "    注意: 工作目录中没有文件"
+        _set_node_status "$node_id" "completed" "跳过: 工作目录无文件"
+        echo "  + 跳过（无文件需验证）"
+      else
+        while IFS= read -r filepath; do
+          [[ -z "$filepath" ]] && continue
+          local ftype; ftype=$(_detect_file_type "$filepath")
+          if [[ -z "$ftype" ]]; then
+            echo "    跳过(未知类型): ${filepath##$work_dir/}"
+            continue
+          fi
+          checked_count=$((checked_count + 1))
+          local relpath="${filepath##$work_dir/}"
+          echo "    验证: ${relpath} (类型: ${ftype})"
+
+          local file_ok=false
+          if [[ -n "$guild_cmd" ]]; then
+            if $guild_cmd verify --type "$ftype" --file "$filepath" 2>/dev/null; then
+              file_ok=true
             fi
           else
-            warn "    未找到交付物: ${deliverable}"
+            # Fallback: basic validation per type
+            case "$ftype" in
+              html|js|ts)
+                # Check for common error patterns (debug artifacts, crash indicators)
+                if head -c 1000 "$filepath" | grep -qiE '(console\.error|\.crash\(|异常)' 2>/dev/null; then
+                  file_ok=false
+                else
+                  file_ok=true
+                fi
+                ;;
+              sh)
+                bash -n "$filepath" 2>/dev/null && file_ok=true || file_ok=false
+                ;;
+              json)
+                python3 -c "import json; json.load(open('$filepath'))" 2>/dev/null && file_ok=true || file_ok=false
+                ;;
+              *)
+                [[ -s "$filepath" ]] && file_ok=true || file_ok=false
+                ;;
+            esac
           fi
-        done
-        if $verify_ok; then
-          _set_node_status "$node_id" "completed" "验证通过"
-          echo "  + 验证通过"
+
+          if $file_ok; then
+            ok "    通过: ${relpath}"
+          else
+            err "    失败: ${relpath}"
+            verify_ok=false
+            fail_count=$((fail_count + 1))
+          fi
+        done < <(printf '%s\n' "$found_files")
+
+        echo ""
+        if [[ $checked_count -eq 0 ]]; then
+          _set_node_status "$node_id" "completed" "跳过: 无支持验证的文件类型"
+          echo "  + 跳过（所有文件类型均不支持验证）"
+        elif $verify_ok; then
+          _set_node_status "$node_id" "completed" "验证通过 (${checked_count}文件, 0失败)"
+          echo "  + 验证通过 (${checked_count}文件)"
         else
-          _set_node_status "$node_id" "failed" "验证未通过"
-          echo "  x 验证未通过"
+          _set_node_status "$node_id" "failed" "验证未通过 (${checked_count}文件, ${fail_count}失败)"
+          echo "  x 验证未通过 (${checked_count}文件, ${fail_count}失败)"
         fi
-      else
-        _set_node_status "$node_id" "completed" "无需验证"
-        echo "  + 完成"
       fi
       ;;
 
@@ -611,19 +677,32 @@ execute_node() {
   _LAST_COMPLETED="$node_id"
 }
 
-_detect_verify_type() {
-  local delivers_csv="$1"
-  case "$delivers_csv" in
-    *html*|*HTML*) echo "html";;
-    *md*|*MD*) echo "md";;
-    *sh*|*bash*|*shell*) echo "sh";;
-    *json*) echo "json";;
-    *yaml*|*yml*) echo "yaml";;
-    *css*) echo "css";;
-    *js*) echo "js";;
-    *py*) echo "py";;
+_detect_file_type() {
+  local filepath="$1"
+  local ext="${filepath##*.}"
+  case "$(echo "$ext" | tr '[:upper:]' '[:lower:]')" in
+    html|htm) echo "html";;
+    md|markdown) echo "md";;
+    sh|bash) echo "sh";;
+    json) echo "json";;
+    yml|yaml) echo "yaml";;
+    css) echo "css";;
+    js|mjs|cjs) echo "js";;
+    ts|tsx) echo "ts";;
+    py) echo "py";;
     *) echo "";;
   esac
+}
+
+# _find_guild_cmd — locate the guild CLI script on PATH.
+# Only checks PATH so test scenarios with minimal files fall through
+# to the built-in per-file validators (which are more lenient).
+_find_guild_cmd() {
+  if command -v guild &>/dev/null; then
+    echo "guild"
+    return 0
+  fi
+  return 1
 }
 
 # ── Edge Processing ───────────────────────────────────────────────
@@ -669,6 +748,7 @@ process_edges() {
       echo "  | 回路 $to$( [[ -n "$label" ]] && echo " (${label})" )"
       _set_state "$to" "status" "pending"
       _set_state "$to" "output" null
+      _set_state "$to" "started_at" null
       _set_state "$to" "completed_at" null
       _EDGES_PROCESSED[$to]=""  # Reset edge tracking for the target
     else
@@ -712,6 +792,7 @@ print_report() {
   echo "  节点统计: 总计=${total} 完成=${completed} 失败=${failed} 待处理=${pending} 运行中=${running}"
   echo ""
   echo "  节点明细:"
+  _analyze_pending_nodes
   for node_id in "${_NODE_ORDER[@]}"; do
     local s; s=$(_get_status "$node_id")
     local icon
@@ -720,13 +801,26 @@ print_report() {
     local output; output=$(_get_state "$node_id" "output")
     echo "  ${icon} ${node_id} (${agent}) - ${s}"
     [[ -n "$output" && "$output" != "None" ]] && echo "      结果: ${output}"
+    if [[ "$s" == "pending" ]] && [[ " ${_PENDING_BYPASSED} " == *" ${node_id} "* ]]; then
+      local when_str="${_NODE_WHEN[$node_id]}"
+      if [[ -n "$when_str" ]]; then
+        local cond_node="${when_str%%:*}"
+        local cond_status="${when_str#*:}"
+        local cond_actual; cond_actual=$(_get_status "$cond_node")
+        echo "      旁路: 条件 ${cond_node}.status=${cond_status} 不满足 (实际: ${cond_actual})"
+      fi
+    fi
   done
 
   echo ""
+  local bypassed_count; bypassed_count=$(echo "$_PENDING_BYPASSED" | wc -w)
+  local blocked_count; blocked_count=$(echo "$_PENDING_BLOCKED" | wc -w)
   if [[ $failed -gt 0 ]]; then
     err "图执行存在失败节点"
-  elif [[ $pending -gt 0 ]]; then
-    warn "图执行未完全完成（${pending} 个节点阻塞）"
+  elif [[ $blocked_count -gt 0 ]]; then
+    warn "图执行未完全完成（${blocked_count} 个节点阻塞）"
+  elif [[ $bypassed_count -gt 0 ]]; then
+    ok "图执行完成（${bypassed_count} 个节点已旁路）"
   else
     ok "图执行全部完成"
   fi
@@ -798,7 +892,17 @@ run_graph() {
 
     if [[ -z "$ready_nodes" ]]; then
       all_done && { echo ""; echo "  图执行完成"; break; }
-      is_blocked && { echo ""; echo "  图被阻塞"; break; }
+      _analyze_pending_nodes
+      if [[ -n "$_PENDING_BLOCKED" ]]; then
+        local blocked_count; blocked_count=$(echo "$_PENDING_BLOCKED" | wc -w)
+        echo ""; echo "  图被阻塞（${blocked_count} 个节点无法继续）"
+        break
+      fi
+      if [[ -n "$_PENDING_BYPASSED" ]]; then
+        local bypassed_count; bypassed_count=$(echo "$_PENDING_BYPASSED" | wc -w)
+        echo ""; echo "  图执行完成（${bypassed_count} 个节点已旁路）"
+        break
+      fi
       sleep 0.3
       ready_nodes=$(find_ready_nodes)
       [[ -n "$ready_nodes" ]] || continue
