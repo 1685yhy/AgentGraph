@@ -1,0 +1,36 @@
+name: 产品迭代 (Graph)
+description: 图式迭代——反馈收集→修复→验证→上线，含完整回路
+nodes:
+  collect:
+    agent: customer-support
+    delivers: [feedback_report]
+
+  prioritize:
+    agent: product-manager
+    needs: [collect]
+    delivers: [priority_list]
+
+  fix:
+    agent: frontend-engineer
+    needs: [prioritize]
+    delivers: [fix_code]
+
+  verify:
+    agent: qa-engineer
+    action: verify
+    needs: [fix]
+
+  retry:
+    agent: frontend-engineer
+    needs: [verify]
+    when: { verify: failed }
+
+  deploy:
+    agent: devops-engineer
+    needs: [verify]
+    when: { verify: passed }
+
+edges:
+  - { from: verify, to: retry, when: "verify.status == failed", label: "修复不通过" }
+  - { from: retry, to: verify, label: "重新验证" }
+  - { from: verify, to: deploy, when: "verify.status == passed", label: "上线" }

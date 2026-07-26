@@ -1001,6 +1001,127 @@ if req_missing > 0:
   $any_inbox || echo "  所有收件箱为空"
 }
 
+# ── cmd_graph ──────────────────────────────────────────────────────────
+
+# Usage: guild graph run   --graph <name> --path <dir> [--dry-run] [--yes]
+#        guild graph status [--graph <name>]
+#        guild graph show   <name>
+#        guild graph list
+
+cmd_graph() {
+  local sub="${1:-run}"; shift || true
+
+  case "$sub" in
+    run)
+      local graph="" path="" dry_run=false auto_yes=false
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --graph) graph="$2"; shift 2;;
+          --path) path="$2"; shift 2;;
+          --dry-run) dry_run=true; shift;;
+          --yes) auto_yes=true; shift;;
+          *) shift;;
+        esac
+      done
+      [[ -n "$graph" ]] || die "--graph <name> is required"
+      [[ -d "$path" ]] || die "--path must be a directory: $path"
+
+      local graph_file="$REPO_ROOT/graphs/${graph}.yml"
+      [[ -f "$graph_file" ]] || die "Graph not found: $graph"
+
+      echo "╔══════════════════════════════════════════╗"
+      echo "║  Graph Engine: $graph"
+      echo "╚══════════════════════════════════════════╝"
+
+      # Source and run graph engine
+      source "$REPO_ROOT/scripts/graph-engine.sh"
+      # Temp disable errexit/nounset for graph engine (it has its own error handling)
+      set +euo pipefail
+      run_graph "$graph_file" "$path" "$dry_run" "$auto_yes"
+      local graph_rc=$?
+      set -euo pipefail
+      return $graph_rc
+      ;;
+
+    status)
+      local graph_name="${1:-}"
+      # Show graph execution state
+      if [[ -n "$graph_name" ]]; then
+        local state_file="/tmp/guild-graph-${graph_name}-state.json"
+        [[ -f "$state_file" ]] || { echo "图 \"$graph_name\" 无运行中的状态"; return 0; }
+        python3 -c "
+import json
+d=json.load(open('$state_file'))
+print('图状态: ${graph_name}')
+print('迭代: %d' % d.get('current_iteration', 0))
+print()
+for k,n in d['nodes'].items():
+    icons = {'pending':'⏳','running':'🔄','completed':'✅','failed':'❌'}
+    icon = icons.get(n['status'], '⬜')
+    print('  %s %s: %s' % (icon, k, n['status']))
+" 2>/dev/null || cat "$state_file"
+      else
+        # List all running graph states
+        local found=false
+        for f in /tmp/guild-graph-*-state.json; do
+          [[ -f "$f" ]] || continue
+          found=true
+          local gname; gname=$(basename "$f" | sed 's/guild-graph-//;s/-state.json//')
+          echo "  图: $gname"
+          python3 -c "
+import json
+d=json.load(open('$f'))
+nodes = d['nodes']
+done = sum(1 for n in nodes.values() if n['status']=='completed')
+failed = sum(1 for n in nodes.values() if n['status']=='failed')
+print('    节点: %d/%d 完成, %d 失败' % (done, len(nodes), failed))
+print('    迭代: %d' % d.get('current_iteration',0))
+" 2>/dev/null
+        done
+        $found || echo "  无运行中的图"
+      fi
+      ;;
+
+    show)
+      local graph="${1:-}"
+      [[ -n "$graph" ]] || die "usage: guild graph show <name>"
+      local graph_file="$REPO_ROOT/graphs/${graph}.yml"
+      [[ -f "$graph_file" ]] || die "Graph not found: $graph"
+
+      echo "=== Graph: $graph ==="
+      echo ""
+      echo "Nodes:"
+      grep -E '^  [a-z]' "$graph_file" | sed 's/://;s/^/  /'
+      echo ""
+      echo "Edges:"
+      grep -A1 '^edges:' "$graph_file" | tail -n +2
+      ;;
+
+    list)
+      echo "可用图:"
+      local any=false
+      for f in "$REPO_ROOT/graphs"/*.yml; do
+        [[ -f "$f" ]] || continue
+        any=true
+        local name; name=$(grep '^name:' "$f" | head -1 | sed 's/name: *//')
+        local desc; desc=$(grep '^description:' "$f" | head -1 | sed 's/description: *//')
+        echo "  $(basename "$f" .yml) — $name"
+        [[ -n "$desc" ]] && echo "    $desc"
+      done
+      $any || echo "  (无图定义)"
+      ;;
+
+    *)
+      echo "用法: guild graph [run|status|show|list]"
+      echo ""
+      echo "  run    — 执行图"
+      echo "  status — 查看图执行状态"
+      echo "  show   — 显示图结构"
+      echo "  list   — 列出可用图"
+      ;;
+  esac
+}
+
 # ── cmd_verify ───────────────────────────────────────────────────────
 
 # Usage: guild verify --type <type> --file <path>
@@ -1748,6 +1869,7 @@ if [[ $# -eq 0 ]]; then
   echo "AgentGuild Handoff Engine"
   echo ""
   echo "Commands:"
+  echo "  guild graph     — 图引擎 (run/status/show/list)"
   echo "  guild handoff   — 创建交接 (Agent A → Agent B)"
   echo "  guild check     — 检查交接完整性"
   echo "  guild status    — 查看所有交接状态"
@@ -1772,6 +1894,7 @@ CMD="$1"
 shift
 
 case "$CMD" in
+  graph)     cmd_graph "$@";;
   handoff)   cmd_handoff "$@";;
   check)     cmd_check "$@";;
   status)    cmd_status "$@";;
@@ -1790,5 +1913,5 @@ case "$CMD" in
   --help|-h|help)
     sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: handoff, check, status, accept, verify, feedback, changelog, list, run, decide, context, inbox, read, resolve, test";;
+  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, list, run, decide, context, inbox, read, resolve, test";;
 esac

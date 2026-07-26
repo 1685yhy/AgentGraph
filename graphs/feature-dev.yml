@@ -1,0 +1,42 @@
+name: 功能开发 (Graph)
+description: 含回路和图结构的单功能开发流程
+nodes:
+  define:
+    agent: product-manager
+    action: deliver
+    delivers: [prd, user_stories]
+
+  design:
+    agent: ui-designer
+    needs: [define]
+    delivers: [design_spec]
+
+  build-frontend:
+    agent: frontend-engineer
+    needs: [define, design]
+    delivers: [frontend_code]
+
+  build-backend:
+    agent: backend-architect
+    needs: [define, design]
+    delivers: [backend_code]
+
+  test:
+    agent: qa-engineer
+    action: verify
+    needs: [build-frontend, build-backend]
+
+  fix:
+    agent: frontend-engineer
+    needs: [test]
+    when: { test: failed }
+
+  approve:
+    agent: creative-director
+    needs: [test]
+    when: { test: passed }
+
+edges:
+  - { from: test, to: fix, when: "test.status == failed", label: "打回修复" }
+  - { from: fix, to: test, label: "重新测试（回路）" }
+  - { from: test, to: approve, when: "test.status == passed", label: "批准" }

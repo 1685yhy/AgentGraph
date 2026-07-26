@@ -1,0 +1,51 @@
+name: 游戏MVP开发 (Graph)
+description: 图式游戏开发——并行美术+程序，含测试回路
+nodes:
+  concept:
+    agent: game-designer
+    delivers: [gdd, core_loop]
+
+  art:
+    agent: technical-artist
+    needs: [concept]
+    delivers: [art_style, assets]
+
+  code:
+    agent: game-programmer
+    needs: [concept]
+    delivers: [prototype]
+
+  ui:
+    agent: game-ui-designer
+    needs: [concept]
+    delivers: [ui_design]
+
+  audio:
+    agent: game-audio-engineer
+    needs: [concept]
+    delivers: [audio_assets]
+
+  integration:
+    agent: game-programmer
+    needs: [art, code, ui, audio]
+    delivers: [playable_build]
+
+  qa:
+    agent: game-qa-engineer
+    action: verify
+    needs: [integration]
+
+  fix:
+    agent: game-programmer
+    needs: [qa]
+    when: { qa: failed }
+
+  ship:
+    agent: game-producer
+    needs: [qa]
+    when: { qa: passed }
+
+edges:
+  - { from: qa, to: fix, when: "qa.status == failed", label: "QA不通过" }
+  - { from: fix, to: qa, label: "修复后重测" }
+  - { from: qa, to: ship, when: "qa.status == passed", label: "发布" }
