@@ -35,7 +35,7 @@
 ### Step 3a: Dry-Run Pipeline
 | Item | Detail |
 |------|--------|
-| **Command** | `./guild run --pipeline startup-mvp --path /tmp/agentguild-demo/phase1-发现 --dry-run` |
+| **Command** | `./guild run --pipeline startup-mvp --path /tmp/AgentGraph-demo/phase1-发现 --dry-run` |
 | **Output** | Full pipeline dry-run, all 4 phases listed correctly |
 | **Status** | WORKED AS EXPECTED |
 | **Notes** | Confirmed 质量验证 phase now lists `qa-engineer, performance-tester, accessibility-auditor, creative-director` — the pipeline update is reflected correctly. Handoff matrices generated between all agents across phases. |
@@ -43,7 +43,7 @@
 ### Step 3b: Live Pipeline Run
 | Item | Detail |
 |------|--------|
-| **Command** | `printf 'skip\nskip\nskip\n' | ./guild run --pipeline startup-mvp --path /tmp/agentguild-demo/phase1-发现` |
+| **Command** | `printf 'skip\nskip\nskip\n' | ./guild run --pipeline startup-mvp --path /tmp/AgentGraph-demo/phase1-发现` |
 | **Output** | All 3 phase prompts skipped, pipeline completed successfully |
 | **Status** | WORKED AS EXPECTED |
 | **Notes** | Live pipeline creates actual handoffs between agent roles. Skipping works but each phase requires individual input — not ideal for CI automation. |
@@ -51,7 +51,7 @@
 ### Feature-Dev Pipeline Verification
 | Item | Detail |
 |------|--------|
-| **Command** | `./guild run --pipeline feature-dev --path /tmp/agentguild-demo/phase1-发现 --dry-run` |
+| **Command** | `./guild run --pipeline feature-dev --path /tmp/AgentGraph-demo/phase1-发现 --dry-run` |
 | **Output** | Pipeline shows: 需求定义 → 设计 → 实现 → 测试 → 审查 |
 | **Status** | WORKED AS EXPECTED |
 | **Notes** | The new `测试` phase is correctly positioned between `实现` and `审查`. Agents `qa-engineer` and `performance-tester` appear in 测试 phase handoffs. |
@@ -59,7 +59,7 @@
 ### Step 4: Test Handoffs
 | Item | Detail |
 |------|--------|
-| **Command 1** | `./guild handoff --from pm --to backend --path /tmp/agentguild-demo/phase1-发现 --message "备课优化MVP需求评审"` |
+| **Command 1** | `./guild handoff --from pm --to backend --path /tmp/AgentGraph-demo/phase1-发现 --message "备课优化MVP需求评审"` |
 | **Output** | Handoff #1 created (incomplete, 41/57 items provided) |
 | **Status** | WORKED AS EXPECTED |
 | **Command 2** | `./guild check --handoff 1` |

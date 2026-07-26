@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# test-runner.sh — AgentGuild Behavioral Test Engine
+# test-runner.sh — AgentGraph Behavioral Test Engine
 #
 # This is the missing layer between "document collaboration" and
 # "real team collaboration." While `guild verify` checks syntax,

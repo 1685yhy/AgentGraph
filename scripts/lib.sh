@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# lib.sh — shared pure-bash helpers for AgentGuild scripts.
+# lib.sh — shared pure-bash helpers for AgentGraph scripts.
 # Bash 3.2+ compatible. No external dependencies.
 # Groups: frontmatter parsers, slug helpers, terminal helpers.
 

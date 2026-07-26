@@ -1,11 +1,11 @@
 {
-  "_note": "AgentGuild project metadata and agent registry. Single source of truth consumed by convert.sh, install.sh, lint.sh, and CI. Each agent entry maps a source file to its metadata. Divisions define the organizational structure.",
+  "_note": "AgentGraph project metadata and agent registry. Single source of truth consumed by convert.sh, install.sh, lint.sh, and CI. Each agent entry maps a source file to its metadata. Divisions define the organizational structure.",
   "project": {
-    "name": "AgentGuild",
+    "name": "AgentGraph",
     "version": "0.1.0",
     "phase": "core",
     "license": "MIT",
-    "repository": "https://github.com/1685yhy/agentguild"
+    "repository": "https://github.com/1685yhy/AgentGraph"
   },
   "divisions": {
     "engineering": { "label": "Engineering", "icon": "Code", "color": "#3B82F6" },

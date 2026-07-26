@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# install.sh — Install AgentGuild agents into local AI tools.
+# install.sh — Install AgentGraph agents into local AI tools.
 #
 # Usage:
 #   ./scripts/install.sh [--tool <name>] [--dry-run] [--help]

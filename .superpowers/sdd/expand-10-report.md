@@ -1,8 +1,8 @@
-# Expand AgentGuild: +10 New Agents Report
+# Expand AgentGraph: +10 New Agents Report
 
 ## Summary
 
-Added 10 new high-quality agents to AgentGuild at `/mnt/e/agentguild`, bringing the total from 18 to 28 agents across 10 divisions.
+Added 10 new high-quality agents to AgentGraph at `/mnt/e/AgentGraph`, bringing the total from 18 to 28 agents across 10 divisions.
 
 ## New Divisions (5)
 
@@ -91,13 +91,13 @@ Added 10 new high-quality agents to AgentGuild at `/mnt/e/agentguild`, bringing 
 ## File Summary
 
 All 10 agent files:
-- `/mnt/e/agentguild/agents/security/security-engineer.md`
-- `/mnt/e/agentguild/agents/engineering/mobile-developer.md`
-- `/mnt/e/agentguild/agents/engineering/database-specialist.md`
-- `/mnt/e/agentguild/agents/engineering/code-reviewer.md`
-- `/mnt/e/agentguild/agents/project-management/project-manager.md`
-- `/mnt/e/agentguild/agents/sales/sales-engineer.md`
-- `/mnt/e/agentguild/agents/sales/deal-strategist.md`
-- `/mnt/e/agentguild/agents/support/customer-support.md`
-- `/mnt/e/agentguild/agents/marketing/seo-specialist.md`
-- `/mnt/e/agentguild/agents/finance/financial-analyst.md`
+- `/mnt/e/AgentGraph/agents/security/security-engineer.md`
+- `/mnt/e/AgentGraph/agents/engineering/mobile-developer.md`
+- `/mnt/e/AgentGraph/agents/engineering/database-specialist.md`
+- `/mnt/e/AgentGraph/agents/engineering/code-reviewer.md`
+- `/mnt/e/AgentGraph/agents/project-management/project-manager.md`
+- `/mnt/e/AgentGraph/agents/sales/sales-engineer.md`
+- `/mnt/e/AgentGraph/agents/sales/deal-strategist.md`
+- `/mnt/e/AgentGraph/agents/support/customer-support.md`
+- `/mnt/e/AgentGraph/agents/marketing/seo-specialist.md`
+- `/mnt/e/AgentGraph/agents/finance/financial-analyst.md`

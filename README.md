@@ -1,8 +1,8 @@
-# 🎭 AgentGuild
+# 🎭 AgentGraph
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/1685yhy/agentguild?style=for-the-badge&color=3B82F6" alt="GitHub Stars">
-  <img src="https://img.shields.io/github/license/1685yhy/agentguild?style=for-the-badge&color=EC4899" alt="MIT License">
+  <img src="https://img.shields.io/github/stars/1685yhy/AgentGraph?style=for-the-badge&color=3B82F6" alt="GitHub Stars">
+  <img src="https://img.shields.io/github/license/1685yhy/AgentGraph?style=for-the-badge&color=EC4899" alt="MIT License">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=for-the-badge&color=22C55E" alt="PRs Welcome">
   <img src="https://img.shields.io/badge/agents-40-3B82F6?style=for-the-badge" alt="40 Agents">
   <img src="https://img.shields.io/badge/Bash_Python3-Bash_3.2++Python3-D946EF?style=for-the-badge" alt="Bash+Python3">
@@ -31,13 +31,13 @@
 
 ## 这到底是什么？
 
-**AgentGuild 不是一个 Agent 模板库。它是一个 AI 团队的协作操作系统。**
+**AgentGraph 不是一个 Agent 模板库。它是一个 AI 团队的协作操作系统。**
 
 两件事：
 1. **40 个精品 Agent** — 每个都有挑衅性观点、会跟人争执、知道自己盲区、明确决策边界。不是一个模板换词 300 次。
 2. **一套协作引擎** — `guild` CLI 让 Agent 之间真的能传接球、跑流水线、记录决策、检测冲突。不是 Markdown 文档写"你应该这么协作"。
 
-你已经有 Claude Code / Cursor / Copilot 了。装上 AgentGuild，你就有了一支能配合的 AI 团队。
+你已经有 Claude Code / Cursor / Copilot 了。装上 AgentGraph，你就有了一支能配合的 AI 团队。
 
 ---
 
@@ -49,7 +49,7 @@
 
 agency-agents 的答案是"Phase 4 才发现，回去重做"。
 
-AgentGuild 的答案是：**后端动手之前，系统就告诉他"前端依赖这个 API，你的决策会影响他"。如果双方做了矛盾的决策，系统自动报警。每次交接自动检查完整性，缺东西当场就拦。**
+AgentGraph 的答案是：**后端动手之前，系统就告诉他"前端依赖这个 API，你的决策会影响他"。如果双方做了矛盾的决策，系统自动报警。每次交接自动检查完整性，缺东西当场就拦。**
 
 这就是 Agent 协作和"把 Agent 放一起然后祈祷"的区别。
 
@@ -59,8 +59,8 @@ AgentGuild 的答案是：**后端动手之前，系统就告诉他"前端依赖
 
 ```bash
 # 1. 克隆
-git clone https://github.com/1685yhy/agentguild.git
-cd agentguild
+git clone https://github.com/1685yhy/AgentGraph.git
+cd AgentGraph
 
 # 2. 安装 Agent 到你的 AI 工具
 ./scripts/convert.sh
@@ -177,7 +177,7 @@ cd agentguild
 
 ## 协作引擎
 
-这是 AgentGuild 区别于所有其他 Agent 项目的核心。
+这是 AgentGraph 区别于所有其他 Agent 项目的核心。
 
 ### `guild handoff` — Agent 之间传接球
 
@@ -236,7 +236,7 @@ $ guild status
 
 ## 图引擎
 
-除了流水线式的交接，AgentGuild 还提供了基于有向图的执行引擎，支持循环、并行和条件分支。
+除了流水线式的交接，AgentGraph 还提供了基于有向图的执行引擎，支持循环、并行和条件分支。
 
 ### 概念
 
@@ -307,7 +307,7 @@ $ ./guild graph run --graph graphs/game-mvp.yml --path ./my-game/
 
 ## 跟 agency-agents 比
 
-| | agency-agents | **AgentGuild** |
+| | agency-agents | **AgentGraph** |
 |---|---|---|
 | Agent 深度 | 一个模板换词 300 次 | 每个有挑衅性观点、冲突偏好、盲区 |
 | Agent 质量 | 参差不齐 | 20A + 5A- + 3B+，lint 强制校验 |
@@ -319,7 +319,7 @@ $ ./guild graph run --graph graphs/game-mvp.yml --path ./my-game/
 | 中文 | 翻译 | **原生中文全链路** |
 | 依赖 | Bash+Python3 | **Bash 3.2+ + Python3 内置模块** |
 
-**AgentGuild 不是 agency-agents 的 fork。** 它是同一个问题（"AI 怎么组队干活"）的下一代答案。agency-agents 证明了"Agent 定义可以模板化"，AgentGuild 证明了**协作可以自动化**。
+**AgentGraph 不是 agency-agents 的 fork。** 它是同一个问题（"AI 怎么组队干活"）的下一代答案。agency-agents 证明了"Agent 定义可以模板化"，AgentGraph 证明了**协作可以自动化**。
 
 ---
 
@@ -337,7 +337,7 @@ $ ./guild graph run --graph graphs/game-mvp.yml --path ./my-game/
 ## 项目结构
 
 ```
-agentguild/
+AgentGraph/
 ├── agents/          40 个 Agent（工程/产品/设计/测试/市场/安全/项目管理/销售/支持/财务/游戏开发）
 ├── scripts/         8 个脚本（lint/convert/install/nexus/graph-engine/lib/test-runner/agent-prompt）
 ├── contracts/       协作契约 — 从 Agent 第 13 段自动提取

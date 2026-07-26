@@ -2,7 +2,7 @@
 
 ## Summary
 
-Successfully architected and implemented the AgentGuild Graph Engine — replacing linear pipelines with directed graph-based workflows supporting loops, parallel execution, and conditional edges.
+Successfully architected and implemented the AgentGraph Graph Engine — replacing linear pipelines with directed graph-based workflows supporting loops, parallel execution, and conditional edges.
 
 ## Deliverables
 

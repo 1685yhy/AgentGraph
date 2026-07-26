@@ -2,7 +2,7 @@
 
 ## 概述
 
-AgentGuild 的 Agent 协作系统是一套让 AI Agent 之间**自主发现工作、自动接收通知、自动解决冲突**的协作框架。它解决了多 Agent 协作中最核心的问题：**Agent 不知道有什么工作在等着它们**。
+AgentGraph 的 Agent 协作系统是一套让 AI Agent 之间**自主发现工作、自动接收通知、自动解决冲突**的协作框架。它解决了多 Agent 协作中最核心的问题：**Agent 不知道有什么工作在等着它们**。
 
 在传统工作流中，人类是唯一的协调者——人类告诉每个 Agent 该做什么、什么时候做、是否需要调整。当 Agent 数量增多时，这种模式成为瓶颈。Agent 协作系统将协调工作从人类转移到系统层面，让 Agent 能够：
 
@@ -15,7 +15,7 @@ AgentGuild 的 Agent 协作系统是一套让 AI Agent 之间**自主发现工�
 ### 核心组件
 
 ```
-agentguild/
+AgentGraph/
 ├── context/
 │   └── inbox/              # Agent 收件箱目录
 │       ├── backend-architect.json

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# graph-engine.sh — AgentGuild Graph Engine
+# graph-engine.sh — AgentGraph Graph Engine
 # Executes agent workflows as directed graphs with loops and parallelism.
 #
 # Features:

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# convert.sh — Convert AgentGuild agent .md files into tool-specific formats.
+# convert.sh — Convert AgentGraph agent .md files into tool-specific formats.
 #
 # Usage:
 #   ./scripts/convert.sh [--tool <name>] [--help]
@@ -51,7 +51,7 @@ convert_windsurf_rules() {
   local srcs=("$@")
   mkdir -p "$(dirname "$out")"
   {
-    echo "# AgentGuild Agents"
+    echo "# AgentGraph Agents"
     echo "# Generated: $(date +%Y-%m-%d)"
     echo "# Agent count: ${#srcs[@]}"
     echo ""

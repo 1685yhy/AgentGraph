@@ -2,7 +2,7 @@
 
 ## Summary
 
-Built and integrated the Agent Awareness System into AgentGuild, solving the C-grade problem of autonomous agent collaboration by giving every agent a structured inbox for self-directed work discovery.
+Built and integrated the Agent Awareness System into AgentGraph, solving the C-grade problem of autonomous agent collaboration by giving every agent a structured inbox for self-directed work discovery.
 
 ## What Was Built
 

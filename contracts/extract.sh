@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# extract.sh — Extract structured collaboration contracts from AgentGuild agent files.
+# extract.sh — Extract structured collaboration contracts from AgentGraph agent files.
 #
 # Reads all agent .md files, parses their section 13 (协作契约),
 # and generates contracts/guild-contracts.yml.
@@ -20,7 +20,7 @@ CONFIG="$REPO_ROOT/guild.config.json"
 OUTPUT="$REPO_ROOT/contracts/guild-contracts.yml"
 
 {
-  echo "# AgentGuild Collaboration Contracts"
+  echo "# AgentGraph Collaboration Contracts"
   echo "# Auto-generated: $(date -Iseconds)"
   echo "# Source: agents/*/ section 13 (协作契约)"
   echo "#"

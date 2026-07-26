@@ -6,7 +6,7 @@
 
 ## 前置条件
 
-- 项目根目录 `~/agentguild`，`guild` CLI 可用
+- 项目根目录 `~/AgentGraph`，`guild` CLI 可用
 - `frontend-engineer` 已在 `guild.config.json` 中注册
 - 需要先注册 `qa-engineer` 代理及其契约（见下面步骤 1-2）
 
@@ -17,7 +17,7 @@
 QA（Evidence Collector）不是默认注册的角色，需要先添加到配置中。
 
 ```bash
-cd ~/agentguild
+cd ~/AgentGraph
 
 # 使用 jq 在 guild.config.json 的 agents 数组中添加 qa-engineer
 jq '.agents += [{"slug": "qa-engineer", "division": "engineering", "file": "agents/engineering/qa-engineer.md"}]' \
@@ -104,7 +104,7 @@ EOF
 ### 4. 前端发起交接（第一次 — 不完整）
 
 ```bash
-cd ~/agentguild
+cd ~/AgentGraph
 
 ./guild handoff \
   --from frontend-engineer \
@@ -122,7 +122,7 @@ cd ~/agentguild
   [!!] 缺失 2 项:
        - 带有单元测试和集成测试的可运行 React/TypeScript 组件
        - 无障碍合规报告（axe-core、Lighthouse）
-  记录: ~/agentguild/handoffs/2026-07-23-frontend-engineer-to-qa-engineer.json
+  记录: ~/AgentGraph/handoffs/2026-07-23-frontend-engineer-to-qa-engineer.json
 ```
 
 检查发现两个问题：
@@ -238,7 +238,7 @@ EOF
 创建交接 #3: frontend-engineer → qa-engineer
   状态: ready
   完整度: 2/2 项已提供
-  记录: ~/agentguild/handoffs/2026-07-23-frontend-engineer-to-qa-engineer.json
+  记录: ~/AgentGraph/handoffs/2026-07-23-frontend-engineer-to-qa-engineer.json
 ```
 
 所有必需项已满足，状态为 `ready`。

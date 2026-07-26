@@ -1,6 +1,6 @@
-# AgentGuild Agent Template
+# AgentGraph Agent Template
 
-This document defines the standard for every Agent in the AgentGuild roster.
+This document defines the standard for every Agent in the AgentGraph roster.
 Every Agent file consists of **YAML frontmatter** followed by **13 body sections**.
 
 ## Frontmatter (YAML)

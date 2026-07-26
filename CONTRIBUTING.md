@@ -1,6 +1,6 @@
-# Contributing to AgentGuild
+# Contributing to AgentGraph
 
-Thank you for your interest in AgentGuild! This document outlines the quality standards, processes, and guidelines for contributing new agents, tools, or improvements to the guild.
+Thank you for your interest in AgentGraph! This document outlines the quality standards, processes, and guidelines for contributing new agents, tools, or improvements to the guild.
 
 **Table of Contents**
 
@@ -15,11 +15,11 @@ Thank you for your interest in AgentGuild! This document outlines the quality st
 
 ## Quality Bar for Agents
 
-AgentGuild is a curated roster. Not every agent file belongs here. Every agent must meet the following criteria to be considered for inclusion.
+AgentGraph is a curated roster. Not every agent file belongs here. Every agent must meet the following criteria to be considered for inclusion.
 
 ### Required: Four Guild Signatures
 
-Every agent must have all four of AgentGuild's signature sections, and they must be **genuine**:
+Every agent must have all four of AgentGraph's signature sections, and they must be **genuine**:
 
 1. **Contrarian Take** — A professional opinion that goes against mainstream consensus. It must be defensible with evidence (minimum 3 sentences). If your contrarian take sounds like something everyone agrees with, it is not contrarian enough.
 
@@ -74,7 +74,7 @@ Open a GitHub issue using the Agent Proposal template. Your issue must include:
 ### Step 2: Community Discussion
 
 The maintainers and community will review your proposal for:
-- Fit with AgentGuild's quality bar
+- Fit with AgentGraph's quality bar
 - Distinctiveness from existing agents (no overlap)
 - Relevance to software development teams
 - Feasibility of the contrarian take and conflict preferences
@@ -103,7 +103,7 @@ Your PR will be reviewed for:
 
 ## How to Add Support for a New AI Tool
 
-AgentGuild supports Claude Code, Cursor, GitHub Copilot, and Windsurf. To add a new AI tool:
+AgentGraph supports Claude Code, Cursor, GitHub Copilot, and Windsurf. To add a new AI tool:
 
 ### Step 1: Register the tool in `guild.config.json`
 
@@ -147,7 +147,7 @@ Add your tool to the Supported Tools table in `README.md` and `README_zh-CN.md`.
 
 ### Our Pledge
 
-We are committed to providing a welcoming, inclusive, and harassment-free experience for everyone in the AgentGuild community, regardless of age, body size, disability, ethnicity, gender identity, experience level, nationality, personal appearance, race, religion, or sexual identity and orientation.
+We are committed to providing a welcoming, inclusive, and harassment-free experience for everyone in the AgentGraph community, regardless of age, body size, disability, ethnicity, gender identity, experience level, nationality, personal appearance, race, religion, or sexual identity and orientation.
 
 ### Our Standards
 
@@ -190,7 +190,7 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be repor
 
 ---
 
-Thank you for helping make AgentGuild better. Every agent, every tool integration, and every improvement starts with someone who cares about quality.
+Thank you for helping make AgentGraph better. Every agent, every tool integration, and every improvement starts with someone who cares about quality.
 
 <p align="center">
   <sub>Built with conviction, not consensus.</sub>

@@ -2,7 +2,7 @@
 
 ## Summary
 
-Added a complete behavioral verification layer to AgentGuild. This closes the gap between "document-level QA" (syntax checks) and "real team collaboration" (does it actually work?).
+Added a complete behavioral verification layer to AgentGraph. This closes the gap between "document-level QA" (syntax checks) and "real team collaboration" (does it actually work?).
 
 ## What Was Built
 

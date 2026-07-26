@@ -6,7 +6,7 @@
     "type": "game-design",
     "topic": "Color Clash验证结果",
     "summary": "游戏核心循环验证通过。经游戏设计师、关卡设计师、UI设计师、音频工程师、变现设计师、技术美术、制作人7个角色视角审查，完成8项改进",
-    "rationale": "AgentGuild协作系统实战验证：40个Agent+handoff+decide+pipeline全部参与，交付了可玩可传播的完整游戏产品",
+    "rationale": "AgentGraph协作系统实战验证：40个Agent+handoff+decide+pipeline全部参与，交付了可玩可传播的完整游戏产品",
     "constraints": "",
     "authority": "game-qa-engineer"
   },

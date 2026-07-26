@@ -1,4 +1,4 @@
-# AgentGuild Phase 2a — Handoff Engine 设计文档
+# AgentGraph Phase 2a — Handoff Engine 设计文档
 
 **版本**: v1.0  
 **日期**: 2026-07-23  
@@ -11,7 +11,7 @@
 
 ### 1.1 一句话定位
 
-Handoff Engine 是 AgentGuild 的协作基础设施——把 Agent 之间"我产出什么、你需要什么"的约定从 Markdown 文字变成自动检查逻辑。
+Handoff Engine 是 AgentGraph 的协作基础设施——把 Agent 之间"我产出什么、你需要什么"的约定从 Markdown 文字变成自动检查逻辑。
 
 ### 1.2 解决什么问题
 
@@ -187,7 +187,7 @@ PM 产出 PRD
 ### 3.2 文件结构
 
 ```
-agentguild/
+AgentGraph/
 ├── contracts/
 │   ├── extract.sh               ← 从 Agent 提取契约 → YAML
 │   └── guild-contracts.yml      ← 结构化契约（可手动编辑）

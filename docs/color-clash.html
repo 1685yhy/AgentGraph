@@ -1709,7 +1709,7 @@ canvas#gameCanvas{position:absolute;top:0;left:0;width:100%;height:100%;display:
       });
 
       bind('share-native', () => {
-        const text = `🖌️ 色谱守护者\n得分: ${G.score}\n评级: ${document.getElementById('share-rating')?.textContent || '??'}\n\n测测你的色彩感知力:\nhttps://1685yhy.github.io/agentguild/color-clash.html`;
+        const text = `🖌️ 色谱守护者\n得分: ${G.score}\n评级: ${document.getElementById('share-rating')?.textContent || '??'}\n\n测测你的色彩感知力:\nhttps://1685yhy.github.io/AgentGraph/color-clash.html`;
         try {
           const ta = document.createElement('textarea');
           ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';

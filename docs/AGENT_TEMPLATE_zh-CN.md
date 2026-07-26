@@ -1,4 +1,4 @@
-# AgentGuild Agent 模板规范
+# AgentGraph Agent 模板规范
 
 每个 Agent 文件由 **YAML 元数据头** + **13 个正文段落** 组成。
 

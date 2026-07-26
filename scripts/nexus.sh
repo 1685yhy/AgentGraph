@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# nexus.sh — AgentGuild Handoff Engine CLI
+# nexus.sh — AgentGraph Handoff Engine CLI
 #
 # Usage:
 #   guild handoff   --from <agent> --to <agent> --path <dir> [--message <msg>]
@@ -1903,7 +1903,7 @@ cmd_resolve() {
 # ── Main ────────────────────────────────────────────────────────────
 
 if [[ $# -eq 0 ]]; then
-  echo "AgentGuild Handoff Engine"
+  echo "AgentGraph Handoff Engine"
   echo ""
   echo "Commands:"
   echo "  guild graph     — 图引擎 (run/status/show/list)"

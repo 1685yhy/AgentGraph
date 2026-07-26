@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# lint.sh — Validate AgentGuild agent files for quality and completeness.
+# lint.sh — Validate AgentGraph agent files for quality and completeness.
 #
 # Usage:
 #   ./scripts/lint.sh [file1.md file2.md ...]

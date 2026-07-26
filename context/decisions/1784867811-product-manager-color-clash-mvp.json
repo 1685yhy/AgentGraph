@@ -6,7 +6,7 @@
     "type": "scope",
     "topic": "Color Clash 游戏MVP",
     "summary": "单页HTML游戏，色觉反应品类。核心机制：目标颜色匹配+速度递增+连击系统+分享机制。先做触控版(mobile-first)。",
-    "rationale": "验证AgentGuild全链路协作能力，交付一个可玩可传播的完整产品",
+    "rationale": "验证AgentGraph全链路协作能力，交付一个可玩可传播的完整产品",
     "constraints": "单文件HTML，无外部依赖，24小时内交付",
     "authority": "product-manager"
   },

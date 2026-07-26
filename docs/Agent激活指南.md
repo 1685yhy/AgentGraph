@@ -2,7 +2,7 @@
 
 ## 什么是 Agent 收件箱？
 
-AgentGuild 的每个 Agent 都有一个**收件箱**（inbox），存储在 `context/inbox/<agent-slug>.json`。收件箱自动接收以下类型的通知：
+AgentGraph 的每个 Agent 都有一个**收件箱**（inbox），存储在 `context/inbox/<agent-slug>.json`。收件箱自动接收以下类型的通知：
 
 - **交接通知**（handoff_incoming）：其他 Agent 将交付物交给你时
 - **决策通知**（decision_relevant）：其他 Agent 做出了影响你工作的决策时
@@ -59,7 +59,7 @@ guild read --agent backend-architect
 
 ## 在 Claude Code 中使用
 
-在 Claude Code 中与 AgentGuild 的 Agent 协作时：
+在 Claude Code 中与 AgentGraph 的 Agent 协作时：
 
 ```
 @Backend Architect, 先检查你的 guild inbox，然后开始工作

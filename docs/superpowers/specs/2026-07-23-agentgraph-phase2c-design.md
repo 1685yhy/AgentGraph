@@ -1,4 +1,4 @@
-# AgentGuild Phase 2c — Context Bus + Conflict Resolver 设计文档
+# AgentGraph Phase 2c — Context Bus + Conflict Resolver 设计文档
 
 **版本**: v1.0 | **日期**: 2026-07-23 | **状态**: 已确认
 
