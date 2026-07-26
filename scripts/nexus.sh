@@ -1043,11 +1043,48 @@ cmd_graph() {
       return $graph_rc
       ;;
 
+    resume)
+      local graph="" path="" auto_yes=false
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --graph) graph="$2"; shift 2;;
+          --path) path="$2"; shift 2;;
+          --yes) auto_yes=true; shift;;
+          *) shift;;
+        esac
+      done
+      [[ -n "$graph" ]] || die "--graph <name> is required"
+      [[ -d "$path" ]] || die "--path must be a directory: $path"
+
+      local graph_file="$REPO_ROOT/graphs/${graph}.yml"
+      [[ -f "$graph_file" ]] || die "Graph not found: $graph"
+
+      echo "╔══════════════════════════════════════════╗"
+      echo "║  Graph Engine: $graph (恢复模式)"
+      echo "╚══════════════════════════════════════════╝"
+
+      source "$REPO_ROOT/scripts/graph-engine.sh"
+      set +euo pipefail
+      parse_graph "$graph_file" || return 1
+      resume_graph "$graph" "$path" "$auto_yes"
+      local graph_rc=$?
+      set -euo pipefail
+      return $graph_rc
+      ;;
+
     status)
       local graph_name="${1:-}"
       # Show graph execution state
       if [[ -n "$graph_name" ]]; then
-        local state_file="/tmp/guild-graph-${graph_name}-state.json"
+        local state_basename="$graph_name"
+        local graph_file="$REPO_ROOT/graphs/${graph_name}.yml"
+        if [[ -f "$graph_file" ]]; then
+          state_basename=$(basename "$graph_file" .yml)
+          state_basename=$(basename "$state_basename" .yaml)
+        fi
+        local state_file="/tmp/guild-graph-${state_basename}-state.json"
+        # Fallback: try raw name
+        [[ -f "$state_file" ]] || state_file="/tmp/guild-graph-${graph_name}-state.json"
         [[ -f "$state_file" ]] || { echo "图 \"$graph_name\" 无运行中的状态"; return 0; }
         python3 -c "
 import json
@@ -1056,7 +1093,7 @@ print('图状态: ${graph_name}')
 print('迭代: %d' % d.get('current_iteration', 0))
 print()
 for k,n in d['nodes'].items():
-    icons = {'pending':'⏳','running':'🔄','completed':'✅','failed':'❌'}
+    icons = {'pending':'⏳','running':'🔄','completed':'✅','failed':'❌','timeout':'⌛','exhausted':'💀'}
     icon = icons.get(n['status'], '⬜')
     print('  %s %s: %s' % (icon, k, n['status']))
 " 2>/dev/null || cat "$state_file"
