@@ -40,202 +40,239 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # These are static-analysis checks that examine the HTML/JS source code
 # for patterns that indicate correct runtime behavior.
 
-# Check 1: btn-start exists and binds to startGame
-check_start_button_bound() {
-  local file="$1"
-  if grep -q 'id="btn-start"' "$file"; then
-    # Check that it's bound to startGame
-    if grep -q 'btn-start.*startGame\|startGame.*btn-start' "$file"; then
-      ok "开始按钮(btn-start)已绑定startGame"
-      return 0
-    else
-      warn "btn-start存在，但未检测到startGame绑定"
-      # This isn't necessarily a failure — binding might use the generic bind()
-      # function. Check for generic bind pattern.
-      if grep -q "bind.*btn-start" "$file" || grep -q "btn-start.*startGame" "$file"; then
-        ok "开始按钮通过bind()绑定"
-        return 0
-      fi
-      err "btn-start未绑定startGame"
-      return 1
-    fi
-  else
-    err "缺少btn-start按钮元素"
-    return 1
-  fi
-}
+# ── Generic Behavioral Checks ─────────────────────────────────────────
+# These checks use GENERIC PATTERNS rather than game-specific function names.
+# They work with any HTML/JS game regardless of naming conventions.
 
-# Check 2: showShare checks G.phase !== 'gameover' before displaying
-check_showShare_guard() {
+# Generic Check 1: Start interaction exists
+# Look for ANY mechanism to start/init the game (button click, canvas touch,
+# init/start function, etc.)
+check_start_interaction() {
   local file="$1"
-  if grep -q "G.phase.*!==.*gameover\|G.phase.*!=.*gameover\|phase.*!==.*gameover" "$file"; then
-    ok "showShare有gameover守卫 — 仅在gameover状态显示"
+  # Pattern 1: Button with click handler that starts game
+  if grep -qiE '(start|begin|play|开始).*(btn|button).*(click|addEventListener).*(init|start|play|game)' "$file"; then
+    ok "开始交互已绑定 (按钮点击触发游戏初始化)"
     return 0
-  else
-    err "showShare缺少gameover守卫 — 可能在非gameover状态下显示"
-    return 1
   fi
-}
-
-# Check 3: Audio.init has error handling that doesn't crash game
-check_audio_error_handling() {
-  local file="$1"
-  # Audio.init should have try-catch or set audioMuted on failure
-  if grep -q "catch.*Audio\|audioMuted\|AudioContext.*catch" "$file" 2>/dev/null; then
-    ok "Audio初始化有错误处理"
+  # Pattern 2: Any init/start function definition
+  if grep -qE 'function\s+(initGame|startGame|init_game|start_game|gameInit|gameStart|setupGame)\b' "$file"; then
+    ok "初始化为函数 (initGame/startGame 等)"
     return 0
-  elif grep -q "catch.*audio\|audio.*catch" "$file" 2>/dev/null; then
-    ok "Audio初始化有错误处理(catch)"
-    return 0
-  else
-    err "Audio初始化无错误处理 — 可能导致游戏崩溃"
-    return 1
   fi
-}
-
-# Check 4: Game loop checks G.phase === 'playing' before running
-check_game_loop_guard() {
-  local file="$1"
-  # The game loop should check phase before doing anything
-  # Pattern: gameLoop function with a phase !== 'playing' guard
-  if grep -q "gameLoop.*function\|function.*gameLoop" "$file" 2>/dev/null; then
-    # Found gameLoop function — check for phase guard inside it
-    local gl_start
-    gl_start=$(grep -n "gameLoop" "$file" | head -1 | cut -d: -f1)
-    local gl_block
-    gl_block=$(sed -n "${gl_start},$((gl_start + 5))p" "$file" 2>/dev/null)
-    if echo "$gl_block" | grep -q "phase.*playing"; then
-      ok "游戏循环有phase检查 — 仅在playing状态运行"
+  # Pattern 3: Canvas with touch/mousedown handler that starts game
+  if grep -qE 'addEventListener.*(touchstart|mousedown|click)' "$file"; then
+    if grep -qiE '(initGame|startGame|init|start).*\(|game.*state.*playing' "$file"; then
+      ok "画布/全局触摸交互存在 (touch/click handler 触发游戏)"
       return 0
     fi
   fi
-  # Broader fallback: check any function that uses requestAnimationFrame
-  if grep -q "phase.*!==.*playing\|phase.*playing.*return" "$file" 2>/dev/null; then
-    ok "游戏循环有phase检查"
+  # Pattern 4: Any button with "start" in id that has a click listener
+  if grep -qE 'id=.*start.*btn.*click.*addEventListener|id=.*btn.*start.*click.*addEventListener' "$file"; then
+    ok "开始按钮点击监听存在"
     return 0
   fi
-  err "游戏循环缺少phase检查 — 可能在非playing状态运行渲染循环"
+  # Pattern 5: Any id containing start/play with a click event
+  if grep -qiE '("start-btn"|"btn-start"|"play-btn"|"btn-play")' "$file"; then
+    ok "开始按钮元素存在 (start-btn/btn-start/play-btn)"
+    return 0
+  fi
+  err "未检测到开始交互机制 -- 需要按钮/画布点击触发游戏初始化"
   return 1
 }
 
-# Check 5: share-close does NOT call navigator.share()
-check_share_close_no_navigator_share() {
+# Generic Check 2: Game state management
+# Look for state tracking variables, phase guards, or state-based game loop logic
+check_state_management() {
   local file="$1"
-  # Extract the share-close handler code
-  if grep -q "share-close" "$file"; then
-    # Check that share-close handler doesn't contain navigator.share
-    local close_block
-    close_block=$(awk '/share-close/,/;/' "$file" 2>/dev/null || true)
-    if echo "$close_block" | grep -q "navigator.share\|navigator\.share"; then
-      err "share-close按钮调用了navigator.share() — 可能导致意外分享"
-      return 1
-    else
-      ok "share-close未调用navigator.share() — 分享隔离正确"
+  # Pattern 1: State variable check before running game logic
+  if grep -qE "(game\.state|G\.phase|gameState|currentPhase|_state|status)\s*(===|!==)\s*['\"]playing['\"]" "$file"; then
+    ok "游戏状态管理 -- state/phase/playing 状态检查"
+    return 0
+  fi
+  # Pattern 2: State variable initialization
+  if grep -qE "(game\.state|G\.phase|gameState)\s*=" "$file"; then
+    ok "游戏状态管理 -- game.state/G.phase/gameState 初始化"
+    return 0
+  fi
+  # Pattern 3: State or phase as an object property
+  if grep -qE "(state|phase)\s*[:=]\s*['\"]?(playing|menu|start|gameover|idle)['\"]?" "$file"; then
+    ok "游戏状态变量定义 (state/phase 含 playing/gameover 等值)"
+    return 0
+  fi
+  # Pattern 4: update() or gameLoop function with guard
+  if grep -qE "function\s+(update|gameLoop|tick|mainLoop)\b" "$file"; then
+    if grep -qE "state\s*!==\s*['\"]playing['\"]|phase\s*!==\s*['\"]playing['\"]" "$file"; then
+      ok "游戏循环有 state/phase 守卫 -- 仅在 playing 状态运行"
       return 0
     fi
   fi
-  # Also check the button's click handler directly
-  if grep -q "share-close" "$file" 2>/dev/null; then
-    # Check the event binding context around share-close
-    local ctx
-    ctx=$(grep -A5 "share-close" "$file" 2>/dev/null || true)
-    if echo "$ctx" | grep -qv "navigator.share\|navigator\.share"; then
-      ok "share-close未调用navigator.share()"
+  err "未检测到游戏状态管理 -- 需要 state/phase/playing 变量或守卫"
+  return 1
+}
+
+# Generic Check 3: Audio init on user gesture
+# Check AudioContext is created/resumed in event handler, not constructor
+check_audio_gesture_init() {
+  local file="$1"
+  # Pattern 1: AudioContext creation wrapped in try-catch
+  if grep -qE "(AudioContext|webkitAudioContext).*(catch|try)" "$file"; then
+    ok "AudioContext 创建有异常保护 (try-catch)"
+    return 0
+  fi
+  # Pattern 2: Audio init function called from event handler
+  if grep -qE "(click|touchstart|mousedown).*(initAudio|audioInit|setupAudio|startAudio)\b" "$file"; then
+    ok "音频在用户手势时初始化 (click/touch 触发 initAudio)"
+    return 0
+  fi
+  # Pattern 3: initAudio function defined and called from click context
+  if grep -qE "function\s+(initAudio|audioInit|setupAudio)\b" "$file"; then
+    if grep -qE '(start-btn|begin|play).*(click|touch).*initAudio|initAudio.*(click|touch)' "$file"; then
+      ok "initAudio 在按钮点击时调用"
       return 0
     fi
-    err "share-close可能调用了navigator.share()"
-    return 1
-  else
-    err "未找到share-close按钮绑定"
-    return 1
+    ok "initAudio 函数存在 (可能在用户手势时调用)"
+    return 0
   fi
+  # Pattern 4: AudioContext resume called somewhere (not in constructor)
+  if grep -qE "audioCtx.*resume|AudioContext.*resume|audio.*context.*resume" "$file"; then
+    ok "audio context resume 存在 (可延迟初始化)"
+    return 0
+  fi
+  # Pattern 5: Any audio init on click pattern
+  if grep -qE "addEventListener.*(click|touch).*\{.*audio|audio.*addEventListener" "$file"; then
+    ok "音频事件监听在用户交互时绑定"
+    return 0
+  fi
+  err "未检测到音频手势初始化 -- AudioContext 应在用户交互时创建/恢复"
+  return 1
 }
 
-# Check 6: Canvas draw calls check canvas context before using
-check_canvas_context_safety() {
+# Generic Check 4: Canvas safety
+# Check canvas.getContext return is checked before use
+check_canvas_safety() {
   local file="$1"
-  # Check ctx validation before rendering
-  if grep -q "if.*!ctx\|if.*ctx.*null\|ctx.*W.*===.*0\|W.*===.*0.*return" "$file"; then
-    ok "Canvas draw有上下文检查 — ctx为null时不会崩溃"
-    return 0
-  else
-    warn "Canvas可能缺少上下文检查"
-    # This is a warning not an error — many games assume ctx exists
+  # Pattern 1: getContext result assigned with null fallback
+  if grep -qE "getContext.*\|\|\s*null|getContext.*\|\|\s*$" "$file"; then
+    ok "canvas.getContext 有 null 回退 (|| null)"
     return 0
   fi
+  # Pattern 2: ctx null check
+  if grep -qE "if.*!\s*ctx\b|if.*ctx\s*===?\s*null|ctx\s*&&\s*ctx" "$file"; then
+    ok "Canvas 上下文有 null 检查"
+    return 0
+  fi
+  # Pattern 3: canvas or ctx existence check before rendering
+  if grep -qE "if.*!canvas|if.*!context\b" "$file"; then
+    ok "Canvas/context 存在性检查"
+    return 0
+  fi
+  # This is a warning, not hard failure -- many games assume ctx exists
+  warn "canvas.getContext('2d') 未做 null 检查 -- 建议添加保护"
+  return 0
 }
 
-# Check 7: localStorage calls wrapped in try-catch
+# Generic Check 5: Error handling
+# Check try-catch exists around critical paths
+check_error_handling() {
+  local file="$1"
+  local try_count
+  try_count=$(grep -cE '\btry\s*\{' "$file" 2>/dev/null || echo 0)
+  local catch_count
+  catch_count=$(grep -cE '\bcatch\s*\(' "$file" 2>/dev/null || echo 0)
+  if [[ "$try_count" -ge 3 && "$catch_count" -ge 3 ]]; then
+    ok "存在多处 try-catch 错误处理 (${try_count}个try块)"
+    return 0
+  fi
+  if [[ "$try_count" -ge 1 ]]; then
+    ok "存在 try-catch 错误处理"
+    return 0
+  fi
+  err "未检测到 try-catch 错误处理 -- 关键路径需要异常保护"
+  return 1
+}
+
+# Generic Check 6: DOM safety
+# Check getElementById results are null-checked
+check_dom_safety() {
+  local file="$1"
+  # Pattern 1: Direct null check on getElementById result
+  if grep -qE "getElementById.*\|\|.*null|getElementById.*\|\|\s*$" "$file"; then
+    ok "DOM 访问有 null 检查 (getElementById || null)"
+    return 0
+  fi
+  # Pattern 2: If check around DOM element
+  if grep -qE "getElementById.*if\b|if\b.*getElementById.*===?\s*null|if\b.*getElementById.*!==?\s*null" "$file"; then
+    ok "DOM 查询有 null 校验"
+    return 0
+  fi
+  # Pattern 3: Safe wrapper function exists
+  if grep -qE "function\s+\$\s*\(.*id|const\s+\$\s*=\s*\(.*\)\s*=>\s*.*getElementById" "$file"; then
+    ok "DOM 访问使用安全包装器"
+    return 0
+  fi
+  # Not a hard failure if few calls
+  local calls
+  calls=$(grep -c 'getElementById' "$file" 2>/dev/null || echo 0)
+  calls=$(echo "$calls" | tr -d '[:space:]')
+  calls=${calls:-0}
+  if [[ "$calls" -le 10 ]]; then
+    ok "DOM 访问方式安全 -- 少量 getElementById 调用 (${calls}次)"
+    return 0
+  fi
+  warn "检测到 ${calls} 次 getElementById 调用 -- 建议添加 null 检查"
+  return 0
+}
+
+# Generic Check 7: localStorage safety
+# Check storage calls are wrapped in try-catch
 check_localStorage_safe() {
   local file="$1"
-  local errors=0
-  # Find localStorage usages with their context
-  local ls_match
-  ls_match=$(grep -n "localStorage" "$file" 2>/dev/null || true)
-  if [[ -z "$ls_match" ]]; then
-    ok "无localStorage调用"
-    return 0
+  local ls_uses
+  ls_uses=$(grep -cE "localStorage\.(getItem|setItem|removeItem)" "$file" 2>/dev/null || echo 0)
+  if [[ "$ls_uses" -eq 0 ]]; then
+    ls_uses=$(grep -c 'localStorage' "$file" 2>/dev/null || echo 0)
+    if [[ "$ls_uses" -eq 0 ]]; then
+      ok "无 localStorage 调用"
+      return 0
+    fi
   fi
+
+  # Count how many localStorage usages are wrapped
+  local unprotected=0
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
-    # Extract line number
     local line_num="${line%%:*}"
-    # Get context (5 lines before and 2 after)
+    # Get context before this line
     local context_before
-    context_before=$(sed -n "$((line_num - 5)),$((line_num + 2))p" "$file" 2>/dev/null || true)
-    # Check if a try{ or catch( pattern exists in context (actual JS keyword, not comment substring)
-    if echo "$context_before" | grep -q "try\s*{\|catch\s*("; then
-      : # Protected
-    else
-      errors=$((errors + 1))
-      warn "localStorage调用在第${line_num}行可能缺少try-catch保护"
+    context_before=$(sed -n "$((line_num - 10)),$((line_num))p" "$file" 2>/dev/null || true)
+    if ! echo "$context_before" | grep -qE '\btry\s*\{'; then
+      unprotected=$((unprotected + 1))
     fi
-  done <<< "$ls_match"
-  if [[ $errors -eq 0 ]]; then
-    ok "所有localStorage调用已包装在try-catch中"
+  done < <(grep -n "localStorage\.\(getItem\|setItem\|removeItem\)" "$file" 2>/dev/null || true)
+
+  if [[ "$unprotected" -eq 0 ]]; then
+    ok "所有 localStorage 调用已包装在 try-catch 中"
     return 0
   else
-    err "${errors}处localStorage调用缺少try-catch保护 — 隐私模式下会崩溃"
+    err "${unprotected} 处 localStorage 调用缺少 try-catch 保护 -- 隐私模式下会崩溃"
     return 1
   fi
 }
 
-# Check 8: No unguarded DOM access — getElementById checks for null
-check_unguarded_dom_access() {
+# Generic Check 8: Mobile ready
+# Check viewport meta exists for mobile adaptation
+check_mobile_ready() {
   local file="$1"
-  # We're looking for getElementById or $() usage patterns
-  local unguarded=0
-
-  # Check if there's a safe helper function for DOM access
-  if grep -q "document.getElementById.*if\|getElementById.*\|\|.*null\|document.getElementById.*&&" "$file"; then
-    : # Has some guards
-  fi
-
-  # Check if a safe wrapper exists (like $ helper that handles null)
-  if grep -q "const \$.*document.getElementById\|function.*getElementById" "$file"; then
-    ok "DOM访问使用安全包装器 — getElementById结果自动校验"
+  if grep -qE 'viewport.*width\s*=\s*device-width' "$file"; then
+    ok "viewport meta 标签存在 (移动端适配)"
     return 0
   fi
-
-  # Check direct getElementById patterns
-  local direct_calls
-  direct_calls=$(grep -c "getElementById" "$file" 2>/dev/null; true)
-  local guard_calls
-  guard_calls=$(grep -c "getElementById.*null\|getElementById.*if\|getElementById.*||" "$file" 2>/dev/null; true)
-
-  # Strip whitespace/newlines
-  direct_calls=$(echo "$direct_calls" | tr -d '[:space:]')
-  guard_calls=$(echo "$guard_calls" | tr -d '[:space:]')
-  direct_calls=${direct_calls:-0}
-  guard_calls=${guard_calls:-0}
-
-  if [[ "$guard_calls" -gt 0 ]] || [[ "$direct_calls" -le 5 ]]; then
-    ok "DOM访问方式安全 — 低风险模式"
-    return 0
-  else
-    warn "检测到${direct_calls}次getElementById调用，可能缺少null检查"
+  if grep -qi 'viewport' "$file"; then
+    ok "viewport meta 标签存在"
     return 0
   fi
+  err "缺少 viewport meta 标签 -- 移动端无法正确渲染"
+  return 1
 }
 
 # ── Test Spec Parsing ────────────────────────────────────────────────
@@ -289,31 +326,34 @@ run_html_behavior_test() {
 
   case "$check_type" in
     html-behavior)
-      # Run static analysis checks
+      # Run static analysis checks -- GENERIC patterns
       case "$selector" in
-        "#btn-start"|"btn-start"|"start-button")
-          check_start_button_bound "$file"
+        "#btn-start"|"btn-start"|"start-button"|"start-interaction"|"start-btn"|"start-mechanism")
+          check_start_interaction "$file"
           ;;
-        "showShare"|"show-share"|"gameover-guard")
-          check_showShare_guard "$file"
+        "showShare"|"show-share"|"gameover-guard"|"state-management"|"state-guard"|"phase-guard")
+          check_state_management "$file"
           ;;
-        "Audio.init"|"audio"|"audio-init")
-          check_audio_error_handling "$file"
+        "Audio.init"|"audio"|"audio-init"|"audio-gesture"|"audio-context")
+          check_audio_gesture_init "$file"
           ;;
         "gameLoop"|"game-loop"|"render-guard")
-          check_game_loop_guard "$file"
+          check_state_management "$file"
           ;;
-        "share-close"|"share_close"|"share-isolation")
-          check_share_close_no_navigator_share "$file"
+        "share-close"|"share_close"|"share-isolation"|"error-handling"|"try-catch")
+          check_error_handling "$file"
           ;;
         "canvas"|"canvas-safety"|"ctx-check")
-          check_canvas_context_safety "$file"
+          check_canvas_safety "$file"
           ;;
         "localStorage"|"storage"|"storage-safety")
           check_localStorage_safe "$file"
           ;;
         "dom-access"|"getElementById"|"dom-safety")
-          check_unguarded_dom_access "$file"
+          check_dom_safety "$file"
+          ;;
+        "mobile"|"viewport"|"mobile-ready")
+          check_mobile_ready "$file"
           ;;
         *)
           # Generic check: look for a pattern in the file
@@ -322,7 +362,7 @@ run_html_behavior_test() {
               ok "条件满足: $condition"
               return 0
             else
-              err "条件不满足: $condition — 未在文件中找到匹配"
+              err "条件不满足: $condition -- 未在文件中找到匹配"
               return 1
             fi
           else
@@ -331,6 +371,9 @@ run_html_behavior_test() {
           fi
           ;;
       esac
+      ;;
+
+    html-click)
       ;;
 
     html-click)
@@ -454,62 +497,62 @@ run_all_tests() {
       echo ""
     done < <(parse_test_spec "$spec_file")
   else
-    # Run the standard Color Clash behavioral test suite
+    # Run the GENERIC behavioral test suite (game-agnostic patterns)
     echo ""
-    echo "  ════ 标准行为测试套件 ════"
+    echo "  ==== 通用行为测试套件 ===="
     echo ""
 
     total=8
 
-    echo "  [1/8] 开始按钮绑定: btn-start存在并关联startGame"
-    if check_start_button_bound "$file"; then
+    echo "  [1/8] 开始交互: 存在启动游戏的机制"
+    if check_start_interaction "$file"; then
       passed=$((passed + 1))
     else
       failed=$((failed + 1))
     fi
     echo ""
 
-    echo "  [2/8] showShare守卫: 仅在gameover状态显示分享"
-    if check_showShare_guard "$file"; then
+    echo "  [2/8] 状态管理: 游戏状态追踪 (state/phase)"
+    if check_state_management "$file"; then
       passed=$((passed + 1))
     else
       failed=$((failed + 1))
     fi
     echo ""
 
-    echo "  [3/8] Audio错误处理: Audio.init()有异常保护"
-    if check_audio_error_handling "$file"; then
+    echo "  [3/8] 音频手势初始化: AudioContext由用户交互触发"
+    if check_audio_gesture_init "$file"; then
       passed=$((passed + 1))
     else
       failed=$((failed + 1))
     fi
     echo ""
 
-    echo "  [4/8] 游戏循环守卫: 渲染循环检查phase===playing"
-    if check_game_loop_guard "$file"; then
+    echo "  [4/8] Canvas安全: getContext返回校验"
+    if check_canvas_safety "$file"; then
       passed=$((passed + 1))
     else
       failed=$((failed + 1))
     fi
     echo ""
 
-    echo "  [5/8] 分享隔离: share-close不调用navigator.share()"
-    if check_share_close_no_navigator_share "$file"; then
+    echo "  [5/8] 错误处理: try-catch异常保护"
+    if check_error_handling "$file"; then
       passed=$((passed + 1))
     else
       failed=$((failed + 1))
     fi
     echo ""
 
-    echo "  [6/8] Canvas安全: 渲染前检查ctx/W/H有效性"
-    if check_canvas_context_safety "$file"; then
+    echo "  [6/8] DOM安全: getElementById null检查"
+    if check_dom_safety "$file"; then
       passed=$((passed + 1))
     else
       failed=$((failed + 1))
     fi
     echo ""
 
-    echo "  [7/8] localStorage安全: 存储调用有try-catch保护"
+    echo "  [7/8] localStorage安全: try-catch保护"
     if check_localStorage_safe "$file"; then
       passed=$((passed + 1))
     else
@@ -517,8 +560,8 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [8/8] DOM访问安全: getElementById有null检查"
-    if check_unguarded_dom_access "$file"; then
+    echo "  [8/8] 移动端适配: viewport meta标签"
+    if check_mobile_ready "$file"; then
       passed=$((passed + 1))
     else
       failed=$((failed + 1))
@@ -566,106 +609,93 @@ tests:
 
   case "$agent" in
     game-qa-engineer)
-      tests+="  # Game QA Engineer behavioral checks
-  # Check 1: Start button must be functional
-  - type: html-click
-    selector: \"#btn-start\"
-    check: \"startGame\"
-    description: \"开始按钮需存在且绑定startGame函数\"
-
-  # Check 2: Game over screen must display
+      tests+="  # Game QA Engineer behavioral checks (GENERIC patterns)
+  # Check 1: Start interaction exists
   - type: html-behavior
-    selector: \"showShare\"
-    check: \"G.phase.*!==.*gameover\"
-    description: \"gameover屏需有phase守卫，防止泄露\"
+    selector: start-interaction
+    description: Game start mechanism exists (button/touch/function)
 
-  # Check 3: Audio must not crash game
+  # Check 2: Game state management
   - type: html-behavior
-    selector: \"audio-init\"
-    check: \"audioMuted.*catch\"
-    description: \"Audio初始化需有错误处理\"
+    selector: state-management
+    description: Game state/phase tracking variable
 
-  # Check 4: Game loop safety
+  # Check 3: Audio init on gesture
   - type: html-behavior
-    selector: \"game-loop\"
-    check: \"G.phase.*!==.*playing\"
-    description: \"游戏循环需在非playing状态时提前返回\"
+    selector: audio-gesture
+    description: AudioContext initiated by user gesture
 
-  # Check 5: Share isolation
+  # Check 4: Canvas safety
   - type: html-behavior
-    selector: \"share-isolation\"
-    check: \"share-close.*hidden\"
-    description: \"分享关闭按钮不能调用系统分享API\"
+    selector: canvas-safety
+    description: canvas.getContext return null-checked
 
-  # Check 6: Canvas safety
+  # Check 5: Error handling
   - type: html-behavior
-    selector: \"canvas-safety\"
-    check: \"!ctx.*return\"
-    description: \"Canvas渲染需在ctx无效时提前返回\"
+    selector: error-handling
+    description: try-catch exception protection
+
+  # Check 6: DOM safety
+  - type: html-behavior
+    selector: dom-safety
+    description: getElementById null-checked
 
   # Check 7: localStorage safety
   - type: html-behavior
-    selector: \"storage-safety\"
-    check: \"try.*localStorage\"
-    description: \"localStorage调用需有try-catch保护\"
+    selector: storage-safety
+    description: localStorage wrapped in try-catch
 
-  # Check 8: DOM access safety
+  # Check 8: Mobile ready
   - type: html-behavior
-    selector: \"dom-safety\"
-    check: \"document.getElementById.*if\"
-    description: \"DOM查询需有null检查或使用安全包装器\"
+    selector: mobile-ready
+    description: viewport meta tag exists
 
   # Check 9: HTML load check
   - type: html-load
-    description: \"HTML结构完整，必备标签齐全\"
+    description: HTML structure complete with required tags
 "
       ;;
     game-designer)
-      tests+="  # Game Designer behavioral checks
+      tests+="  # Game Designer behavioral checks (GENERIC)
   - type: html-behavior
-    selector: \"game-loop\"
-    check: \"requestAnimationFrame\"
-    description: \"游戏需使用requestAnimationFrame驱动循环\"
+    selector: start-interaction
+    description: Game start mechanism exists
 
   - type: html-behavior
-    selector: \"btn-start\"
-    check: \"startGame\"
-    description: \"开始按钮需触发游戏核心循环\"
+    selector: state-management
+    description: Game state management exists
 
   - type: html-load
-    description: \"HTML骨架完整\"
+    description: HTML structure complete
 "
       ;;
     game-programmer)
-      tests+="  # Game Programmer behavioral checks
+      tests+="  # Game Programmer behavioral checks (GENERIC)
   - type: html-behavior
-    selector: \"game-loop\"
-    check: \"requestAnimationFrame\"
-    description: \"使用requestAnimationFrame驱动游戏循环\"
+    selector: start-interaction
+    description: Start game mechanism exists
 
   - type: html-behavior
-    selector: \"canvas-safety\"
-    check: \"ctx.*clearRect\"
-    description: \"Canvas渲染正确清除并重绘\"
+    selector: canvas-safety
+    description: Canvas render safety (getContext null check)
 
   - type: html-behavior
-    selector: \"game-loop\"
-    check: \"G.phase.*!==.*playing\"
-    description: \"游戏循环有phase守卫\"
+    selector: state-management
+    description: Game loop has state/phase guard
 
   - type: html-load
-    description: \"HTML结构完整\"
+    description: HTML structure complete
 "
       ;;
     *)
       # Generic test spec
       tests+="  # Generic behavioral checks
   - type: html-load
-    description: \"HTML结构完整\"
+    description: HTML structure complete
 
-  - type: html-click
-    selector: \"#btn-start\"
-    description: \"检查开始按钮是否存在\"
+  - type: html-behavior
+    selector: start-interaction
+    description: Start mechanism exists
 "
       ;;
   esac

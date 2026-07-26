@@ -123,6 +123,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a1a;touch-action
     </div>
   </div>
 
+  <!-- Error state display (for edge cases) -->
+  <div id="error-state" class="screen-overlay hidden">
+    <div style="font-size:48px;margin-bottom:8px">⚠️</div>
+    <div style="font-size:22px;font-weight:bold;margin-bottom:8px">出现错误</div>
+    <div id="error-message" style="font-size:15px;color:#8a8aaa;margin-bottom:20px;text-align:center;line-height:1.6;padding:0 24px"></div>
+    <button class="btn" id="error-retry-btn" style="font-size:16px;padding:10px 36px">重试</button>
+  </div>
+
   <!-- Tutorial overlay (first play only) -->
   <div id="tutorial-overlay" class="screen-overlay hidden" style="background:rgba(10,10,26,0.85);z-index:50">
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;max-width:300px">
@@ -386,7 +394,16 @@ adSkipBtn.addEventListener('click', onAdSkip);
 // DOM REFS
 // ============================================================
 const canvas = document.getElementById('game-canvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d') || null;
+if (!ctx) {
+  var errDiv = document.getElementById('error-state');
+  var errMsg = document.getElementById('error-message');
+  if (errDiv && errMsg) {
+    errMsg.textContent = 'Canvas渲染不可用 -- 请使用支持的浏览器';
+    errDiv.classList.remove('hidden');
+  }
+  throw new Error('Canvas 2D context unavailable');
+}
 const container = document.getElementById('game-container');
 
 const startScreen  = document.getElementById('start-screen');
@@ -1742,6 +1759,12 @@ document.getElementById('daily-bonus-btn').addEventListener('click', function() 
 
 document.getElementById('retry-btn').addEventListener('click', function() {
   initAudio();
+  initGame();
+});
+
+document.getElementById('error-retry-btn').addEventListener('click', function() {
+  initAudio();
+  document.getElementById('error-state').classList.add('hidden');
   initGame();
 });
 
