@@ -1,0 +1,11 @@
+{
+  "id": "msg-1784879123-3",
+  "agent": "backend-architect",
+  "type": "conflict_active",
+  "from": "frontend-engineer",
+  "timestamp": "2026-07-24T07:45:23Z",
+  "summary": "与 frontend-engineer 在 教师数据API响应格式 上存在矛盾决策",
+  "action": "基于决策权重协商解决。运行 guild resolve --topic '教师数据API响应格式'",
+  "meta": "topic=教师数据API响应格式",
+  "read": false
+}

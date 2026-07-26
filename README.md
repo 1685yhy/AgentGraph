@@ -4,8 +4,8 @@
   <img src="https://img.shields.io/github/stars/1685yhy/agentguild?style=for-the-badge&color=3B82F6" alt="GitHub Stars">
   <img src="https://img.shields.io/github/license/1685yhy/agentguild?style=for-the-badge&color=EC4899" alt="MIT License">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=for-the-badge&color=22C55E" alt="PRs Welcome">
-  <img src="https://img.shields.io/badge/agents-28-3B82F6?style=for-the-badge" alt="28 Agents">
-  <img src="https://img.shields.io/badge/zero_dependencies-Bash_3.2+-D946EF?style=for-the-badge" alt="Zero Dependencies">
+  <img src="https://img.shields.io/badge/agents-40-3B82F6?style=for-the-badge" alt="40 Agents">
+  <img src="https://img.shields.io/badge/Bash_Python3-Bash_3.2++Python3-D946EF?style=for-the-badge" alt="Bash+Python3">
 </p>
 
 <p align="center">
@@ -13,14 +13,15 @@
 </p>
 
 <p align="center">
-  <strong>28 个有真实人格的精品 AI Agent + 业界首个真正可用的 Agent 协作引擎</strong><br>
+  <strong>40 个有真实人格的精品 AI Agent + 业界首个真正可用的 Agent 协作引擎</strong><br>
   交接检查 · 流水线编排 · 决策追溯 · 冲突检测 — 不是"你该这么协作"的文档，是让协作自动发生的软件
 </p>
 
 <p align="center">
   <a href="#-quick-start">Quick Start</a> ·
-  <a href="#-agent-roster">28 Agents</a> ·
+  <a href="#-agent-roster">40 Agents</a> ·
   <a href="#-the-collaboration-engine">协作引擎</a> ·
+  <a href="#-graph-engine">图引擎</a> ·
   <a href="#-how-this-compares-to-agency-agents">vs agency-agents</a> ·
   <a href="#-supported-tools">Tools</a> ·
   <a href="README_zh-CN.md">中文</a>
@@ -33,7 +34,7 @@
 **AgentGuild 不是一个 Agent 模板库。它是一个 AI 团队的协作操作系统。**
 
 两件事：
-1. **28 个精品 Agent** — 每个都有挑衅性观点、会跟人争执、知道自己盲区、明确决策边界。不是一个模板换词 300 次。
+1. **40 个精品 Agent** — 每个都有挑衅性观点、会跟人争执、知道自己盲区、明确决策边界。不是一个模板换词 300 次。
 2. **一套协作引擎** — `guild` CLI 让 Agent 之间真的能传接球、跑流水线、记录决策、检测冲突。不是 Markdown 文档写"你应该这么协作"。
 
 你已经有 Claude Code / Cursor / Copilot 了。装上 AgentGuild，你就有了一支能配合的 AI 团队。
@@ -155,6 +156,23 @@ cd agentguild
 |---|-------|--------|
 | 💹 | **Financial Analyst** | 单位经济学比增长率重要——增长快不等于健康 |
 
+### 游戏开发
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 🎮 | **Game Designer** | 大多数游戏设计文档是虚构的——它们描述的是理想体验而非可构建系统 |
+| 🗺️ | **Level Designer** | 好的关卡通过环境暗示来教学，而不是对话框——Portal不需要教程 |
+| 📜 | **Narrative Designer** | 环境叙事不是"在地上放笔记"——每次选择都存入或提取信任 |
+| 💻 | **Game Programmer** | 面向对象编程是发生在游戏开发中最糟糕的事情——ECS不是趋势，是修正 |
+| 🖥️ | **Game UI Designer** | 游戏UI和应用UI是不同的学科——能移除的界面元素就不该存在 |
+| 🎨 | **Technical Artist** | 照片写实主义是无话可说的游戏的拐杖——独特视觉身份比写实更持久 |
+| 🎵 | **Game Audio Engineer** | 大多数游戏配乐过度——沉默是游戏音频中最被低估的工具 |
+| 🧪 | **Game QA Engineer** | 游戏QA不是软件QA——有趣不是规格，自动化测试只能发现30% |
+| 🎬 | **Game Producer** | Crunch不是激情的标志——而是生产失败的标志 |
+| 💰 | **Monetization Designer** | 最赚钱的变现不是最激进的——而是最对齐的 |
+| 🎯 | **Unity Developer** | Asset Store既是最大的优势也是最大的陷阱——最好的项目几乎不使用它 |
+| 🔵 | **Unreal Developer** | Blueprint不是给设计师的编程工具——它就是编程，有编程的所有复杂性 |
+
 ---
 
 ## 协作引擎
@@ -212,7 +230,78 @@ $ guild status
   ✔️ #3: frontend → qa (accepted)
 ```
 
-9 个 CLI 命令，零外部依赖，纯 Bash 实现。完整用法见 [使用指南](docs/使用指南.md)。
+9 个 CLI 命令，仅需 Bash 3.2+ + Python3 内置模块。完整用法见 [使用指南](docs/使用指南.md)。
+
+---
+
+## 图引擎
+
+除了流水线式的交接，AgentGuild 还提供了基于有向图的执行引擎，支持循环、并行和条件分支。
+
+### 概念
+
+- **Node（节点）**：一个 Agent 执行一个动作。每个节点有 agent、action、timeout、needs、delivers 等属性。
+- **Edge（边）**：节点之间的依赖关系和流转条件。支持 `completed`/`failed` 条件触发。
+- **State（状态）**：整个图的共享进度，以 JSON 格式持久化到 `/tmp/guild-graph-<name>-state.json`，支持断点恢复。
+
+### 示例
+
+```yaml
+# graphs/game-mvp.yml
+name: game-mvp
+description: 游戏 MVP 开发流程
+nodes:
+  design:
+    agent: game-designer
+    action: execute
+  prototype:
+    agent: game-programmer
+    action: execute
+    needs: [design]
+  art:
+    agent: technical-artist
+    action: execute
+  integrate:
+    agent: game-producer
+    action: execute
+    needs: [prototype, art]
+edges:
+  - {from: design, to: prototype}
+  - {from: prototype, to: integrate, when: completed}
+  - {from: art, to: integrate, when: completed}
+```
+
+### 运行
+
+```bash
+$ ./guild graph run --graph graphs/game-mvp.yml --path ./my-game/
+```
+
+输出示例：
+
+```
+=============================
+  Graph Engine: game-mvp
+=============================
+  -- iteration 1: ready nodes --
+  > start: design
+  > start: art
+  ...
+=============================
+  图执行报告
+=============================
+  节点统计: 总计=4 完成=4 ...
+[OK] 图执行全部完成
+```
+
+### 特性
+
+- **循环**：通过边条件触发回路，支持重试（最多 3 次）
+- **并行**：同一层级的无依赖节点自动并行执行
+- **条件边**：支持 `when: completed` / `when: failed` 等条件
+- **断点恢复**：`./guild graph resume <name>` 从上次中断处继续
+- **Dry-Run 模拟**：`--dry-run` 参数预览完整执行计划
+- **Handoff 集成**：每个节点完成后自动创建交接记录，在 `guild status` 中可见
 
 ---
 
@@ -228,7 +317,7 @@ $ guild status
 | 决策追溯 | 无 | ADR 模式，每次交接可追溯 |
 | 分发 | 16 工具 | 4 核心工具（按需扩展） |
 | 中文 | 翻译 | **原生中文全链路** |
-| 依赖 | Bash+Python | **纯 Bash 3.2+，真正零依赖** |
+| 依赖 | Bash+Python3 | **Bash 3.2+ + Python3 内置模块** |
 
 **AgentGuild 不是 agency-agents 的 fork。** 它是同一个问题（"AI 怎么组队干活"）的下一代答案。agency-agents 证明了"Agent 定义可以模板化"，AgentGuild 证明了**协作可以自动化**。
 
@@ -249,16 +338,17 @@ $ guild status
 
 ```
 agentguild/
-├── agents/          28 个 Agent（工程/产品/设计/测试/市场/安全/项目管理/销售/支持/财务）
-├── scripts/         5 个脚本（lint/convert/install/nexus/lib）
+├── agents/          40 个 Agent（工程/产品/设计/测试/市场/安全/项目管理/销售/支持/财务/游戏开发）
+├── scripts/         8 个脚本（lint/convert/install/nexus/graph-engine/lib/test-runner/agent-prompt）
 ├── contracts/       协作契约 — 从 Agent 第 13 段自动提取
 ├── pipelines/       流水线定义（YAML）
 ├── context/         决策记录 — ADR 模式
+├── graphs/          图定义（YAML）— 循环、并行、条件分支
 ├── handoffs/        交接记录
 ├── docs/            5 份中文使用指南 + 模板规范
 ├── website/         项目官网（单页 HTML）
 ├── guild            → scripts/nexus.sh（主命令）
-└── guild.config.json  28 Agent + 4 工具的中央注册表
+└── guild.config.json  40 Agent + 4 工具的中央注册表
 ```
 
 ---

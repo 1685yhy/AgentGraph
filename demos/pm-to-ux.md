@@ -6,7 +6,7 @@
 
 ## 前置条件
 
-- 项目根目录 `/mnt/e/agentguild`，`guild` CLI 可用
+- 项目根目录 `~/agentguild`，`guild` CLI 可用
 - `product-manager` 和 `ux-researcher` 已在 `guild.config.json` 中注册
 - `contracts/guild-contracts.yml` 中已有 `ux-researcher` 的契约定义
 
@@ -17,7 +17,7 @@
 PM 写明了研究目标和背景，但缺少目标用户群体的具体定义。
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 
 mkdir -p /tmp/demo-research
 
@@ -72,7 +72,7 @@ EOF
   完整度: 0/1 项已提供
   [!!] 缺失 1 项:
        - 明确的研究目标，表述为需要做出的决策，而非需要被确认的假设。目标用户群体和参与者的行为招募标准。
-  记录: /mnt/e/agentguild/handoffs/2026-07-23-product-manager-to-ux-researcher.json
+  记录: ~/agentguild/handoffs/2026-07-23-product-manager-to-ux-researcher.json
 ```
 
 检查发现缺少**目标用户群体定义**和**参与者的行为招募标准**。现有文档虽然写了"教师"，但没有明确用户画像分层、样本量要求和招募筛选条件。
@@ -144,7 +144,7 @@ EOF
 创建交接 #4: product-manager → ux-researcher
   状态: ready
   完整度: 1/1 项已提供
-  记录: /mnt/e/agentguild/handoffs/2026-07-23-product-manager-to-ux-researcher.json
+  记录: ~/agentguild/handoffs/2026-07-23-product-manager-to-ux-researcher.json
 ```
 
 这次所有必需项已满足，状态为 `ready`。

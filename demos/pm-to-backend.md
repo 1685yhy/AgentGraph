@@ -6,7 +6,7 @@
 
 ## 前置条件
 
-- 项目根目录 `/mnt/e/agentguild`，`guild` CLI 可用
+- 项目根目录 `~/agentguild`，`guild` CLI 可用
 - `product-manager` 和 `backend-architect` 已在 `guild.config.json` 中注册
 - `contracts/guild-contracts.yml` 中已有 `backend-architect` 的契约定义
 
@@ -17,7 +17,7 @@
 PM 先写出问题陈述和用户故事，但遗漏了性能指标。
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 
 mkdir -p /tmp/demo-prd
 
@@ -69,7 +69,7 @@ EOF
   完整度: 0/1 项已提供
   [!!] 缺失 1 项:
        - 带有清晰数据模型含义（实体、关系、基数、生命周期）的产品需求。预期流量模式（峰值 RPS、数据量、增长率）。
-  记录: /mnt/e/agentguild/handoffs/2026-07-23-product-manager-to-backend-architect.json
+  记录: ~/agentguild/handoffs/2026-07-23-product-manager-to-backend-architect.json
 ```
 
 交接状态为 `incomplete`——缺少后端架构师所需的**性能指标**和**流量模式**定义。
@@ -136,7 +136,7 @@ EOF
 创建交接 #2: product-manager → backend-architect
   状态: ready
   完整度: 1/1 项已提供
-  记录: /mnt/e/agentguild/handoffs/2026-07-23-product-manager-to-backend-architect.json
+  记录: ~/agentguild/handoffs/2026-07-23-product-manager-to-backend-architect.json
 ```
 
 状态为 `ready`——所有必需项已满足。

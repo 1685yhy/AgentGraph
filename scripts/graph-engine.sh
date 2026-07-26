@@ -920,6 +920,10 @@ execute_node() {
     last_line="${last_line#  + }"
     last_line="${last_line#  x }"
     _set_node_status "$node_id" "completed" "$last_line"
+    # Create handoff record for graph engine node completion
+    if ! $dry_run; then
+      _create_handoff_for_node "$node_id" "$work_dir" "$agent"
+    fi
   else
     local last_line; last_line=$(echo "$captured_output" | tail -1)
     if [[ -z "$last_line" || "$last_line" == "None" ]]; then
@@ -932,6 +936,73 @@ execute_node() {
   _set_state "$node_id" "captured_output" "$captured_output"
 
   _LAST_COMPLETED="$node_id"
+}
+
+# ── Handoff Integration ──────────────────────────────────────────────
+
+# _create_handoff_for_node — auto-create handoff record when graph node completes
+_create_handoff_for_node() {
+  local node_id="$1" work_dir="$2" agent_name="$3"
+  local repo_root
+  repo_root="$(cd "$_GRApH_ENGINE_DIR/.." && pwd 2>/dev/null)"
+  local handoffs_dir="$repo_root/handoffs"
+  mkdir -p "$handoffs_dir"
+
+  # Auto-increment handoff ID
+  local max_id=0
+  for f in "$handoffs_dir"/*.json; do
+    [[ -f "$f" ]] || continue
+    local id_val
+    id_val=$(python3 -c "import json; print(json.load(open('$f')).get('id',0))" 2>/dev/null || echo 0)
+    (( id_val > max_id )) && max_id=$id_val
+  done
+  local new_id=$((max_id + 1))
+
+  local date_str; date_str=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  local date_file; date_file=$(date -u +"%Y-%m-%d")
+  local graph_slug="${GRAPH_NAME:-graph}"
+  local safe_slug; safe_slug=$(echo "$graph_slug" | sed 's/[^a-zA-Z0-9_-]/-/g')
+  local filename="${date_file}-graph-${safe_slug}-to-${agent_name}.json"
+
+  local agent_slug="${agent_name}"
+  # Try to resolve agent slug from config
+  local config="$repo_root/guild.config.json"
+  if [[ -f "$config" ]]; then
+    local resolved
+    resolved=$(python3 -c "
+import json
+with open('$config') as f:
+    data = json.load(f)
+for a in data.get('agents', []):
+    if a.get('name','').lower().replace(' ','-') == '$agent_name'.lower().replace(' ','-') or a.get('slug','') == '$agent_name':
+        print(a['slug'])
+        break
+" 2>/dev/null)
+    [[ -n "$resolved" ]] && agent_slug="$resolved"
+  fi
+
+  cat > "$handoffs_dir/$filename" << HANEOF
+{
+  "id": $new_id,
+  "from": "graph:${graph_slug}",
+  "to": "${agent_slug}",
+  "timestamp": "${date_str}",
+  "message": "Graph node completed: ${node_id}",
+  "path": "${work_dir}",
+  "artifacts": [
+    {"name": "graph_node_output", "file": "${work_dir}", "status": "provided"}
+  ],
+  "checklist": {
+    "required_total": 1,
+    "required_provided": 1,
+    "required_missing": 0
+  },
+  "status": "ready",
+  "accepted_by": null,
+  "source": "graph-engine"
+}
+HANEOF
+  echo "  | Handoff #${new_id} created: graph:${graph_slug} -> ${agent_slug} (node: ${node_id})"
 }
 
 _detect_file_type() {

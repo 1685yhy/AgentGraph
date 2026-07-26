@@ -15,7 +15,7 @@
 - Do NOT modify existing agent files (their collaboration contracts are already in section 13)
 - Do NOT modify existing scripts (lib.sh, lint.sh, convert.sh, install.sh)
 - Only add to lib.sh — never remove or rename existing functions
-- Project root: `/mnt/e/agentguild`
+- Project root: `~/agentguild`
 - All new user-facing docs in Chinese
 - Code comments in English
 
@@ -24,7 +24,7 @@
 ## File Map
 
 ```
-/mnt/e/agentguild/
+~/agentguild/
 ├── contracts/
 │   ├── extract.sh               ← T1: Contract extraction script
 │   └── guild-contracts.yml      ← T1 output: Structured contracts
@@ -46,10 +46,10 @@
 ### Task 1: Contract Extraction + Infrastructure
 
 **Files:**
-- Create: `/mnt/e/agentguild/contracts/extract.sh`
-- Create: `/mnt/e/agentguild/contracts/guild-contracts.yml`
-- Create: `/mnt/e/agentguild/handoffs/.gitkeep`
-- Modify: `/mnt/e/agentguild/scripts/lib.sh` (append contract helper functions)
+- Create: `~/agentguild/contracts/extract.sh`
+- Create: `~/agentguild/contracts/guild-contracts.yml`
+- Create: `~/agentguild/handoffs/.gitkeep`
+- Modify: `~/agentguild/scripts/lib.sh` (append contract helper functions)
 
 **Interfaces:**
 - Consumes: 12 agent `.md` files (their section 13), `lib.sh` existing functions
@@ -58,7 +58,7 @@
 - [ ] **Step 1: Create directories**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 mkdir -p contracts handoffs demos
 touch handoffs/.gitkeep
 ```
@@ -68,7 +68,7 @@ touch handoffs/.gitkeep
 Read the current `lib.sh` to see its end line, then append:
 
 ```bash
-cat >> /mnt/e/agentguild/scripts/lib.sh << 'LIBEXT'
+cat >> ~/agentguild/scripts/lib.sh << 'LIBEXT'
 
 # ── Contract helpers (Phase 2a) ──────────────────────────────────
 
@@ -141,7 +141,7 @@ LIBEXT
 - [ ] **Step 3: Write contracts/extract.sh**
 
 ```bash
-cat > /mnt/e/agentguild/contracts/extract.sh << 'EXTREOF'
+cat > ~/agentguild/contracts/extract.sh << 'EXTREOF'
 #!/usr/bin/env bash
 #
 # extract.sh — Extract structured collaboration contracts from AgentGuild agent files.
@@ -199,13 +199,13 @@ OUTPUT="$REPO_ROOT/contracts/guild-contracts.yml"
 echo "[OK] Contracts extracted to: $OUTPUT"
 echo "     Agents processed: $(get_agent_files "$CONFIG" | wc -l)"
 EXTREOF
-chmod +x /mnt/e/agentguild/contracts/extract.sh
+chmod +x ~/agentguild/contracts/extract.sh
 ```
 
 - [ ] **Step 4: Run extract.sh and verify output**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 bash -n contracts/extract.sh
 bash -n scripts/lib.sh
 ./contracts/extract.sh
@@ -229,7 +229,7 @@ Expected: "Contracts: 12 agents"
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 git add contracts/ handoffs/ scripts/lib.sh
 git commit -m "feat: add contract extraction and infrastructure for Handoff Engine
 
@@ -246,7 +246,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 2: Nexus CLI Tool (nexus.sh)
 
 **Files:**
-- Create: `/mnt/e/agentguild/scripts/nexus.sh`
+- Create: `~/agentguild/scripts/nexus.sh`
 
 **Interfaces:**
 - Consumes: `lib.sh` (all functions), `guild-contracts.yml` from T1, `guild.config.json`
@@ -256,7 +256,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - [ ] **Step 1: Write nexus.sh — header and handoff command**
 
 ```bash
-cat > /mnt/e/agentguild/scripts/nexus.sh << 'NEXEOF'
+cat > ~/agentguild/scripts/nexus.sh << 'NEXEOF'
 #!/usr/bin/env bash
 #
 # nexus.sh — AgentGuild Handoff Engine CLI
@@ -661,20 +661,20 @@ case "$CMD" in
   *) die "Unknown command: $CMD. Valid: handoff, check, status, accept, list";;
 esac
 NEXEOF
-chmod +x /mnt/e/agentguild/scripts/nexus.sh
+chmod +x ~/agentguild/scripts/nexus.sh
 ```
 
 - [ ] **Step 2: Create guild symlink**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 ln -sf scripts/nexus.sh guild
 ```
 
 - [ ] **Step 3: Verify syntax and basic invocation**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 bash -n scripts/nexus.sh
 ./guild
 ```
@@ -684,7 +684,7 @@ Expected: Syntax passes. "guild" shows help text with 4 commands.
 - [ ] **Step 4: Test handoff command end-to-end**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 
 # Create a test PRD directory
 mkdir -p /tmp/test-prd
@@ -720,7 +720,7 @@ Expected: Lists the handoff with icon and status.
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 git add scripts/nexus.sh guild
 git commit -m "feat: add Handoff Engine CLI (nexus.sh)
 
@@ -738,7 +738,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 3: Usage Guide
 
 **Files:**
-- Create: `/mnt/e/agentguild/docs/协作指南.md`
+- Create: `~/agentguild/docs/协作指南.md`
 
 **Interfaces:**
 - Consumes: nexus.sh CLI from T2, Phase 1 agent roster
@@ -761,7 +761,7 @@ The guide should be ~150-200 lines, practical and example-driven, with real comm
 - [ ] **Step 2: Commit**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 git add docs/协作指南.md
 git commit -m "docs: add Handoff Engine usage guide (Chinese)
 
@@ -773,9 +773,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 4: Demo Scenarios
 
 **Files:**
-- Create: `/mnt/e/agentguild/demos/pm-to-backend.md`
-- Create: `/mnt/e/agentguild/demos/pm-to-ux.md`
-- Create: `/mnt/e/agentguild/demos/frontend-to-qa.md`
+- Create: `~/agentguild/demos/pm-to-backend.md`
+- Create: `~/agentguild/demos/pm-to-ux.md`
+- Create: `~/agentguild/demos/frontend-to-qa.md`
 
 **Interfaces:**
 - Consumes: nexus.sh CLI from T2, 12 agent files
@@ -798,7 +798,7 @@ Frontend Engineer hands off built component to QA (Evidence Collector) → QA ne
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 git add demos/
 git commit -m "docs: add 3 demo scenarios for Handoff Engine
 
@@ -819,7 +819,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - [ ] **Step 1: Verify all files exist**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 echo "Deliverable check:"
 [[ -f contracts/extract.sh ]] && echo "  ✓ contracts/extract.sh" || echo "  ✗ contracts/extract.sh"
 [[ -f contracts/guild-contracts.yml ]] && echo "  ✓ contracts/guild-contracts.yml" || echo "  ✗ contracts/guild-contracts.yml"
@@ -835,7 +835,7 @@ echo "Deliverable check:"
 - [ ] **Step 2: Full contract extraction test**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 rm -f contracts/guild-contracts.yml
 ./contracts/extract.sh
 python3 -c "import yaml; d=yaml.safe_load(open('contracts/guild-contracts.yml')); print(f'{len(d[\"contracts\"])} agents extracted')"
@@ -846,7 +846,7 @@ Expected: 12 agents.
 - [ ] **Step 3: Full handoff flow test**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 # Clear previous test records
 rm -f handoffs/*.json
 
@@ -874,7 +874,7 @@ Expected: handoff creates record, status shows it, check shows details.
 - [ ] **Step 4: Script syntax check**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 for f in contracts/extract.sh scripts/nexus.sh scripts/lib.sh; do
   bash -n "$f" && echo "OK: $f" || echo "FAIL: $f"
 done
@@ -885,7 +885,7 @@ Expected: All 3 OK.
 - [ ] **Step 5: Verify Phase 1 not broken**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 ./scripts/lint.sh --all
 ```
 
@@ -894,7 +894,7 @@ Expected: 12 agents still PASS.
 - [ ] **Step 6: Git status and final commit**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 git status
 git log --oneline
 ```
@@ -902,7 +902,7 @@ git log --oneline
 - [ ] **Step 7: Commit any remaining changes**
 
 ```bash
-cd /mnt/e/agentguild
+cd ~/agentguild
 git add -A
 git commit -m "chore: Phase 2a integration test and final cleanup" || echo "Nothing to commit"
 ```

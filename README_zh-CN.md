@@ -1,214 +1,337 @@
-# AgentGuild
+# 🎭 AgentGuild
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/agentguild/agentguild?style=for-the-badge&color=3B82F6" alt="GitHub Stars">
-  <img src="https://img.shields.io/github/license/agentguild/agentguild?style=for-the-badge&color=EC4899" alt="MIT License">
+  <img src="https://img.shields.io/github/stars/1685yhy/agentguild?style=for-the-badge&color=3B82F6" alt="GitHub Stars">
+  <img src="https://img.shields.io/github/license/1685yhy/agentguild?style=for-the-badge&color=EC4899" alt="MIT License">
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=for-the-badge&color=22C55E" alt="PRs Welcome">
-  <img src="https://img.shields.io/badge/agents-28-3B82F6?style=for-the-badge" alt="28 Agents">
+  <img src="https://img.shields.io/badge/agents-40-3B82F6?style=for-the-badge" alt="40 Agents">
+  <img src="https://img.shields.io/badge/Bash_Python3-Bash_3.2++Python3-D946EF?style=for-the-badge" alt="Bash+Python3">
 </p>
 
 <p align="center">
-  <strong>一个拥有真实个性、坚定立场和清晰边界的 AI 特工公会，专为软件开发打造。</strong>
+  <h3 align="center">塑造 AI 队友，而非模板</h3>
 </p>
 
 <p align="center">
-  <a href="#-快速开始">快速开始</a> ·
-  <a href="#-特工花名册">特工列表</a> ·
-  <a href="#-agentguild-的独特之处">特色</a> ·
-  <a href="#-支持的工具">工具支持</a> ·
-  <a href="#-项目结构">项目结构</a> ·
-  <a href="#-参与贡献">贡献指南</a> ·
+  <strong>40 个有真实人格的精品 AI Agent + 业界首个真正可用的 Agent 协作引擎</strong><br>
+  交接检查 · 流水线编排 · 决策追溯 · 冲突检测 · 图执行引擎 — 不是"你该这么协作"的文档，是让协作自动发生的软件
+</p>
+
+<p align="center">
+  <a href="#-快速开始">Quick Start</a> ·
+  <a href="#-agent-名册">40 Agents</a> ·
+  <a href="#-协作引擎">协作引擎</a> ·
+  <a href="#-图引擎">图引擎</a> ·
+  <a href="#-跟-agency-agents-比">vs agency-agents</a> ·
+  <a href="#-支持的工具">Tools</a> ·
   <a href="README.md">English</a>
 </p>
 
 ---
 
-## 什么是 AgentGuild？
+## 这到底是什么？
 
-AgentGuild 是一个**精心策划的 28 人 AI 特工花名册**，专为软件开发团队设计。每个特工都是一份详细的 Markdown 文件，定义了一个专业化角色——包括身份、专长，最重要的是，**观点和立场**。
+**AgentGuild 不是一个 Agent 模板库。它是一个 AI 团队的协作操作系统。**
 
-与只提供空模板的通用 AI 特工框架不同，AgentGuild 的特工拥有：
+两件事：
+1. **40 个精品 Agent** — 每个都有挑衅性观点、会跟人争执、知道自己盲区、明确决策边界。不是一个模板换词 300 次。
+2. **一套协作引擎** — `guild` CLI 让 Agent 之间真的能传接球、跑流水线、记录决策、检测冲突、按图执行工作流。不是 Markdown 文档写"你应该这么协作"。
 
-- **反主流观点** — 与主流共识相悖的专业见解
-- **冲突偏好** — 何时会拒绝、反对或升级问题
-- **盲区认知** — 坦诚自己哪些方面不擅长，何时需要求助
-- **决策权** — 在多特工协作中明确的职责边界
-
-AgentGuild 支持 **Claude Code**、**Cursor**、**GitHub Copilot** 和 **Windsurf**。安装你需要的特工后，你的 AI 编码工具就能准确理解当前是哪个专家在响应、他关心什么、他拥有哪些决策权。
+你已经有 Claude Code / Cursor / Copilot 了。装上 AgentGuild，你就有了一支能配合的 AI 团队。
 
 ---
 
-## AgentGuild 与 agency-agents 有何不同？
+## 为什么你需要这个
 
-[agency-agents](https://github.com/ai-hero/agency-agents) 开创了基于系统提示词的 AI 特工概念。AgentGuild 在此基础上进行了根本性的升级：
+用 AI 写代码已经不够了。真正的问题发生在 AI 和 AI 之间。
 
-| 维度 | agency-agents | AgentGuild |
-|------|---------------|------------|
-| **理念** | 数量——广泛覆盖 | 质量——精挑细选、有主见 |
-| **个性** | 通用的角色描述 | 真实的反主流观点和个性 |
-| **冲突** | 未定义冲突 | 特工间的明确分歧边界 |
-| **盲区** | 未涉及 | 坦诚的自我评估和限制认知 |
-| **决策权** | 未定义 | 明确谁对什么有最终决定权 |
-| **格式支持** | 仅 Claude Code | Claude Code、Cursor、Copilot、Windsurf |
-| **特工数量** | 很多，质量参差不齐 | 28 个精心打磨的特工 |
+**PM Agent 写了 PRD 给后端 Agent → 后端照着做了 → 上线后前端发现 API 格式不对 → 谁的问题？**
 
-**AgentGuild 不是 agency-agents 的分支（fork）**。它是一种下一代方案——公会中的每个特工都拥有真实的个性、坚定的专业立场，以及明确的能力与责任边界。
+agency-agents 的答案是"Phase 4 才发现，回去重做"。
 
----
+AgentGuild 的答案是：**后端动手之前，系统就告诉他"前端依赖这个 API，你的决策会影响他"。如果双方做了矛盾的决策，系统自动报警。每次交接自动检查完整性，缺东西当场就拦。**
 
-## 特工花名册
-
-### 工程部
-
-| Emoji | 特工 | 描述 | 难度 |
-|-------|------|------|------|
-| 🖥️ | 前端工程师 | UI 架构、性能优化、设计系统工程 | 高级 |
-| 🗄️ | 后端架构师 | API 设计、数据建模、认证与服务可靠性 | 高级 |
-| 🚀 | DevOps 工程师 | CI/CD、基础设施、监控、事故响应与可靠性 | 高级 |
-| 🤖 | AI 工程师 | 模型选择、提示词架构、评估与 AI 功能设计 | 高级 |
-| 📱 | 移动端工程师 | iOS/Android原生开发、跨平台架构、移动端性能优化 | 高级 |
-| 🗄️ | 数据库专家 | 数据库建模、查询优化、迁移策略与数据一致性保障 | 高级 |
-| 🔍 | 代码审查员 | 代码质量审查、架构合规验证与审查文化倡导 | 高级 |
-
-### 产品部
-
-| Emoji | 特工 | 描述 | 难度 |
-|-------|------|------|------|
-| 📋 | 产品经理 | 问题定义、优先级排序与范围管理 | 中级 |
-| 🔍 | 用户研究员 | 用户研究方法论、洞察验证与行为分析 | 中级 |
-| 📊 | 数据分析师 | 指标定义、统计分析、基于证据的决策支持 | 中级 |
-| 📝 | 技术文档工程师 | API 文档、命名一致性、信息架构 | 入门 |
-
-### 设计部
-
-| Emoji | 特工 | 描述 | 难度 |
-|-------|------|------|------|
-| 🎨 | UI 设计师 | 视觉设计系统、布局、色彩、字体与有意的突破常规 | 中级 |
-| 🛡️ | 品牌守护者 | 品牌形象、调性一致性、视觉标识治理 | 高级 |
-| 🎬 | 交互设计师 | 动效设计、微交互、转场与交互编排 | 高级 |
-| 🎯 | 创意指导 | 美学方向、质量标准执行与设计评审权 | 高级 |
-
-### 测试部
-
-| Emoji | 特工 | 描述 | 难度 |
-|-------|------|------|------|
-| 🧪 | QA 工程师 | 基于证据的质量验证，不放过任何边界情况 | 中级 |
-| ⚡ | 性能测试工程师 | 真实负载建模与系统容量规划 | 高级 |
-| ♿ | 无障碍审计员 | 超越自动化合规的真实无障碍验证 | 中级 |
-
-### 市场部
-
-| Emoji | 特工 | 描述 | 难度 |
-|-------|------|------|------|
-| 📈 | 增长黑客 | 系统的增长策略，不依赖平台漏洞 | 高级 |
-| ✍️ | 内容创作者 | 以回答深度和用户价值为优先的内容策略 | 中级 |
-| 📱 | 社媒策略师 | 平台原生内容策略，不跨平台一键分发 | 中级 |
-| 🔍 | SEO专家 | 搜索引擎优化、搜索意图分析、内容排名策略与技术SEO审计 | 中级 |
-
-### 安全部
-
-| Emoji | 特工 | 描述 | 难度 |
-|-------|------|------|------|
-| 🔒 | 安全工程师 | 威胁建模、安全架构设计、渗透测试与安全合规自动化 | 高级 |
-
-### 项目管理部
-
-| Emoji | 特工 | 描述 | 难度 |
-|-------|------|------|------|
-| 📐 | 项目经理 | 进度跟踪、风险管控、资源调度与交付协调 | 中级 |
-
-### 销售部
-
-| Emoji | 特工 | 描述 | 难度 |
-|-------|------|------|------|
-| 🎯 | 销售工程师 | 技术演示架构、PoC交付、技术验证与售前支撑 | 高级 |
-| 💰 | 交易策略师 | 交易结构设计、定价策略、谈判支持与收入优化 | 高级 |
-
-### 支持部
-
-| Emoji | 特工 | 描述 | 难度 |
-|-------|------|------|------|
-| 💬 | 客户支持 | 客户问题响应、支持工单管理、知识库建设与产品反馈闭环 | 中级 |
-
-### 财务部
-
-| Emoji | 特工 | 描述 | 难度 |
-|-------|------|------|------|
-| 💹 | 财务分析师 | 单位经济分析、财务建模、SaaS指标追踪与盈利能力优化 | 高级 |
-
----
-
-## AgentGuild 的独特之处
-
-### 1. 反主流观点 (Contrarian Takes)
-
-每个 AgentGuild 特工都有一个坚定的专业立场，这些立场与主流共识相悖。它们不是平淡无奇的套话，而是有证据支持的、塑造特工思维方式的核心信念。
-
-示例：
-- **前端工程师：** "框架选择是你团队做出的最不重要的架构决策。"
-- **后端架构师：** "微服务被过度推广了。"
-- **数据分析师：** "大多数'数据驱动'的决策，实际上是直觉驱动、事后找数据支撑的决策。"
-- **创意指导：** "委员会式的设计只能产出委员会水准的设计。"
-
-### 2. 冲突偏好 (Conflict Preferences)
-
-每个特工明确说明他们会在什么情况下拒绝、反对或升级问题——并列出他们最可能与之发生分歧的具体特工角色。这创造了健康的张力，在生产事故发生之前就将风险暴露出来。
-
-### 3. 盲区认知 (Blind Spots)
-
-每个特工诚实地描述自己不擅长的领域，以及何时会主动请求其他特工的帮助。这避免了困扰通用 AI 特工的"不懂装懂"问题，确保每个决策都能找到正确的专家。
-
-### 4. 决策权 (Decision Authority)
-
-在多特工协作中，每个特工都明确知道自己拥有哪些决策权、哪些需要请示他人。没有模糊地带，没有越界行为，也没有关键决策被遗漏。
+这就是 Agent 协作和"把 Agent 放一起然后祈祷"的区别。
 
 ---
 
 ## 快速开始
 
 ```bash
-# 1. 克隆仓库
-git clone https://github.com/agentguild/agentguild.git
+# 1. 克隆
+git clone https://github.com/1685yhy/agentguild.git
 cd agentguild
 
-# 2. 将特工档案转换为你的工具支持的格式
+# 2. 安装 Agent 到你的 AI 工具
 ./scripts/convert.sh
+./scripts/install.sh --tool claude-code
 
-# 3. 将特工安装到你的 AI 工具中
-./scripts/install.sh
+# 3. 开始用
+# 在 Claude Code 里说："激活产品经理模式，帮我写一份 PRD"
 
-# 4. 完成！你的 AI 工具现在了解全部 28 个公会特工。
-#    需要专家帮助时，直接引用特工名称即可。
+# 4. 试试协作引擎
+./guild handoff --from 产品经理 --to 后端架构师 --path ./prd/
+./guild run --pipeline feature-dev --path ./project/ --yes
 ```
 
-### 安装指定工具
+---
+
+## Agent 名册
+
+### 工程
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 🖥️ | **Frontend Engineer** | 框架选型是最不重要的事。先把 CI 修好 |
+| 🗄️ | **Backend Architect** | 微服务被严重滥用了。50 人以下团队用单体 |
+| 🚀 | **DevOps Engineer** | 超过 10 分钟的 CI 流水线就是坏掉的 |
+| 🤖 | **AI Engineer** | 最好的 AI 功能是你没做的那一个 |
+| 📱 | **Mobile Developer** | 跨平台不是捷径，是推迟原生开发的时间点 |
+| 🗄️ | **Database Specialist** | ORM 是最危险的抽象——N+1 才是常客 |
+| 🔍 | **Code Reviewer** | LGTM 不是审查，是橡皮图章 |
+
+### 产品
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 📋 | **Product Manager** | 大多数 MVP 既不 minimal 也不 viable |
+| 🔍 | **UX Researcher** | 糟糕的用户访谈不如不做 |
+| 📊 | **Data Analyst** | "数据驱动"通常是直觉驱动然后找数据背书 |
+| 📝 | **Tech Writer** | 代码写完再补的文档永远是错的 |
+
+### 设计
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 🎨 | **UI Designer** | 一致性被高估了。故意打破规则才是水平 |
+| 🛡️ | **Brand Guardian** | 换 logo 解决不了产品烂的问题 |
+| 🎬 | **Interaction Designer** | 用户注意到你的动画说明大概率是坏了 |
+| 🎯 | **Creative Director** | 委员会设计谁也不得罪也谁都不喜欢 |
+
+### 测试
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 🧪 | **QA Engineer** | 不是找 bug，是证明质量存在 |
+| ⚡ | **Performance Tester** | 没有前提条件的性能数字就是谎言 |
+| ♿ | **Accessibility Auditor** | 无障碍不是检查清单。自动化只能发现 30% |
+
+### 市场
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 📈 | **Growth Hacker** | 增长不是 hack，是可复现的系统性实验 |
+| ✍️ | **Content Creator** | SEO 优化的垃圾依然是垃圾 |
+| 📱 | **Social Media Strategist** | 各平台发一样的内容不是策略，是懒 |
+| 🔍 | **SEO Specialist** | SEO 不是游戏 Google，是成为最佳答案 |
+
+### 安全
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 🔒 | **Security Engineer** | 合规通过不等于安全——攻击者不在乎你的证书 |
+
+### 项目管理
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 📐 | **Project Manager** | 敏捷已经变成了它本该取代的东西 |
+
+### 销售
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 🎯 | **Sales Engineer** | PoC 是销售工程中最被滥用的工具 |
+| 💰 | **Deal Strategist** | 折扣是最缺乏创意的成交方式 |
+
+### 支持
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 💬 | **Customer Support** | 工单不是打扰，是免费的用户研究 |
+
+### 财务
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 💹 | **Financial Analyst** | 单位经济学比增长率重要——增长快不等于健康 |
+
+### 游戏开发
+
+| | Agent | 一句话 |
+|---|-------|--------|
+| 🎮 | **Game Designer** | 大多数游戏设计文档是虚构的——它们描述的是理想体验而非可构建系统 |
+| 🗺️ | **Level Designer** | 好的关卡通过环境暗示来教学，而不是对话框——Portal不需要教程 |
+| 📜 | **Narrative Designer** | 环境叙事不是"在地上放笔记"——每次选择都存入或提取信任 |
+| 💻 | **Game Programmer** | 面向对象编程是发生在游戏开发中最糟糕的事情——ECS不是趋势，是修正 |
+| 🖥️ | **Game UI Designer** | 游戏UI和应用UI是不同的学科——能移除的界面元素就不该存在 |
+| 🎨 | **Technical Artist** | 照片写实主义是无话可说的游戏的拐杖——独特视觉身份比写实更持久 |
+| 🎵 | **Game Audio Engineer** | 大多数游戏配乐过度——沉默是游戏音频中最被低估的工具 |
+| 🧪 | **Game QA Engineer** | 游戏QA不是软件QA——有趣不是规格，自动化测试只能发现30% |
+| 🎬 | **Game Producer** | Crunch不是激情的标志——而是生产失败的标志 |
+| 💰 | **Monetization Designer** | 最赚钱的变现不是最激进的——而是最对齐的 |
+| 🎯 | **Unity Developer** | Asset Store既是最大的优势也是最大的陷阱——最好的项目几乎不使用它 |
+| 🔵 | **Unreal Developer** | Blueprint不是给设计师的编程工具——它就是编程，有编程的所有复杂性 |
+
+---
+
+## 协作引擎
+
+这是 AgentGuild 区别于所有其他 Agent 项目的核心。
+
+### `guild handoff` — Agent 之间传接球
+
+PM 写完 PRD 传给后端。系统自动检查：后端需要的东西齐全吗？缺了什么？
 
 ```bash
-# 安装到所有支持的工具（默认）
-./scripts/install.sh
-
-# 仅安装到特定工具
-./scripts/install.sh --tool claude-code
-./scripts/install.sh --tool cursor
-./scripts/install.sh --tool copilot
-./scripts/install.sh --tool windsurf
-
-# 预览将要安装的内容
-./scripts/install.sh --dry-run
+$ guild handoff --from pm --to backend --path ./prd/
+  创建交接 #1: product-manager → backend-architect
+  状态: incomplete
+  完整度: 1/3 项已提供
+  [!!] 缺失 2 项:
+       - 性能目标（QPS、延迟 SLO、并发数）
+       - 数据模型草案
 ```
+
+### `guild run` — 一键跑完全流程
+
+4 个阶段、6 组 Agent 配对、自动交接——**一个命令**。
+
+```bash
+$ guild run --pipeline feature-dev --path ./project/ --yes
+  ━━━ 阶段: 需求定义 → 设计 ━━━
+  ━━━ 阶段: 设计 → 实现 ━━━
+  ━━━ 阶段: 实现 → 测试 ━━━
+  ━━━ 阶段: 测试 → 审查 ━━━
+  流水线完成: feature-dev
+```
+
+### `guild decide` + `guild context` — 决策系统
+
+后端做了一个 API 格式决策。前端做了一个矛盾的。系统自动检测。
+
+```bash
+$ guild decide --agent backend --type api-design \
+  --topic "API响应格式" --summary "统一包裹 {code, data, message}"
+
+$ guild decide --agent frontend --type api-design \
+  --topic "API响应格式" --summary "直接返回，不要包裹层"
+
+$ guild context check
+  ⚠️ 冲突: API响应格式 — backend vs frontend
+```
+
+### `guild status` — 所有交接一目了然
+
+```bash
+$ guild status
+  ⚠️ #1: pm → backend (incomplete)
+  ✅ #2: pm → ux (ready)
+  ✔️ #3: frontend → qa (accepted)
+```
+
+12 个 CLI 命令，仅需 Bash 3.2+ + Python3 内置模块。完整用法见 [使用指南](docs/使用指南.md)。
+
+---
+
+## 图引擎
+
+除了流水线式的交接，AgentGuild 还提供了基于有向图的执行引擎，支持循环、并行和条件分支。
+
+### 概念
+
+- **Node（节点）**：一个 Agent 执行一个动作。每个节点有 agent、action、timeout、needs、delivers 等属性。
+- **Edge（边）**：节点之间的依赖关系和流转条件。支持 `completed`/`failed` 条件触发。
+- **State（状态）**：整个图的共享进度，以 JSON 格式持久化到 `/tmp/guild-graph-<name>-state.json`，支持断点恢复。
+
+### 示例
+
+```yaml
+# graphs/game-mvp.yml
+name: game-mvp
+description: 游戏 MVP 开发流程
+nodes:
+  design:
+    agent: game-designer
+    action: execute
+  prototype:
+    agent: game-programmer
+    action: execute
+    needs: [design]
+  art:
+    agent: technical-artist
+    action: execute
+  integrate:
+    agent: game-producer
+    action: execute
+    needs: [prototype, art]
+edges:
+  - {from: design, to: prototype}
+  - {from: prototype, to: integrate, when: completed}
+  - {from: art, to: integrate, when: completed}
+```
+
+### 运行
+
+```bash
+$ ./guild graph run --graph graphs/game-mvp.yml --path ./my-game/
+```
+
+输出示例：
+
+```
+=============================
+  Graph Engine: game-mvp
+=============================
+  -- iteration 1: ready nodes --
+  > start: design
+  > start: art
+  ...
+=============================
+  图执行报告
+=============================
+  节点统计: 总计=4 完成=4 ...
+[OK] 图执行全部完成
+```
+
+### 特性
+
+- **循环**：通过边条件触发回路，支持重试（最多 3 次）
+- **并行**：同一层级的无依赖节点自动并行执行
+- **条件边**：支持 `when: completed` / `when: failed` 等条件
+- **断点恢复**：`./guild graph resume <name>` 从上次中断处继续
+- **Dry-Run 模拟**：`--dry-run` 参数预览完整执行计划
+- **Handoff 集成**：每个节点完成后自动创建交接记录，在 `guild status` 中可见
+
+---
+
+## 跟 agency-agents 比
+
+| | agency-agents | **AgentGuild** |
+|---|---|---|
+| Agent 深度 | 一个模板换词 300 次 | 每个有挑衅性观点、冲突偏好、盲区 |
+| Agent 质量 | 参差不齐 | 20A + 5A- + 3B+，lint 强制校验 |
+| 协作 | 零 — 人手动复制粘贴 | **handoff → run → decide → context 四层引擎** |
+| 冲突检测 | 无 | 自动检测 + 影响范围分析 + 追溯 |
+| 流水线 | Markdown 文档 | `guild run` 一键执行 |
+| 决策追溯 | 无 | ADR 模式，每次交接可追溯 |
+| 图执行 | 无 | **guild graph run，支持循环/并行/条件边** |
+| 分发 | 16 工具 | 4 核心工具（按需扩展） |
+| 中文 | 翻译 | **原生中文全链路** |
+| 依赖 | Bash+Python3 | **Bash 3.2+ + Python3 内置模块** |
+
+**AgentGuild 不是 agency-agents 的 fork。** 它是同一个问题（"AI 怎么组队干活"）的下一代答案。agency-agents 证明了"Agent 定义可以模板化"，AgentGuild 证明了**协作可以自动化**。
 
 ---
 
 ## 支持的工具
 
-| 工具 | 格式 | 安装命令 |
-|------|------|----------|
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `identity` (`.md`) | `./scripts/install.sh --tool claude-code` |
-| [Cursor](https://cursor.sh) | `.mdc` 规则 | `./scripts/install.sh --tool cursor` |
-| [GitHub Copilot](https://github.com/features/copilot) | `identity` (`.md`) | `./scripts/install.sh --tool copilot` |
-| [Windsurf](https://codeium.com/windsurf) | `.windsurfrules` | `./scripts/install.sh --tool windsurf` |
-
-AgentGuild 特工安装在你本地的 AI 工具配置中——而不是仓库中——因此它们会跟随你跨项目使用。支持按特工安装和按项目安装。
+| 工具 | 安装 |
+|------|------|
+| **Claude Code** | `./scripts/install.sh --tool claude-code` |
+| **Cursor** | `./scripts/install.sh --tool cursor` |
+| **GitHub Copilot** | `./scripts/install.sh --tool copilot` |
+| **Windsurf** | `./scripts/install.sh --tool windsurf` |
 
 ---
 
@@ -216,96 +339,61 @@ AgentGuild 特工安装在你本地的 AI 工具配置中——而不是仓库�
 
 ```
 agentguild/
-├── agents/
-│   ├── engineering/               # 工程部
-│   │   ├── frontend-engineer.md   # 前端工程师
-│   │   ├── backend-architect.md   # 后端架构师
-│   │   ├── devops-engineer.md     # DevOps 工程师
-│   │   ├── ai-engineer.md         # AI 工程师
-│   │   ├── mobile-developer.md    # 移动端工程师
-│   │   ├── database-specialist.md # 数据库专家
-│   │   └── code-reviewer.md       # 代码审查员
-│   ├── product/                   # 产品部
-│   │   ├── product-manager.md     # 产品经理
-│   │   ├── ux-researcher.md       # 用户研究员
-│   │   ├── data-analyst.md        # 数据分析师
-│   │   └── tech-writer.md         # 技术文档工程师
-│   ├── design/                    # 设计部
-│   │   ├── ui-designer.md         # UI 设计师
-│   │   ├── brand-guardian.md      # 品牌守护者
-│   │   ├── interaction-designer.md# 交互设计师
-│   │   └── creative-director.md   # 创意指导
-│   ├── testing/                   # 测试部
-│   │   ├── qa-engineer.md         # QA 工程师
-│   │   ├── performance-tester.md  # 性能测试工程师
-│   │   └── accessibility-auditor.md# 无障碍审计员
-│   ├── marketing/                 # 市场部
-│   │   ├── growth-hacker.md       # 增长黑客
-│   │   ├── content-creator.md     # 内容创作者
-│   │   ├── social-media-strategist.md# 社媒策略师
-│   │   └── seo-specialist.md      # SEO专家
-│   ├── security/                  # 安全部
-│   │   └── security-engineer.md   # 安全工程师
-│   ├── project-management/        # 项目管理部
-│   │   └── project-manager.md     # 项目经理
-│   ├── sales/                     # 销售部
-│   │   ├── sales-engineer.md      # 销售工程师
-│   │   └── deal-strategist.md     # 交易策略师
-│   ├── support/                   # 支持部
-│   │   └── customer-support.md    # 客户支持
-│   └── finance/                   # 财务部
-│       └── financial-analyst.md   # 财务分析师
-├── contracts/                     # 协作契约（Phase 2a）
-│   ├── extract.sh                 # 从特工文件中提取契约
-│   └── guild-contracts.yml        # 生成的 YAML 契约文件
-├── demos/                         # 交接演练场景（Phase 2b）
-│   ├── pm-to-ux.md
-│   ├── pm-to-backend.md
-│   └── frontend-to-qa.md
-├── docs/
-│   ├── AGENT_TEMPLATE.md          # 特工创建指南（英文）
-│   ├── AGENT_TEMPLATE_zh-CN.md    # 特工创建指南（中文）
-│   ├── 使用指南.md                 # 使用指南
-│   ├── 协作指南.md                 # 协作指南
-│   └── 流水线指南.md               # 流水线指南
-├── handoffs/                      # 交接记录（Phase 2b）
-├── pipelines/                     # 流水线定义（Phase 2a）
-│   └── startup-mvp.yml            # MVP 开发流水线
-├── scripts/
-│   ├── convert.sh                 # 将特工转换为工具特定格式
-│   ├── install.sh                 # 将特工安装到本地 AI 工具
-│   ├── lib.sh                     # 共享辅助函数
-│   ├── lint.sh                    # 验证特工文件是否符合模板规范
-│   └── nexus.sh                   # 交接引擎 CLI（Phase 2a）
-├── guild                          # → scripts/nexus.sh（符号链接）
-├── guild.config.json              # 特工、部门和工具的中央注册表
-├── .github/workflows/lint.yml     # CI：每次推送时自动检查特工文件
-├── LICENSE                        # MIT 许可证
-├── README.md                      # 本文件（英文）
-├── README_zh-CN.md                # 本文件（中文）
-├── CONTRIBUTING.md                # 贡献指南（英文）
-└── CONTRIBUTING_zh-CN.md          # 贡献指南（中文）
+├── agents/          40 个 Agent（工程/产品/设计/测试/市场/安全/项目管理/销售/支持/财务/游戏开发）
+│   ├── engineering/            # 工程部（7个）
+│   ├── product/                # 产品部（4个）
+│   ├── design/                 # 设计部（4个）
+│   ├── testing/                # 测试部（3个）
+│   ├── marketing/              # 市场部（4个）
+│   ├── security/               # 安全部（1个）
+│   ├── project-management/     # 项目管理部（1个）
+│   ├── sales/                  # 销售部（2个）
+│   ├── support/                # 支持部（1个）
+│   ├── finance/                # 财务部（1个）
+│   └── game-development/       # 游戏开发部（10个）
+├── scripts/         8 个脚本（lint/convert/install/nexus/graph-engine/lib/test-runner/agent-prompt）
+├── contracts/       协作契约 — 从 Agent 第 13 段自动提取
+├── pipelines/       流水线定义（YAML）
+├── graphs/          图定义（YAML）— 循环、并行、条件分支
+├── context/         决策记录 — ADR 模式
+├── handoffs/        交接记录（图引擎自动集成）
+├── integrations/    工具集成输出（claude-code/cursor/copilot/windsurf）
+├── demos/           交接演练场景
+├── docs/            5 份中文使用指南 + 模板规范
+├── website/         项目官网（单页 HTML）
+├── guild            → scripts/nexus.sh（主命令）
+└── guild.config.json  40 Agent + 4 工具的中央注册表
 ```
 
 ---
 
-## 参与贡献
+## 每个 Agent 包含什么
 
-我们欢迎各种形式的贡献！请参阅 [CONTRIBUTING_zh-CN.md](CONTRIBUTING_zh-CN.md) 了解：
+不是"你是一个专家"一句话。每个 Agent 13 段：
 
-- 什么样的特工才算一个好的 AgentGuild 特工（质量标准）
-- 如何提议新的特工（Issue 模板 + PR）
-- 如何为新的 AI 工具添加支持
-- 我们的行为准则
+| # | 段落 | 说明 |
+|---|------|------|
+| 3 | **挑衅性观点** | 一个跟主流共识相反、但有证据支撑的职业立场 |
+| 4 | **铁律** | 不可妥协的原则 |
+| 10 | **冲突偏好** | 会在什么情况下说不？会跟谁起争执？ |
+| 11 | **盲区声明** | 明确知道自己不擅长什么，主动请求外援 |
+| 12 | **决策权重** | 在哪些决策上有最终话语权 |
+| 13 | **协作契约** | 承诺交付什么 + 需要从上游收到什么 |
 
 ---
 
-## 开源协议
+## 贡献
 
-AgentGuild 采用 [MIT 许可证](LICENSE) 发布。
+欢迎！见 [CONTRIBUTING.md](CONTRIBUTING.md)。一个好的 Agent 需要：真正挑衅的观点（不是废话）+ 诚实且具体的盲区 + 点名其他角色的冲突偏好。
+
+---
+
+## 许可
+
+MIT — 随便用，改，分发。
 
 ---
 
 <p align="center">
-  <sub>源自信念，而非共识。</sub>
+  <sub>Built with conviction, not consensus. 源自信念，而非共识。</sub>
 </p>

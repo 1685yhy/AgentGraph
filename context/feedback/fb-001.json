@@ -1,0 +1,12 @@
+{
+  "id": "fb-001",
+  "handoff_id": 1,
+  "type": "bug",
+  "severity": "critical",
+  "summary": "点击开始试炼按钮后显示分享弹窗，游戏无法正常启动",
+  "repro_steps": "打开页面→点击开始试炼→看到分享弹窗而非游戏画面",
+  "status": "fixed",
+  "linked_fix_handoff": "1",
+  "created": "2026-07-24T07:23:01Z",
+  "resolved": "2026-07-24T07:36:17Z"
+}

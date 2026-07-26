@@ -9,7 +9,7 @@
 ## Global Constraints
 - Bash 3.2+, zero external dependencies (python3 built-in ok)
 - Do NOT modify agent files, existing scripts (only append to nexus.sh)
-- Project root: /mnt/e/agentguild
+- Project root: ~/agentguild
 
 ---
 
