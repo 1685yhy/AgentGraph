@@ -33,7 +33,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a1a;touch-action
 .go-buttons{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:4px}
 .lc-title{font-size:30px;margin-bottom:6px;font-weight:bold;text-align:center}
 .lc-sub{font-size:15px;color:#8a8aaa;margin-bottom:28px;text-align:center;line-height:1.6;padding:0 20px}
-.hint-text{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:rgba(200,200,255,0.25);font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:13px;pointer-events:none;transition:opacity 1s;z-index:3}
+.hint-text{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:rgba(200,200,255,0.35);font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:13px;pointer-events:none;transition:opacity 1s;z-index:3}
+.hint-text.pulse{animation:pulse 2s ease-in-out infinite}
 .hint-text.hidden{opacity:0}
 #mute-btn{position:absolute;top:8px;right:10px;width:32px;height:32px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:15px;cursor:pointer;z-index:20;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background .2s}
 #mute-btn:active{background:rgba(255,255,255,0.18)}
@@ -85,6 +86,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a1a;touch-action
       <div id="daily-lives-display" style="font-size:13px;color:#8a8aaa"></div>
       <button class="btn-secondary" id="daily-bonus-btn" style="font-size:12px;padding:8px 20px;display:none">📺 看视频免费领 +2 复活次数</button>
     </div>
+    <div id="audio-prompt" style="margin-top:12px;font-size:13px;color:#8a8aaa;animation:pulse 1.5s ease-in-out infinite">🔊 点击启用音效</div>
   </div>
 
   <div id="level-clear" class="screen-overlay hidden">
@@ -112,10 +114,28 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a1a;touch-action
 
   <!-- Province selector -->
   <div id="province-overlay" class="pv-overlay hidden">
-    <div style="font-size:28px;font-weight:bold;margin-bottom:6px">选择你的省份</div>
-    <div style="font-size:14px;color:#8a8aaa;margin-bottom:20px;text-align:center;line-height:1.5;padding:0 24px">为你所在的省份而战！<br>全省排名基于平均存活时间</div>
+    <div style="font-size:28px;font-weight:bold;margin-bottom:6px">为你的省份而战！</div>
+    <div style="font-size:14px;color:#8a8aaa;margin-bottom:20px;text-align:center;line-height:1.5;padding:0 24px">选择省份加入排行榜</div>
     <div class="pv-grid" id="pv-grid"></div>
-    <button class="btn-secondary" id="pv-skip">随机分配</button>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn-secondary" id="pv-none">未选择</button>
+      <button class="btn-secondary" id="pv-skip">随机分配</button>
+    </div>
+  </div>
+
+  <!-- Tutorial overlay (first play only) -->
+  <div id="tutorial-overlay" class="screen-overlay hidden" style="background:rgba(10,10,26,0.85);z-index:50">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;max-width:300px">
+      <div style="font-size:52px;margin-bottom:10px">👆</div>
+      <div style="font-size:22px;font-weight:bold;margin-bottom:16px;color:#fff">点击方块将其冻结</div>
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <div style="width:48px;height:48px;background:rgba(255,71,87,0.5);border:2px solid rgba(200,220,255,0.7);border-radius:6px"></div>
+        <div style="width:48px;height:48px;background:rgba(255,71,87,0.5);border:2px solid rgba(200,220,255,0.7);border-radius:6px"></div>
+        <div style="width:48px;height:48px;background:rgba(255,71,87,0.5);border:2px solid rgba(200,220,255,0.7);border-radius:6px"></div>
+      </div>
+      <div style="font-size:15px;color:#a8c0ff;margin-bottom:24px">3个同色冻块相连即可消除</div>
+      <button class="btn" id="tutorial-start-btn" style="font-size:16px;padding:12px 40px">开始游戏</button>
+    </div>
   </div>
 
   <!-- Ad modal -->
@@ -130,7 +150,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a1a;touch-action
     <button class="ad-skip-btn" id="ad-skip">不了，谢谢</button>
   </div>
 
-  <div class="hint-text" id="hint-text">点击方块冻结</div>
+  <div class="hint-text pulse" id="hint-text">&#x1f446; 点击方块冻结</div>
   <div id="mute-btn">&#x1f50a;</div>
   <textarea id="share-textarea"></textarea>
 </div>
@@ -407,18 +427,31 @@ function resizeCanvas() {
 // ============================================================
 let audioCtx = null;
 let muted = false;
+let audioPromptHidden = false;
 
 function initAudio() {
   if (!audioCtx) {
     try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
   }
   if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume();
+    audioCtx.resume().then(function() {
+      // Audio context resumed successfully
+    }).catch(function() {
+      // Audio couldn't start — show muted icon, continue silently
+      muted = true;
+      muteBtn.textContent = '\u{1f507}';
+    });
+  }
+  // Hide audio prompt on first interaction
+  if (!audioPromptHidden) {
+    audioPromptHidden = true;
+    var p = document.getElementById('audio-prompt');
+    if (p) p.style.display = 'none';
   }
 }
 
 function playTone(freq, duration, type, vol) {
-  if (muted || !audioCtx) return;
+  if (muted || !audioCtx || audioCtx.state !== 'running') return;
   try {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -434,7 +467,7 @@ function playTone(freq, duration, type, vol) {
 }
 
 function playNoise(duration, vol) {
-  if (muted || !audioCtx) return;
+  if (muted || !audioCtx || audioCtx.state !== 'running') return;
   try {
     const bufferSize = audioCtx.sampleRate * duration;
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
@@ -1082,6 +1115,16 @@ function triggerGameOver() {
 
   gameOver.classList.remove('hidden');
   hud.classList.add('hidden');
+
+  // Province selection on first game over (if no province chosen yet)
+  var provincePrompted = false;
+  try { provincePrompted = !!localStorage.getItem('freezematch_province_prompted'); } catch(e) {}
+  if (!getUserProvince() && !provincePrompted) {
+    try { localStorage.setItem('freezematch_province_prompted', '1'); } catch(e) {}
+    setTimeout(function() {
+      showProvinceSelector();
+    }, 500);
+  }
 }
 
 function getRating() {
@@ -1241,6 +1284,12 @@ function update(dt) {
 
   // Check game over
   if (checkGameOver()) return;
+
+  // Auto-fade Level 1 hint after 10 seconds
+  if (game.level === 1 && game.levelElapsed > 10 && !game.hintFade) {
+    game.hintFade = true;
+    hintText.classList.add('hidden');
+  }
 
   // Update particles
   for (let i = particles.length - 1; i >= 0; i--) {
@@ -1528,11 +1577,31 @@ function showProvinceSelector() {
 
 function closeProvinceSelector() {
   document.getElementById('province-overlay').classList.add('hidden');
+  // Refresh game-over province display if game over screen is visible
+  if (game.state === 'gameOver') {
+    var gProvince = getUserProvince();
+    var gProvEl = document.getElementById('go-province');
+    var gRankEl = document.getElementById('go-ranking');
+    if (gProvince) {
+      gProvEl.textContent = '\u{1f3f4}' + gProvince;
+      gProvEl.style.display = 'block';
+      gRankEl.textContent = '下次游戏将计入' + gProvince + '省排名！';
+    } else {
+      gProvEl.style.display = 'none';
+      gRankEl.textContent = '选择省份即可加入排名!';
+    }
+  }
 }
 
 document.getElementById('pv-skip').addEventListener('click', function() {
   const r = getRandomProvince();
   setUserProvince(r);
+  closeProvinceSelector();
+  updateStartScreen();
+});
+
+document.getElementById('pv-none').addEventListener('click', function() {
+  setUserProvince('');
   closeProvinceSelector();
   updateStartScreen();
 });
@@ -1596,12 +1665,23 @@ canvas.addEventListener('mousedown', function(e) {
 
 document.getElementById('start-btn').addEventListener('click', function() {
   initAudio();
-  // Check province
-  if (!getUserProvince()) {
-    showProvinceSelector();
+  // Show tutorial on first play
+  var tutDone = false;
+  try { tutDone = !!localStorage.getItem('freezematch_tutorial_done'); } catch(e) {}
+  if (!tutDone) {
+    initGame();
+    document.getElementById('tutorial-overlay').classList.remove('hidden');
+    game.state = 'tutorial';
     return;
   }
   initGame();
+});
+
+document.getElementById('tutorial-start-btn').addEventListener('click', function() {
+  initAudio();
+  document.getElementById('tutorial-overlay').classList.add('hidden');
+  try { localStorage.setItem('freezematch_tutorial_done', '1'); } catch(e) {}
+  game.state = 'playing';
 });
 
 document.getElementById('l2-btn').addEventListener('click', function() {

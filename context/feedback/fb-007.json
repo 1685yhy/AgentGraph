@@ -1,0 +1,12 @@
+{
+  "id": "fb-007",
+  "handoff_id": 1,
+  "type": "bug",
+  "severity": "high",
+  "summary": "音效完全不响——Web Audio API未在用户首次点击时初始化",
+  "repro_steps": "打开页面→点击方块→没有任何声音→静音图标显示未静音",
+  "status": "fixed",
+  "linked_fix_handoff": "1",
+  "created": "2026-07-26T14:38:22Z",
+  "resolved": "2026-07-26T14:59:49Z"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "fb-006",
+  "handoff_id": 1,
+  "type": "bug",
+  "severity": "critical",
+  "summary": "省份选择阻断游戏开始——应该在游戏结束后再问",
+  "repro_steps": "打开页面→弹出省份选择→还没玩就要选→关掉后不知道怎么开始",
+  "status": "fixed",
+  "linked_fix_handoff": "1",
+  "created": "2026-07-26T14:38:21Z",
+  "resolved": "2026-07-26T14:59:49Z"
+}
