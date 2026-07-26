@@ -1,0 +1,1740 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="format-detection" content="telephone=no">
+<title>FreezeMatch 冰冻消除</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0a1a;touch-action:none;-webkit-user-select:none;user-select:none}
+#game-container{position:relative;width:100%;height:100%;display:flex;justify-content:center;align-items:center;overflow:hidden}
+#game-canvas{display:block;width:100%;height:100%;object-fit:contain;background:#0a0a1a}
+#hud{position:absolute;top:0;left:0;right:0;height:68px;padding:10px 16px 4px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;color:#e0e0ff;font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:13px;z-index:5;background:linear-gradient(to bottom,rgba(10,10,26,0.7),transparent)}
+#hud.hidden{display:none}
+.hud-item{text-align:center;min-width:60px}
+.hud-label{font-size:9px;color:#8a8aaa;text-transform:uppercase;letter-spacing:1px}
+.hud-value{font-size:18px;font-weight:bold;margin-top:1px}
+.hud-value.warning{color:#FF4757;animation:pulse 0.5s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:1}to{opacity:0.4}}
+.screen-overlay{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(10,10,26,0.93);color:#fff;font-family:'PingFang SC','Microsoft YaHei',sans-serif;z-index:10;transition:opacity 0.3s}
+.screen-overlay.hidden{display:none}
+.start-title{font-size:52px;font-weight:900;margin-bottom:4px;background:linear-gradient(135deg,#a8c0ff,#3f2b96);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-shadow:none;letter-spacing:4px}
+.start-subtitle{font-size:18px;color:#8a8aaa;letter-spacing:6px;margin-bottom:8px}
+.start-version{font-size:12px;color:#555;margin-bottom:36px}
+.btn{padding:14px 48px;background:linear-gradient(135deg,#3742FA,#A855F7);border:none;border-radius:28px;color:#fff;font-size:18px;font-weight:bold;cursor:pointer;transition:transform .15s,box-shadow .15s;box-shadow:0 4px 24px rgba(55,66,250,0.4);font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation;letter-spacing:1px}
+.btn:active{transform:scale(0.94)}
+.btn-secondary{padding:12px 28px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:24px;color:#bbb;font-size:14px;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.btn-secondary:active{background:rgba(255,255,255,0.15)}
+.go-title{font-size:34px;margin-bottom:4px;font-weight:bold}
+.go-rating{font-size:64px;margin:12px 0 4px;line-height:1}
+.go-rating-text{font-size:24px;color:#a8c0ff;margin-bottom:12px;font-weight:bold}
+.go-stats{font-size:14px;color:#8a8aaa;margin-bottom:20px;line-height:1.8;text-align:center}
+.go-buttons{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.lc-title{font-size:30px;margin-bottom:6px;font-weight:bold;text-align:center}
+.lc-sub{font-size:15px;color:#8a8aaa;margin-bottom:28px;text-align:center;line-height:1.6;padding:0 20px}
+.hint-text{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:rgba(200,200,255,0.25);font-family:'PingFang SC','Microsoft YaHei',sans-serif;font-size:13px;pointer-events:none;transition:opacity 1s;z-index:3}
+.hint-text.hidden{opacity:0}
+#mute-btn{position:absolute;top:8px;right:10px;width:32px;height:32px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:15px;cursor:pointer;z-index:20;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background .2s}
+#mute-btn:active{background:rgba(255,255,255,0.18)}
+#share-textarea{position:absolute;opacity:0;pointer-events:none;width:0;height:0}
+
+/* Province selector */
+.pv-overlay{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(10,10,26,0.96);color:#fff;font-family:'PingFang SC','Microsoft YaHei',sans-serif;z-index:30;transition:opacity 0.3s}
+.pv-overlay.hidden{display:none}
+.pv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 16px;max-width:340px;margin-bottom:20px}
+.pv-item{padding:8px 2px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;text-align:center;font-size:13px;color:#bbb;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:all 0.15s}
+.pv-item:active{background:rgba(55,66,250,0.3);border-color:#3742FA;color:#fff}
+
+/* Ad modal */
+.ad-modal{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.88);color:#fff;font-family:'PingFang SC','Microsoft YaHei',sans-serif;z-index:100}
+.ad-modal.hidden{display:none}
+.ad-progress-wrap{width:220px;height:6px;background:rgba(255,255,255,0.12);border-radius:3px;margin:0 auto 12px;overflow:hidden}
+.ad-progress-bar{width:100%;height:100%;background:linear-gradient(90deg,#3742FA,#A855F7);border-radius:3px}
+.ad-skip-btn{padding:8px 20px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:16px;color:#666;font-size:12px;cursor:pointer;font-family:inherit;touch-action:manipulation;margin-top:8px}
+.ad-skip-btn:active{background:rgba(255,255,255,0.12)}
+
+/* Daily challenge badge */
+.daily-badge{position:absolute;top:16px;right:16px;background:linear-gradient(135deg,#FF4757,#FFA502);padding:4px 12px;border-radius:12px;font-size:11px;font-weight:bold;color:#fff;letter-spacing:1px;z-index:11}
+.province-tag{font-size:13px;color:#8a8aaa;margin-bottom:4px;text-align:center}
+.ranking-text{font-size:14px;color:#FFA502;margin-bottom:10px;text-align:center;line-height:1.6}
+.revive-btn{background:linear-gradient(135deg,#FF4757,#FF6348)!important;box-shadow:0 4px 24px rgba(255,71,87,0.4)!important}
+.freeze-ext-btn{background:linear-gradient(135deg,#2ED573,#1FAF55)!important;box-shadow:0 4px 24px rgba(46,213,115,0.4)!important}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="game-canvas"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="hud-item"><div class="hud-label">得分</div><div class="hud-value" id="hud-score">0</div></div>
+    <div class="hud-item"><div class="hud-label">关卡</div><div class="hud-value" id="hud-level">Lv.1</div></div>
+    <div class="hud-item"><div class="hud-label">冰晶</div><div class="hud-value" id="hud-frozen">0</div></div>
+    <div class="hud-item" id="hud-time-wrap"><div class="hud-label">时间</div><div class="hud-value" id="hud-time">30</div></div>
+    <div class="hud-item" id="hud-thaw-wrap" style="display:none"><div class="hud-label">将融化</div><div class="hud-value" id="hud-thaw">0</div></div>
+  </div>
+
+  <div id="start-screen" class="screen-overlay">
+    <div id="daily-badge-el" class="daily-badge hidden">今日挑战</div>
+    <div class="start-title">冰冻消除</div>
+    <div class="start-subtitle">FreezeMatch</div>
+    <div class="start-version">v2.0 | 原创冻结消除玩法</div>
+    <div id="daily-count" style="font-size:12px;color:#8a8aaa;margin-bottom:8px"></div>
+    <button class="btn" id="start-btn">开始游戏</button>
+    <div id="start-bonus-area" style="margin-top:8px;display:flex;flex-direction:column;align-items:center;gap:4px">
+      <div id="daily-lives-display" style="font-size:13px;color:#8a8aaa"></div>
+      <button class="btn-secondary" id="daily-bonus-btn" style="font-size:12px;padding:8px 20px;display:none">📺 看视频免费领 +2 复活次数</button>
+    </div>
+  </div>
+
+  <div id="level-clear" class="screen-overlay hidden">
+    <div class="lc-title">冰晶试炼通过!</div>
+    <div class="lc-sub">冰封地狱即将降临...<br>冰块将在3秒后自动融化，准备好迎接混乱</div>
+    <button class="btn" id="l2-btn">进入冰封地狱</button>
+  </div>
+
+  <div id="game-over" class="screen-overlay hidden">
+    <div class="go-title">游戏结束</div>
+    <div class="province-tag" id="go-province"></div>
+    <div class="go-rating" id="go-rating-emoji"></div>
+    <div class="go-rating-text" id="go-rating-text"></div>
+    <div class="go-stats" id="go-stats"></div>
+    <div class="ranking-text" id="go-ranking"></div>
+    <div id="go-ad-btns" style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:8px">
+      <button class="btn revive-btn" id="revive-btn" style="display:none">📺 免费复活（看15秒视频）</button>
+      <button class="btn freeze-ext-btn" id="freeze-ext-btn" style="display:none">❄️ 冻时+5秒（看15秒视频）</button>
+    </div>
+    <div class="go-buttons">
+      <button class="btn" id="retry-btn">再来一次</button>
+      <button class="btn-secondary" id="share-btn">分享</button>
+    </div>
+  </div>
+
+  <!-- Province selector -->
+  <div id="province-overlay" class="pv-overlay hidden">
+    <div style="font-size:28px;font-weight:bold;margin-bottom:6px">选择你的省份</div>
+    <div style="font-size:14px;color:#8a8aaa;margin-bottom:20px;text-align:center;line-height:1.5;padding:0 24px">为你所在的省份而战！<br>全省排名基于平均存活时间</div>
+    <div class="pv-grid" id="pv-grid"></div>
+    <button class="btn-secondary" id="pv-skip">随机分配</button>
+  </div>
+
+  <!-- Ad modal -->
+  <div id="ad-modal" class="ad-modal hidden">
+    <div style="font-size:48px;margin-bottom:12px">📺</div>
+    <div style="font-size:20px;font-weight:bold;margin-bottom:6px" id="ad-title">观看视频广告</div>
+    <div style="font-size:13px;color:#8a8aaa;margin-bottom:20px" id="ad-desc">广告播放后可获得奖励</div>
+    <div class="ad-progress-wrap">
+      <div class="ad-progress-bar" id="ad-progress" style="width:100%"></div>
+    </div>
+    <div style="font-size:28px;font-weight:bold;margin-bottom:8px" id="ad-timer">15</div>
+    <button class="ad-skip-btn" id="ad-skip">不了，谢谢</button>
+  </div>
+
+  <div class="hint-text" id="hint-text">点击方块冻结</div>
+  <div id="mute-btn">&#x1f50a;</div>
+  <textarea id="share-textarea"></textarea>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ============================================================
+// CONFIGURATION
+// ============================================================
+const COLORS = [
+  '#FF4757','#3742FA','#2ED573','#FFA502','#A855F7','#FF6348'
+];
+const COLOR_LIGHT = [
+  '#FF6B81','#6B7BFF','#5EE891','#FFBE38','#C084FC','#FF7B68'
+];
+const COLOR_DARK = [
+  '#CC2E3E','#2A2FC8','#1FAF55','#D48700','#8642D6','#CC3D28'
+];
+const RATING_CONFIG = [
+  { threshold:0,  time:0,   emoji:'🧊', name:'冰晶学徒', desc:'L1通关但未进冰封地狱' },
+  { threshold:1,  time:15,  emoji:'❄️', name:'寒冰勇士', desc:'在L2坚持0~15秒' },
+  { threshold:2,  time:30,  emoji:'💎', name:'冰晶大师', desc:'在L2坚持15~30秒' },
+  { threshold:3,  time:50,  emoji:'👑', name:'寒冰领主', desc:'在L2坚持30~50秒' },
+  { threshold:4,  time:50,  emoji:'🔮', name:'绝对零度', desc:'在L2坚持50~60秒' },
+  { threshold:5,  time:60,  emoji:'🌟', name:'冰封神',   desc:'完美通关60秒不败!' }
+];
+
+// ============================================================
+// PROVINCES
+// ============================================================
+const PROVINCES = [
+  '北京','天津','上海','重庆','河北','山西','辽宁','吉林',
+  '黑龙江','江苏','浙江','安徽','福建','江西','山东','河南',
+  '湖北','湖南','广东','海南','四川','贵州','云南','陕西',
+  '甘肃','青海','台湾','内蒙古','广西','西藏','宁夏','新疆',
+  '香港','澳门'
+];
+let userProvince = '';
+
+function getUserProvince() {
+  if (userProvince) return userProvince;
+  try {
+    const saved = localStorage.getItem('freezematch_province');
+    if (saved && PROVINCES.includes(saved)) {
+      userProvince = saved;
+      return userProvince;
+    }
+  } catch(e) {}
+  return '';
+}
+
+function setUserProvince(p) {
+  userProvince = p;
+  try { localStorage.setItem('freezematch_province', p); } catch(e) {}
+}
+
+function getRandomProvince() {
+  return PROVINCES[Math.floor(Math.random() * PROVINCES.length)];
+}
+
+function getProvinceScores() {
+  try {
+    const data = localStorage.getItem('freezematch_province_scores');
+    return data ? JSON.parse(data) : {};
+  } catch(e) { return {}; }
+}
+
+function addProvinceScore(province, survivalTime) {
+  if (!province) return;
+  const scores = getProvinceScores();
+  if (!scores[province]) scores[province] = [];
+  scores[province].push({
+    time: Math.round(survivalTime * 10) / 10,
+    date: new Date().toISOString().split('T')[0]
+  });
+  if (scores[province].length > 200) scores[province] = scores[province].slice(-200);
+  try { localStorage.setItem('freezematch_province_scores', JSON.stringify(scores)); } catch(e) {}
+}
+
+function getProvinceRanking(province) {
+  const scores = getProvinceScores();
+  const allProvinces = Object.keys(scores).filter(p => scores[p].length >= 2);
+  if (allProvinces.length === 0) return { rank: 1, total: 1, avgTime: 0 };
+  const averages = allProvinces.map(p => {
+    const total = scores[p].reduce((sum, s) => sum + s.time, 0);
+    return { province: p, avg: total / scores[p].length };
+  });
+  averages.sort((a, b) => b.avg - a.avg);
+  const userEntry = averages.find(a => a.province === province);
+  if (!userEntry) return { rank: averages.length + 1, total: averages.length, avgTime: 0 };
+  const rank = averages.indexOf(userEntry) + 1;
+  return { rank, total: averages.length, avgTime: userEntry.avg };
+}
+
+// ============================================================
+// DAILY CHALLENGE (date-seeded RNG)
+// ============================================================
+function getDateSeed() {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+function createSeededRandom(seed) {
+  let s = seed | 0;
+  return function() {
+    s = (s * 1664525 + 1013904223) | 0;
+    return (s >>> 0) / 4294967296;
+  };
+}
+
+let dailyRandom = null;
+let isDailyMode = false;
+
+function setupDailyMode() {
+  const seed = getDateSeed();
+  dailyRandom = createSeededRandom(seed);
+  isDailyMode = true;
+}
+
+function getDailyRandom() {
+  if (!dailyRandom) setupDailyMode();
+  return dailyRandom();
+}
+
+function getDailyPlayerCount() {
+  const base = 3827;
+  const daysSince = Math.floor((Date.now() - new Date('2026-01-01').getTime()) / 86400000);
+  if (daysSince < 0) return base;
+  return base + daysSince * 137 + Math.floor(Math.sin(daysSince) * 200);
+}
+
+function playDailyChallenge() {
+  setupDailyMode();
+  isDailyMode = true;
+  try { localStorage.setItem('freezematch_daily_seed', getDateSeed()); } catch(e) {}
+}
+
+// ============================================================
+// DAILY LIVES (Daily Bonus)
+// ============================================================
+function getDailyFreeRevives() {
+  try {
+    const data = JSON.parse(localStorage.getItem('freezematch_daily_lives') || '{}');
+    const today = new Date().toISOString().split('T')[0];
+    if (data.date === today) return data.lives;
+    return 3;
+  } catch(e) { return 3; }
+}
+
+function useDailyFreeRevive() {
+  const current = getDailyFreeRevives();
+  if (current <= 0) return false;
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    localStorage.setItem('freezematch_daily_lives', JSON.stringify({ date: today, lives: current - 1 }));
+  } catch(e) {}
+  return true;
+}
+
+function addDailyFreeRevives(n) {
+  try {
+    const data = JSON.parse(localStorage.getItem('freezematch_daily_lives') || '{}');
+    const today = new Date().toISOString().split('T')[0];
+    const current = data.date === today ? (data.lives || 0) : 3;
+    const newLives = current + n;
+    localStorage.setItem('freezematch_daily_lives', JSON.stringify({ date: today, lives: newLives }));
+    return newLives;
+  } catch(e) { return 3; }
+}
+
+// ============================================================
+// AD SYSTEM (simulated rewarded video)
+// ============================================================
+let adCallback = null;
+let adTimer = 0;
+let adDuration = 15;
+let adInterval = null;
+
+const adModal = document.getElementById('ad-modal');
+const adTitle = document.getElementById('ad-title');
+const adDesc = document.getElementById('ad-desc');
+const adProgress = document.getElementById('ad-progress');
+const adTimerEl = document.getElementById('ad-timer');
+const adSkipBtn = document.getElementById('ad-skip');
+
+function showAdModal(callback, title, desc, duration) {
+  adCallback = callback;
+  adDuration = duration || 15;
+  adTimer = adDuration;
+  adTitle.textContent = title || '观看视频广告';
+  adDesc.textContent = desc || '广告播放后可获得奖励';
+  adProgress.style.width = '100%';
+  adTimerEl.textContent = adTimer;
+  adSkipBtn.style.display = 'block';
+  adModal.classList.remove('hidden');
+
+  // Simulate ad countdown
+  clearInterval(adInterval);
+  adInterval = setInterval(function() {
+    adTimer--;
+    const pct = (adTimer / adDuration) * 100;
+    adProgress.style.width = pct + '%';
+    adTimerEl.textContent = adTimer;
+    if (adTimer <= 0) {
+      clearInterval(adInterval);
+      onAdComplete();
+    }
+  }, 1000);
+}
+
+function onAdComplete() {
+  clearInterval(adInterval);
+  adModal.classList.add('hidden');
+  console.log('[ADS] Rewarded video ad completed — granting reward');
+  if (typeof adCallback === 'function') {
+    adCallback();
+    adCallback = null;
+  }
+}
+
+function onAdSkip() {
+  clearInterval(adInterval);
+  adModal.classList.add('hidden');
+  console.log('[ADS] Rewarded video ad skipped');
+  adCallback = null;
+}
+
+adSkipBtn.addEventListener('click', onAdSkip);
+
+// ============================================================
+// DOM REFS
+// ============================================================
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('game-container');
+
+const startScreen  = document.getElementById('start-screen');
+const levelClear   = document.getElementById('level-clear');
+const gameOver     = document.getElementById('game-over');
+const hintText     = document.getElementById('hint-text');
+const hud          = document.getElementById('hud');
+const hudScore     = document.getElementById('hud-score');
+const hudLevel     = document.getElementById('hud-level');
+const hudFrozen    = document.getElementById('hud-frozen');
+const hudTimeWrap  = document.getElementById('hud-time-wrap');
+const hudTime      = document.getElementById('hud-time');
+const hudThawWrap = document.getElementById('hud-thaw-wrap');
+const hudThaw     = document.getElementById('hud-thaw');
+const muteBtn     = document.getElementById('mute-btn');
+const shareTextarea = document.getElementById('share-textarea');
+
+// ============================================================
+// CANVAS SIZING
+// ============================================================
+const VW = 360;
+const VH = 660;
+
+function resizeCanvas() {
+  const ww = container.clientWidth;
+  const wh = container.clientHeight;
+  const scale = Math.min(ww / VW, wh / VH);
+  const cw = Math.floor(VW * scale);
+  const ch = Math.floor(VH * scale);
+  canvas.width = VW;
+  canvas.height = VH;
+  canvas.style.width = cw + 'px';
+  canvas.style.height = ch + 'px';
+}
+
+// ============================================================
+// AUDIO SYSTEM (Web Audio API)
+// ============================================================
+let audioCtx = null;
+let muted = false;
+
+function initAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+function playTone(freq, duration, type, vol) {
+  if (muted || !audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(vol || 0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch(e) {}
+}
+
+function playNoise(duration, vol) {
+  if (muted || !audioCtx) return;
+  try {
+    const bufferSize = audioCtx.sampleRate * duration;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+    }
+    const source = audioCtx.createBufferSource();
+    const gain = audioCtx.createGain();
+    source.buffer = buffer;
+    gain.gain.setValueAtTime(vol || 0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    source.start();
+  } catch(e) {}
+}
+
+function playFreezeSound() {
+  playTone(1760, 0.12, 'sine', 0.12);
+  playTone(2640, 0.08, 'sine', 0.06);
+}
+
+function playShatterSound() {
+  playNoise(0.15, 0.1);
+  playTone(600, 0.1, 'square', 0.08);
+  playTone(300, 0.15, 'sawtooth', 0.05);
+}
+
+function playComboSound(combo) {
+  const base = 660 + combo * 110;
+  playTone(base, 0.1, 'sine', 0.1);
+  setTimeout(() => playTone(base * 1.25, 0.1, 'sine', 0.08), 60);
+}
+
+function playLevelCompleteSound() {
+  playTone(523, 0.2, 'sine', 0.12);
+  setTimeout(() => playTone(659, 0.2, 'sine', 0.12), 150);
+  setTimeout(() => playTone(784, 0.3, 'sine', 0.14), 300);
+}
+
+function playGameOverSound() {
+  playTone(400, 0.2, 'sawtooth', 0.08);
+  setTimeout(() => playTone(300, 0.2, 'sawtooth', 0.06), 200);
+  setTimeout(() => playTone(200, 0.4, 'sawtooth', 0.05), 400);
+}
+
+function playThawWarningSound() {
+  playTone(180, 0.05, 'sine', 0.04);
+}
+
+// ============================================================
+// PARTICLE SYSTEM
+// ============================================================
+const particles = [];
+const MAX_PARTICLES = 500;
+
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 60 + Math.random() * 120;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 40,
+      color: color,
+      life: 0.5 + Math.random() * 0.5,
+      maxLife: 0.5 + Math.random() * 0.5,
+      size: 2 + Math.random() * 4,
+      type: Math.random() < 0.3 ? 'shard' : 'spark'
+    });
+  }
+  // Ice shard white particles
+  for (let i = 0; i < count * 0.4 && particles.length < MAX_PARTICLES; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 40 + Math.random() * 80;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 30,
+      color: '#ffffff',
+      life: 0.3 + Math.random() * 0.3,
+      maxLife: 0.3 + Math.random() * 0.3,
+      size: 1 + Math.random() * 2,
+      type: 'shard'
+    });
+  }
+}
+
+const snowflakes = [];
+function initSnow(count) {
+  snowflakes.length = 0;
+  for (let i = 0; i < count; i++) {
+    snowflakes.push({
+      x: Math.random() * VW,
+      y: Math.random() * VH,
+      speed: 10 + Math.random() * 20,
+      drift: 0.3 + Math.random() * 0.5,
+      size: 1 + Math.random() * 2,
+      opacity: 0.1 + Math.random() * 0.25,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+}
+initSnow(35);
+
+function updateSnow(dt) {
+  for (const s of snowflakes) {
+    s.y += s.speed * dt;
+    s.x += Math.sin(s.phase + s.y * 0.01) * s.drift;
+    s.phase += dt * 0.3;
+    if (s.y > VH) { s.y = -2; s.x = Math.random() * VW; }
+    if (s.x < -2) s.x = VW + 2;
+    if (s.x > VW + 2) s.x = -2;
+  }
+}
+
+// ============================================================
+// BLOCK SYSTEM
+// ============================================================
+let nextId = 0;
+function createBlock(col, colorIdx, y) {
+  return {
+    id: nextId++,
+    x: col * CELL_W + CELL_W / 2,
+    y: y || -BLOCK_SIZE,
+    col: col,
+    row: -1,
+    colorIdx: colorIdx,
+    state: 'falling',
+    speed: FALL_SPEED,
+    thawTimer: 0,
+    width: BLOCK_SIZE,
+    height: BLOCK_SIZE,
+    displayScale: 1,
+    opacity: 1
+  };
+}
+
+// ============================================================
+// GRID & GAME STATE
+// ============================================================
+const CELL_H = 56;
+let COLS, CELL_W, BLOCK_SIZE, ROWS, FALL_SPEED, SPAWN_INTERVAL, FREEZE_DURATION;
+let TARGET_CLEARS, LEVEL_DURATION, ACTIVE_COLORS;
+
+let game = {
+  state: 'start',
+  level: 1,
+  score: 0,
+  highScore: 0,
+  combo: 0,
+  chainCount: 0,
+  clearCount: 0,
+  frozenCount: 0,
+  thawCount: 0,
+
+  fallingBlocks: [],
+  grid: [],
+  spawnTimer: 0,
+  elapsed: 0,
+  levelElapsed: 0,
+  l2SurvivedTime: 0,
+
+  touches: 0,
+  hintFade: false,
+
+  screenShake: 0,
+  perfectFreezeFlash: 0,
+
+  // Commercial features
+  revived: false,
+  freezeExtended: false,
+  freezeExtensionBonus: 0,
+  dailyMode: false
+};
+
+// ============================================================
+// LEVEL CONFIG
+// ============================================================
+function setupLevel(level) {
+  game.level = level;
+  if (level === 1) {
+    COLS = 6;
+    ACTIVE_COLORS = 3;
+    SPAWN_INTERVAL = 1.5;
+    FALL_SPEED = 90;
+    FREEZE_DURATION = Infinity;
+    TARGET_CLEARS = 15;
+    LEVEL_DURATION = 30;
+  } else {
+    COLS = 4;
+    ACTIVE_COLORS = 6;
+    SPAWN_INTERVAL = 0.6;
+    FALL_SPEED = 140;
+    FREEZE_DURATION = 3.0 + game.freezeExtensionBonus;
+    TARGET_CLEARS = Infinity;
+    LEVEL_DURATION = 60;
+  }
+  CELL_W = VW / COLS;
+  BLOCK_SIZE = Math.min(CELL_W * 0.82, CELL_H * 0.85);
+  ROWS = Math.floor((VH - 80) / CELL_H);
+}
+
+// ============================================================
+// INIT GAME
+// ============================================================
+function initGame() {
+  setupLevel(1);
+
+  game.state = 'playing';
+  game.score = 0;
+  game.combo = 0;
+  game.chainCount = 0;
+  game.clearCount = 0;
+  game.frozenCount = 0;
+  game.thawCount = 0;
+  game.spawnTimer = 0;
+  game.elapsed = 0;
+  game.levelElapsed = 0;
+  game.l2SurvivedTime = 0;
+  game.touches = 0;
+  game.hintFade = false;
+  game.screenShake = 0;
+  game.perfectFreezeFlash = 0;
+  game.fallingBlocks = [];
+  game.revived = false;
+  game.freezeExtended = false;
+  game.dailyMode = isDailyMode;
+
+  game.grid = [];
+  for (let r = 0; r < ROWS; r++) {
+    game.grid[r] = new Array(COLS).fill(null);
+  }
+
+  hudScore.textContent = '0';
+  hudLevel.textContent = 'Lv.1';
+  hudFrozen.textContent = '0';
+  hudTimeWrap.style.display = 'block';
+  hudTime.textContent = LEVEL_DURATION;
+  hudThawWrap.style.display = 'none';
+  hudThaw.textContent = '0';
+
+  hintText.classList.remove('hidden');
+
+  startScreen.classList.add('hidden');
+  levelClear.classList.add('hidden');
+  gameOver.classList.add('hidden');
+  hud.classList.remove('hidden');
+
+  nextId = 0;
+  particles.length = 0;
+}
+
+function startLevel(level) {
+  setupLevel(level);
+
+  game.state = 'playing';
+  game.spawnTimer = 1.0;
+  game.levelElapsed = 0;
+  game.l2SurvivedTime = 0;
+  game.thawCount = 0;
+  game.combo = 0;
+  game.chainCount = 0;
+  game.fallingBlocks = [];
+
+  // Clear grid
+  for (let r = 0; r < ROWS; r++) {
+    game.grid[r] = new Array(COLS).fill(null);
+  }
+  game.frozenCount = 0;
+
+  hudLevel.textContent = level === 1 ? 'Lv.1' : 'Lv.2';
+  hudTime.textContent = LEVEL_DURATION;
+  hudThawWrap.style.display = level === 2 ? 'block' : 'none';
+  hudThaw.textContent = '0';
+  hudFrozen.textContent = '0';
+
+  hintText.classList.add('hidden');
+
+  levelClear.classList.add('hidden');
+  gameOver.classList.add('hidden');
+  hud.classList.remove('hidden');
+}
+
+// ============================================================
+// RANDOM HELPER (daily-aware)
+// ============================================================
+function getGameRandom() {
+  return (game.dailyMode && dailyRandom) ? dailyRandom() : Math.random();
+}
+
+// ============================================================
+// GAME MECHANICS
+// ============================================================
+function spawnBlock() {
+  const col = Math.floor(getGameRandom() * COLS);
+  const colorIdx = Math.floor(getGameRandom() * ACTIVE_COLORS);
+  const block = createBlock(col, colorIdx, -BLOCK_SIZE);
+  game.fallingBlocks.push(block);
+}
+
+function freezeBlock(block) {
+  // Determine grid position
+  const col = Math.round(block.x / CELL_W);
+  const c = Math.max(0, Math.min(COLS - 1, col));
+
+  // Calculate row based on y position
+  let r = Math.floor((block.y - 15) / CELL_H);
+  r = Math.max(0, Math.min(ROWS - 1, r));
+
+  // Find nearest empty cell in this column, searching downward first
+  let targetRow = r;
+  let found = false;
+  // Search down
+  for (let rr = r; rr < ROWS; rr++) {
+    if (!game.grid[rr][c]) { targetRow = rr; found = true; break; }
+  }
+  // Search up if not found below
+  if (!found) {
+    for (let rr = r - 1; rr >= 0; rr--) {
+      if (!game.grid[rr][c]) { targetRow = rr; found = true; break; }
+    }
+  }
+  // Game over if column is full
+  if (!found) {
+    triggerGameOver();
+    return;
+  }
+
+  // Place block in grid
+  game.grid[targetRow][c] = block;
+  block.row = targetRow;
+  block.col = c;
+  block.state = 'frozen';
+  block.x = c * CELL_W + CELL_W / 2;
+  block.y = 15 + targetRow * CELL_H + CELL_H / 2;
+
+  if (FREEZE_DURATION !== Infinity) {
+    block.thawTimer = FREEZE_DURATION;
+  }
+
+  game.frozenCount++;
+  hudFrozen.textContent = game.frozenCount;
+
+  // Remove from falling blocks
+  const idx = game.fallingBlocks.indexOf(block);
+  if (idx !== -1) game.fallingBlocks.splice(idx, 1);
+
+  // Play freeze sound
+  playFreezeSound();
+
+  // Perfect freeze check
+  const colCenter = c * CELL_W + CELL_W / 2;
+  if (Math.abs(block.x - colCenter) < CELL_W * 0.1) {
+    block.perfectFreeze = true;
+    game.perfectFreezeFlash = 0.3;
+  } else {
+    block.perfectFreeze = false;
+  }
+
+  // Check for matches
+  checkMatches();
+}
+
+function reFreezeBlock(block) {
+  if (block.state === 'frozen' && FREEZE_DURATION !== Infinity) {
+    block.thawTimer = FREEZE_DURATION;
+    playFreezeSound();
+  }
+}
+
+function checkMatches() {
+  let anyMatch = true;
+  game.chainCount = 0;
+
+  while (anyMatch) {
+    anyMatch = false;
+    const visited = new Array(ROWS).fill(null).map(() => new Array(COLS).fill(false));
+    const matches = [];
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const block = game.grid[r][c];
+        if (!block || visited[r][c]) continue;
+
+        if (block.state !== 'frozen') continue;
+
+        // BFS to find connected same-color
+        const group = [];
+        const queue = [{ row: r, col: c }];
+        visited[r][c] = true;
+
+        while (queue.length > 0) {
+          const cur = queue.shift();
+          const curBlock = game.grid[cur.row][cur.col];
+          if (!curBlock || curBlock.colorIdx !== block.colorIdx || curBlock.state !== 'frozen') continue;
+
+          group.push(cur);
+
+          const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+          for (const [dr, dc] of dirs) {
+            const nr = cur.row + dr;
+            const nc = cur.col + dc;
+            if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && !visited[nr][nc]) {
+              visited[nr][nc] = true;
+              queue.push({ row: nr, col: nc });
+            }
+          }
+        }
+
+        if (group.length >= 3) {
+          matches.push(group);
+        }
+      }
+    }
+
+    if (matches.length > 0) {
+      anyMatch = true;
+      game.chainCount++;
+
+      let totalCleared = 0;
+      for (const group of matches) {
+        const pts = group.length === 3 ? 100 : group.length === 4 ? 200 : 500;
+        let scoreGain = pts * game.level;
+        if (game.chainCount > 1) scoreGain *= 2; // chain combo
+
+        // Check for perfect freeze bonus
+        for (const pos of group) {
+          const b = game.grid[pos.row][pos.col];
+          if (b && b.perfectFreeze) scoreGain = Math.round(scoreGain * 1.5);
+        }
+
+        game.score += scoreGain;
+        totalCleared += group.length;
+
+        // Spawn shatter particles
+        for (const pos of group) {
+          const b = game.grid[pos.row][pos.col];
+          if (b) {
+            const px = b.x;
+            const py = b.y;
+            spawnParticles(px, py, COLORS[b.colorIdx], 12);
+            // Clear from grid
+            game.grid[pos.row][pos.col] = null;
+            game.frozenCount--;
+          }
+        }
+      }
+
+      game.clearCount += totalCleared;
+
+      // Immediate level clear if target reached (Level 1)
+      if (game.level === 1 && game.clearCount >= TARGET_CLEARS && game.state === 'playing') {
+        triggerLevelClear();
+        return;
+      }
+
+      hudScore.textContent = game.score;
+      hudFrozen.textContent = game.frozenCount;
+
+      playShatterSound();
+      if (game.chainCount > 1) playComboSound(game.chainCount);
+
+      game.screenShake = 0.12;
+
+      // Apply gravity
+      applyGravity();
+    }
+  }
+}
+
+function applyGravity() {
+  for (let c = 0; c < COLS; c++) {
+    // Compact blocks downward in this column
+    let writeRow = ROWS - 1;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (game.grid[r][c] !== null) {
+        if (r !== writeRow) {
+          game.grid[writeRow][c] = game.grid[r][c];
+          game.grid[r][c] = null;
+          game.grid[writeRow][c].row = writeRow;
+          game.grid[writeRow][c].y = 15 + writeRow * CELL_H + CELL_H / 2;
+        }
+        writeRow--;
+      }
+    }
+    // Clear remaining cells above
+    for (let r = writeRow; r >= 0; r--) {
+      game.grid[r][c] = null;
+    }
+  }
+}
+
+function updateThawing(dt) {
+  if (FREEZE_DURATION === Infinity) return;
+
+  game.thawCount = 0;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const block = game.grid[r][c];
+      if (!block || block.state !== 'frozen') continue;
+      if (block.thawTimer <= 0) continue;
+
+      block.thawTimer -= dt;
+      if (block.thawTimer <= 0) {
+        // Block thaws - remove from grid, becomes falling block
+        block.state = 'falling';
+        block.y = 15 + r * CELL_H + CELL_H / 2;
+        block.speed = FALL_SPEED;
+        block.col = c;
+        game.grid[r][c] = null;
+        game.frozenCount--;
+        game.fallingBlocks.push(block);
+
+        // Play thaw sound
+        playThawWarningSound();
+      } else {
+        game.thawCount++;
+      }
+    }
+  }
+
+  hudThaw.textContent = game.thawCount;
+  hudFrozen.textContent = game.frozenCount;
+
+  if (game.thawCount > 0) {
+    hudThaw.classList.toggle('warning', game.thawCount > 3);
+  }
+}
+
+// ============================================================
+// GAME OVER DETECTION
+// ============================================================
+function checkGameOver() {
+  // Game over if any frozen block reaches row 0
+  for (let c = 0; c < COLS; c++) {
+    if (game.grid[0][c] !== null) {
+      triggerGameOver();
+      return true;
+    }
+  }
+
+  // Level 1: time limit
+  if (game.level === 1 && game.levelElapsed >= LEVEL_DURATION) {
+    if (game.clearCount >= TARGET_CLEARS) {
+      // Level clear!
+      triggerLevelClear();
+      return true;
+    } else {
+      triggerGameOver();
+      return true;
+    }
+  }
+
+  // Level 2: survival complete
+  if (game.level === 2 && game.levelElapsed >= LEVEL_DURATION) {
+    triggerGameOver();
+    return true;
+  }
+
+  return false;
+}
+
+// ============================================================
+// TRIGGERS
+// ============================================================
+function triggerLevelClear() {
+  game.state = 'levelClear';
+  playLevelCompleteSound();
+
+  if (game.level === 1) {
+    levelClear.classList.remove('hidden');
+  }
+}
+
+function triggerGameOver() {
+  if (game.state === 'gameOver') return;
+  game.state = 'gameOver';
+  playGameOverSound();
+
+  const rating = getRating();
+  document.getElementById('go-rating-emoji').textContent = rating.emoji;
+  document.getElementById('go-rating-text').textContent = rating.name;
+
+  let stats = '';
+  if (game.level === 1) {
+    stats = '关卡: Lv.1 冰晶试炼\n';
+    stats += '得分: ' + game.score + '\n';
+    stats += '消除: ' + game.clearCount + ' / ' + TARGET_CLEARS + ' 块';
+    if (game.clearCount >= TARGET_CLEARS) stats += ' ✓';
+  } else {
+    stats = '关卡: Lv.2 冰封地狱\n';
+    stats += '得分: ' + game.score + '\n';
+    stats += '存活: ' + game.l2SurvivedTime.toFixed(1) + ' / 60 秒\n';
+    stats += '评级: ' + rating.name;
+  }
+  document.getElementById('go-stats').textContent = stats;
+
+  if (game.score > game.highScore) {
+    game.highScore = game.score;
+    try { localStorage.setItem('freezematch_highscore', game.highScore); } catch(e) {}
+  }
+
+  // Province tag
+  const province = getUserProvince();
+  const provEl = document.getElementById('go-province');
+  if (province) {
+    provEl.textContent = '🏴 ' + province;
+    provEl.style.display = 'block';
+
+    // Save score and show ranking
+    if (game.level === 2) {
+      addProvinceScore(province, game.l2SurvivedTime);
+      const ranking = getProvinceRanking(province);
+      const rankEl = document.getElementById('go-ranking');
+      if (ranking.total >= 1) {
+        rankEl.textContent = province + '省 当前排名: 第' + ranking.rank + '名 / 共' + ranking.total + '省（平均' + ranking.avgTime.toFixed(1) + '秒）';
+      } else {
+        rankEl.textContent = province + '省 暂无排名数据';
+      }
+    } else {
+      document.getElementById('go-ranking').textContent = '通过L1即可加入省份排名!';
+    }
+  } else {
+    provEl.style.display = 'none';
+    document.getElementById('go-ranking').textContent = '选择省份即可加入排名!';
+  }
+
+  // Revive button (if not used yet)
+  const reviveBtn = document.getElementById('revive-btn');
+  if (!game.revived && game.level === 2) {
+    reviveBtn.style.display = 'block';
+  } else {
+    reviveBtn.style.display = 'none';
+  }
+
+  // Freeze extend button (Level 2 only, if not extended yet)
+  const freezeExtBtn = document.getElementById('freeze-ext-btn');
+  if (game.level === 2 && !game.freezeExtended) {
+    freezeExtBtn.style.display = 'block';
+  } else {
+    freezeExtBtn.style.display = 'none';
+  }
+
+  gameOver.classList.remove('hidden');
+  hud.classList.add('hidden');
+}
+
+function getRating() {
+  if (game.level === 1) {
+    return RATING_CONFIG[0];
+  }
+  const t = game.l2SurvivedTime;
+  for (let i = RATING_CONFIG.length - 1; i >= 0; i--) {
+    if (t >= RATING_CONFIG[i].time && i > 0) return RATING_CONFIG[i];
+  }
+  return RATING_CONFIG[1];
+}
+
+// ============================================================
+// REVIVE & FREEZE EXTEND
+// ============================================================
+function doRevive() {
+  game.revived = true;
+  game.state = 'playing';
+
+  // Reset grid: clear any blocks reaching top, compact others
+  const clearedRows = [];
+  for (let c = 0; c < COLS; c++) {
+    if (game.grid[0][c] !== null) {
+      // Remove top block and all above it
+      for (let r = 0; r < ROWS; r++) {
+        if (game.grid[r][c] !== null) {
+          game.grid[r][c] = null;
+          game.frozenCount--;
+        }
+      }
+    }
+  }
+  applyGravity();
+
+  // Reset some game state
+  game.levelElapsed = Math.max(0, game.levelElapsed - 3); // Give 3 seconds grace
+  game.thawCount = 0;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const b = game.grid[r][c];
+      if (b && b.state === 'frozen') {
+        b.thawTimer = FREEZE_DURATION;
+      }
+    }
+  }
+
+  hud.classList.remove('hidden');
+  gameOver.classList.add('hidden');
+
+  console.log('[ADS] Player revived after watching ad');
+}
+
+function doFreezeExtend() {
+  game.freezeExtended = true;
+  game.freezeExtensionBonus += 5;
+  gameOver.classList.add('hidden');
+  hud.classList.remove('hidden');
+
+  // Restart Level 2 with extended freeze
+  startLevel(2);
+  console.log('[ADS] Freeze extended by 5 seconds (total bonus: ' + game.freezeExtensionBonus + 's)');
+}
+
+// ============================================================
+// TAP HANDLING
+// ============================================================
+function handleTap(vx, vy) {
+  if (game.state !== 'playing') return;
+
+  initAudio();
+
+  // Check falling blocks first (top layer, check bottom-most falling block first)
+  for (let i = game.fallingBlocks.length - 1; i >= 0; i--) {
+    const block = game.fallingBlocks[i];
+    const dx = vx - block.x;
+    const dy = vy - block.y;
+    const half = BLOCK_SIZE * 0.5;
+    if (Math.abs(dx) < half + 4 && Math.abs(dy) < half + 4) {
+      freezeBlock(block);
+      game.touches++;
+      if (game.touches >= 1) {
+        hintText.classList.add('hidden');
+      }
+      return;
+    }
+  }
+
+  // Level 2: Check frozen blocks for re-freeze
+  if (game.level === 2) {
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const block = game.grid[r][c];
+        if (!block || block.state !== 'frozen') continue;
+        const dx = vx - block.x;
+        const dy = vy - block.y;
+        const half = BLOCK_SIZE * 0.5;
+        if (Math.abs(dx) < half + 4 && Math.abs(dy) < half + 4) {
+          reFreezeBlock(block);
+          return;
+        }
+      }
+    }
+  }
+}
+
+// ============================================================
+// UPDATE
+// ============================================================
+function update(dt) {
+  if (game.state !== 'playing') return;
+
+  game.elapsed += dt;
+  game.levelElapsed += dt;
+  if (game.level === 2) game.l2SurvivedTime += dt;
+
+  // Spawn timer
+  let spawnInterval = SPAWN_INTERVAL;
+  if (game.level === 2) {
+    // Accelerating spawn rate
+    const progress = Math.min(game.levelElapsed / LEVEL_DURATION, 1);
+    spawnInterval = 0.6 - progress * 0.3; // 0.6s -> 0.3s
+    spawnInterval = Math.max(0.25, spawnInterval);
+    // Accelerating fall speed
+    FALL_SPEED = 140 + progress * 80; // 140 -> 220
+  }
+
+  game.spawnTimer -= dt;
+  if (game.spawnTimer <= 0) {
+    spawnBlock();
+    game.spawnTimer = spawnInterval;
+  }
+
+  // Update falling blocks
+  for (let i = game.fallingBlocks.length - 1; i >= 0; i--) {
+    const block = game.fallingBlocks[i];
+    // Accelerate falling speed slightly for more dynamic feel
+    const speed = block.speed * (1 + game.elapsed * 0.002);
+    block.y += speed * dt;
+    block.x = block.col * CELL_W + CELL_W / 2; // stay in column
+
+    // Remove if fallen off screen
+    if (block.y > VH + BLOCK_SIZE) {
+      game.fallingBlocks.splice(i, 1);
+    }
+  }
+
+  // Update thawing (Level 2)
+  if (FREEZE_DURATION !== Infinity) {
+    updateThawing(dt);
+  }
+
+  // Update HUD timer
+  const remaining = Math.max(0, LEVEL_DURATION - game.levelElapsed);
+  const timeDisplay = game.level === 1 ? Math.ceil(remaining) : Math.ceil(remaining);
+  hudTime.textContent = timeDisplay;
+
+  // Check game over
+  if (checkGameOver()) return;
+
+  // Update particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 300 * dt; // gravity
+    p.life -= dt;
+    p.opacity = Math.max(0, p.life / p.maxLife);
+    if (p.life <= 0) {
+      particles.splice(i, 1);
+    }
+  }
+
+  // Screen shake decay
+  if (game.screenShake > 0) game.screenShake -= dt;
+
+  // Perfect freeze flash decay
+  if (game.perfectFreezeFlash > 0) game.perfectFreezeFlash -= dt;
+
+  // Snow
+  updateSnow(dt);
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function render() {
+  ctx.save();
+
+  // Screen shake
+  if (game.screenShake > 0) {
+    const intensity = game.screenShake * 4;
+    ctx.translate(
+      (Math.random() - 0.5) * intensity,
+      (Math.random() - 0.5) * intensity
+    );
+  }
+
+  // Background gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, VH);
+  grad.addColorStop(0, '#0a0a1a');
+  grad.addColorStop(0.5, '#0f0f2a');
+  grad.addColorStop(1, '#1a1a3a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(-10, -10, VW + 20, VH + 20);
+
+  // Grid lines (subtle)
+  if (game.state === 'playing') {
+    ctx.strokeStyle = 'rgba(100,130,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let r = 0; r <= ROWS; r++) {
+      const y = 15 + r * CELL_H;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(VW, y);
+      ctx.stroke();
+    }
+    for (let c = 0; c <= COLS; c++) {
+      const x = c * CELL_W;
+      ctx.beginPath();
+      ctx.moveTo(x, 15);
+      ctx.lineTo(x, 15 + ROWS * CELL_H);
+      ctx.stroke();
+    }
+  }
+
+  // Snow (background)
+  for (const s of snowflakes) {
+    ctx.fillStyle = `rgba(255,255,255,${s.opacity})`;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Render frozen blocks
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const block = game.grid[r][c];
+      if (block) renderBlock(block);
+    }
+  }
+
+  // Render falling blocks
+  for (const block of game.fallingBlocks) {
+    renderBlock(block);
+  }
+
+  // Render particles
+  for (const p of particles) {
+    ctx.globalAlpha = p.life / p.maxLife;
+    if (p.type === 'shard') {
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - p.size, p.y - p.size/2, p.size * 2, p.size);
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Perfect freeze flash
+  if (game.perfectFreezeFlash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${game.perfectFreezeFlash * 0.3})`;
+    ctx.fillRect(0, 0, VW, VH);
+  }
+
+  ctx.restore();
+}
+
+function renderBlock(block) {
+  const bx = block.x - block.width / 2;
+  const by = block.y - block.height / 2;
+  const bw = block.width;
+  const bh = block.height;
+  const r = 4;
+
+  if (block.state === 'falling') {
+    // Falling block - solid color with glow
+    ctx.save();
+
+    // Glow
+    ctx.shadowColor = COLORS[block.colorIdx];
+    ctx.shadowBlur = 12;
+
+    ctx.fillStyle = COLORS[block.colorIdx];
+    roundRect(ctx, bx, by, bw, bh, r);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // Highlight
+    ctx.fillStyle = COLOR_LIGHT[block.colorIdx];
+    roundRect(ctx, bx + 2, by + 2, bw * 0.4, bh * 0.3, 2);
+    ctx.fill();
+
+    ctx.restore();
+
+  } else if (block.state === 'frozen') {
+    // Frozen block - ice crystal effect
+    ctx.save();
+
+    const thawRatio = FREEZE_DURATION !== Infinity ? Math.max(0, block.thawTimer / FREEZE_DURATION) : 1;
+
+    // Ice glow border
+    const borderGlow = FREEZE_DURATION !== Infinity && thawRatio < 0.4
+      ? 8 + (1 - thawRatio) * 4
+      : 6;
+
+    // Pulse red when close to thawing
+    if (FREEZE_DURATION !== Infinity && thawRatio < 0.4) {
+      const pulse = Math.sin(game.elapsed * (8 + (1 - thawRatio) * 6)) * 0.5 + 0.5;
+      const red = Math.round(255 * (1 - thawRatio) * pulse);
+      ctx.shadowColor = `rgba(255,${50 + Math.round(50 * thawRatio)},50,0.6)`;
+      ctx.shadowBlur = borderGlow;
+      ctx.strokeStyle = `rgba(255,${80 + Math.round(80 * thawRatio)},80,0.8)`;
+    } else {
+      ctx.shadowColor = 'rgba(200,220,255,0.5)';
+      ctx.shadowBlur = borderGlow;
+      ctx.strokeStyle = 'rgba(200,220,255,0.7)';
+    }
+
+    // Frosted fill (semi-transparent)
+    const fillAlpha = 0.35 + thawRatio * 0.25;
+    ctx.fillStyle = `rgba(${hexToRgb(COLORS[block.colorIdx])},${fillAlpha})`;
+    roundRect(ctx, bx, by, bw, bh, r);
+    ctx.fill();
+
+    // Border
+    ctx.lineWidth = 2;
+    roundRect(ctx, bx, by, bw, bh, r);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+
+    // Crystal shine lines
+    ctx.strokeStyle = `rgba(255,255,255,${(0.15 + thawRatio * 0.1)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(bx + 4, by + 4);
+    ctx.lineTo(bx + bw * 0.5, by + bh * 0.3);
+    ctx.lineTo(bx + bw - 4, by + 4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx + 4, by + bh - 4);
+    ctx.lineTo(bx + bw * 0.6, by + bh * 0.7);
+    ctx.lineTo(bx + bw - 4, by + bh - 4);
+    ctx.stroke();
+
+    // Sparkle dots
+    const sparkleTime = game.elapsed * 2;
+    for (let i = 0; i < 3; i++) {
+      const sx = bx + 4 + ((i * 7 + 3) % bw - 4);
+      const sy = by + 4 + ((i * 11 + 5) % bh - 4);
+      const sparkle = Math.sin(sparkleTime + i * 2.1) * 0.3 + 0.4;
+      ctx.fillStyle = `rgba(255,255,255,${sparkle})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Thaw timer bar (Level 2)
+    if (FREEZE_DURATION !== Infinity) {
+      const barW = bw - 4;
+      const barH = 3;
+      const barX = bx + 2;
+      const barY = by - 5;
+      const fillRatio = Math.max(0, thawRatio);
+
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      roundRect(ctx, barX, barY, barW, barH, 1.5);
+      ctx.fill();
+
+      const barColor = fillRatio > 0.5
+        ? `rgba(100,200,255,${0.5 + fillRatio * 0.3})`
+        : `rgba(255,${80 + Math.round(120 * fillRatio)},80,0.7)`;
+      ctx.fillStyle = barColor;
+      roundRect(ctx, barX, barY, barW * fillRatio, barH, 1.5);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function hexToRgb(hex) {
+  const v = parseInt(hex.slice(1), 16);
+  return `${(v >> 16) & 255},${(v >> 8) & 255},${v & 255}`;
+}
+
+// ============================================================
+// GAME LOOP
+// ============================================================
+let lastTime = 0;
+
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+
+  update(dt);
+  render();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ============================================================
+// PROVINCE SELECTOR
+// ============================================================
+function initProvinceSelector() {
+  const grid = document.getElementById('pv-grid');
+  grid.innerHTML = '';
+  for (const p of PROVINCES) {
+    const el = document.createElement('div');
+    el.className = 'pv-item';
+    el.textContent = p;
+    el.addEventListener('click', function() {
+      setUserProvince(p);
+      closeProvinceSelector();
+      updateStartScreen();
+    });
+    grid.appendChild(el);
+  }
+}
+
+function showProvinceSelector() {
+  document.getElementById('province-overlay').classList.remove('hidden');
+}
+
+function closeProvinceSelector() {
+  document.getElementById('province-overlay').classList.add('hidden');
+}
+
+document.getElementById('pv-skip').addEventListener('click', function() {
+  const r = getRandomProvince();
+  setUserProvince(r);
+  closeProvinceSelector();
+  updateStartScreen();
+});
+
+// ============================================================
+// START SCREEN UPDATES
+// ============================================================
+function updateStartScreen() {
+  const province = getUserProvince();
+
+  // Daily challenge badge
+  const badge = document.getElementById('daily-badge-el');
+  const seed = getDateSeed();
+  const playedToday = isDailyMode;
+  if (playedToday) {
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+
+  // Daily player count
+  const count = getDailyPlayerCount();
+  const countEl = document.getElementById('daily-count');
+  countEl.textContent = '今日已有 ' + count.toLocaleString() + ' 人挑战';
+
+  // Daily lives display
+  const lives = getDailyFreeRevives();
+  const livesEl = document.getElementById('daily-lives-display');
+  livesEl.textContent = '今日免费复活剩余: ' + lives + ' 次';
+
+  // Daily bonus button
+  const bonusBtn = document.getElementById('daily-bonus-btn');
+  bonusBtn.style.display = 'block';
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+function getCanvasPos(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY
+  };
+}
+
+canvas.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  const t = e.touches[0];
+  if (!t) return;
+  const pos = getCanvasPos(t.clientX, t.clientY);
+  handleTap(pos.x, pos.y);
+}, { passive: false });
+
+canvas.addEventListener('mousedown', function(e) {
+  const pos = getCanvasPos(e.clientX, e.clientY);
+  handleTap(pos.x, pos.y);
+});
+
+document.getElementById('start-btn').addEventListener('click', function() {
+  initAudio();
+  // Check province
+  if (!getUserProvince()) {
+    showProvinceSelector();
+    return;
+  }
+  initGame();
+});
+
+document.getElementById('l2-btn').addEventListener('click', function() {
+  initAudio();
+  startLevel(2);
+});
+
+// Revive button
+document.getElementById('revive-btn').addEventListener('click', function() {
+  initAudio();
+  // Check free daily revives first
+  const freeRevives = getDailyFreeRevives();
+  if (freeRevives > 0) {
+    useDailyFreeRevive();
+    doRevive();
+    // Update start screen lives display
+    updateStartScreen();
+  } else {
+    // Watch ad to revive
+    showAdModal(
+      function() {
+        doRevive();
+      },
+      '免费复活',
+      '观看15秒视频即可免费复活继续游戏'
+    );
+  }
+});
+
+// Freeze extend button
+document.getElementById('freeze-ext-btn').addEventListener('click', function() {
+  initAudio();
+  showAdModal(
+    function() {
+      doFreezeExtend();
+    },
+      '冻时延长',
+      '观看15秒视频获得 +5 秒冻结时间'
+  );
+});
+
+// Daily bonus button
+document.getElementById('daily-bonus-btn').addEventListener('click', function() {
+  initAudio();
+  showAdModal(
+    function() {
+      const lives = addDailyFreeRevives(2);
+      document.getElementById('daily-lives-display').textContent = '今日免费复活剩余: ' + lives + ' 次';
+      document.getElementById('daily-bonus-btn').textContent = '✅ 已领取 +2 复活次数';
+      document.getElementById('daily-bonus-btn').style.opacity = '0.5';
+      document.getElementById('daily-bonus-btn').style.pointerEvents = 'none';
+      console.log('[ADS] Daily bonus granted: +2 free revives');
+    },
+    '额外生命',
+    '观看15秒视频获得额外 x2 免费复活次数'
+  );
+});
+
+document.getElementById('retry-btn').addEventListener('click', function() {
+  initAudio();
+  initGame();
+});
+
+document.getElementById('share-btn').addEventListener('click', function() {
+  const rating = getRating();
+  const province = getUserProvince();
+  const provinceTag = province ? '我为[' + province + ']出战！' : '';
+  let shareText = '\u{1f9ca} 冰冻消除 FreezeMatch\n';
+  if (game.level === 1) {
+    shareText += '我在冰晶试炼中得分: ' + game.score + '\n';
+  } else {
+    shareText += provinceTag + '在冰封地狱中存活 ' + game.l2SurvivedTime.toFixed(1) + '秒\n';
+    shareText += '得分: ' + game.score + '\n';
+    shareText += '评级: ' + rating.name + ' ' + rating.emoji + '\n';
+  }
+  shareText += '\n你能比我更久吗？\n\n#冰冻消除 #FreezeMatch';
+
+  // Clipboard copy
+  shareTextarea.value = shareText;
+  shareTextarea.select();
+  try {
+    document.execCommand('copy');
+    // Visual feedback
+    const btn = document.getElementById('share-btn');
+    btn.textContent = '已复制!';
+    setTimeout(() => btn.textContent = '分享', 1500);
+  } catch(e) {
+    // Fallback: show in alert
+    prompt('复制分享文本:', shareText);
+  }
+});
+
+muteBtn.addEventListener('click', function() {
+  muted = !muted;
+  muteBtn.textContent = muted ? '\u{1f507}' : '\u{1f50a}';
+});
+
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', function() {
+  setTimeout(resizeCanvas, 200);
+});
+
+// ============================================================
+// INIT
+// ============================================================
+try {
+  const hs = localStorage.getItem('freezematch_highscore');
+  if (hs) game.highScore = parseInt(hs) || 0;
+} catch(e) {}
+
+// Restore province
+getUserProvince();
+
+// Init province selector
+initProvinceSelector();
+
+// Update start screen with daily info
+updateStartScreen();
+
+resizeCanvas();
+initSnow(35);
+lastTime = performance.now();
+gameLoop(lastTime);
+
+// ============================================================
+// GUILD VERIFICATION SUPPORT
+// ============================================================
+console.log('FreezeMatch 冰冻消除 v2.0 loaded');
+console.log('Mechanic: Tap falling blocks to freeze. Match 3+ same-color frozen blocks to shatter.');
+console.log('Monetization: IAA rewarded video ads (revive, freeze extend, daily bonus)');
+console.log('Social: Province ranking, daily challenge, share with province tag');
+
+})();
+</script>
+</body>
+</html>
