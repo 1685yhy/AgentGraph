@@ -53,6 +53,8 @@ canvas{display:block;touch-action:manipulation}
 .province-chip.selected{background:rgba(246,211,101,0.2);border-color:#f6d365;color:#f6d365}
 #tutorial-hand{position:fixed;pointer-events:none;z-index:90;font-size:32px;animation:tapPoint 1.5s ease-out infinite}
 @keyframes tapPoint{0%{transform:translate(-50%,-50%) scale(0.8);opacity:0}30%{opacity:1}100%{transform:translate(-50%,-80%) scale(1.1);opacity:0}}
+.sp .bf{font-size:64px;display:block;margin-bottom:8px}
+.sp .bd{font-size:36px;font-weight:800;color:#f6d365}
 .hidden{display:none!important}
 </style>
 </head>
@@ -60,7 +62,7 @@ canvas{display:block;touch-action:manipulation}
 
 <div id="game-header">
   <div class="title">🧩 StackMatch</div>
-  <div class="stats">🏆 <span id="win-count">0</span> | 💀 <span id="lose-count">0</span> | 📍 <span id="province-label">-</span></div>
+  <div class="stats"><span id="daily-plays-label">🎮x3</span> <span id="streak-label">🔥x0</span> 🏆<span id="win-count">0</span> 📍<span id="province-label">-</span></div>
 </div>
 
 <div id="game-canvas-wrap">
@@ -83,7 +85,7 @@ canvas{display:block;touch-action:manipulation}
 // -- Game State Tracking --
 let gameState = 'init'; // init|playing|paused|won|lost
 const EMOJIS = ['🍎','🍊','🍋','🍇','🍓','🌸','🌻','🍀','💎','🔥','⭐','🦊','🐸','🐼','🦋','🐙'];
-const MAX_SLOTS = 7;
+let MAX_SLOTS = 7;
 const MATCH_COUNT = 3;
 const DAILY_SEED = Math.floor(Date.now() / 86400000); // 每日种子
 
@@ -106,6 +108,14 @@ let winCount = parseInt(lsGet('sm_wins', '0'));
 let loseCount = parseInt(lsGet('sm_losses', '0'));
 let moveHistory = [];     // for undo
 let currentLevel = 1;
+let dailyPlays = parseInt(lsGet('sm_daily_plays', '0'));
+let dailyDate = lsGet('sm_daily_date', '');
+let streak = parseInt(lsGet('sm_streak', '0'));
+let lastPlayDate = lsGet('sm_last_play_date', '');
+let flies = [];
+let slotsBoosted = false;
+let earnedPowerUps = JSON.parse(lsGet('sm_powerups', '{}'));
+let dailySessionStarted = false;
 
 // -- Audio Context (触发的初始化 — 避免Gate 3行为检查) --
 let _audioCtx = null;
@@ -133,6 +143,7 @@ function sfxClick() { playBeep(800, 0.08, 'sine', 0.06); }
 function sfxMatch() { playBeep(523, 0.1, 'sine', 0.08); setTimeout(() => playBeep(659, 0.1, 'sine', 0.08), 80); setTimeout(() => playBeep(784, 0.15, 'sine', 0.08), 160); }
 function sfxFail() { playBeep(200, 0.3, 'sawtooth', 0.1); }
 function sfxWin() { playBeep(523, 0.12, 'sine', 0.1); setTimeout(() => playBeep(659, 0.12, 'sine', 0.1), 100); setTimeout(() => playBeep(784, 0.12, 'sine', 0.1), 200); setTimeout(() => playBeep(1047, 0.25, 'sine', 0.1), 300); }
+function haptic(ms) { try { navigator.vibrate(ms); } catch(e) {} }
 
 // -- Safe localStorage wrapper (try-catch保护) --
 function lsGet(key, fallback) {
@@ -169,6 +180,9 @@ function generateTiles(level, useSeed = false) {
   score = 0;
   moves = 0;
   currentLevel = level;
+  MAX_SLOTS = 7;
+  slotsBoosted = false;
+  extraSlotGranted = false;
 
   const rng = useSeed ? seededRandom(DAILY_SEED + level * 1000) : seededRandom(Date.now() % 2147483647);
 
@@ -365,6 +379,11 @@ function onTileClick(tileId) {
     slotsSnapshot: JSON.parse(JSON.stringify(slots))
   });
 
+  // Fly animation
+  const flyFrom = tileCenter(tile);
+  spawnFly(tile.type, flyFrom.x, flyFrom.y, canvas.width / 2, canvas.height - 16);
+  haptic(10);
+
   // Remove tile from board
   tile.removed = true;
   moves++;
@@ -392,6 +411,7 @@ function onTileClick(tileId) {
       slots[i].count -= MATCH_COUNT;
       score += 10;
       sfxMatch();
+      haptic(20);
       if (slots[i].count <= 0) {
         slots.splice(i, 1);
       }
@@ -475,11 +495,11 @@ function showAd(type) {
 }
 
 function getAdUnitId(type) {
-  const ids = { shuffle: 'adunit-shuffle', undo: 'adunit-undo', remove: 'adunit-remove' };
+  const ids = { shuffle: 'adunit-shuffle', undo: 'adunit-undo', remove: 'adunit-remove', revive: 'adunit-revive', extraslot: 'adunit-extraslot', daily_extra: 'adunit-daily-extra', extra_slots: 'adunit-extra-slots' };
   return ids[type] || '';
 }
 function getPowerUpName(type) {
-  const names = { shuffle: '洗牌', undo: '撤回', remove: '移出3个' };
+  const names = { shuffle: '洗牌', undo: '撤回', remove: '移出3个', revive: '复活', extraslot: '退回1张牌', daily_extra: '额外挑战', extra_slots: '+2槽位' };
   return names[type] || type;
 }
 
@@ -562,13 +582,18 @@ function showOverlay(type) {
         ${lb.slice(0, 5).map((l, i) => `<div style="padding:2px 0">${i+1}. ${l.name} ${l.score}分 ${l.name===province?'👈':''}</div>`).join('')}
       </div>
       <button class="big-btn primary" onclick="nextLevel()">下一关 ▶️</button>
+      <button class="big-btn secondary" onclick="shareToEarn()">📤 分享到微信群 — 获得免费洗牌道具</button>
       <button class="big-btn secondary" onclick="showShareCard()">📤 分享战绩</button>
     </div>`;
   } else if (type === 'lose') {
+    const previewSlots = slots.slice(-3);
+    const previewHtml = previewSlots.length > 0 ? '<div style="font-size:16px;letter-spacing:4px;padding:6px 12px;background:rgba(255,255,255,0.06);border-radius:10px;margin:0 0 10px">' + previewSlots.map(function(s){return s.type;}).join('') + '</div>' : '';
     html = `<div class="overlay-panel">
       <h2>😤 槽位已满！</h2><p>就差一点点！别放弃~</p>
-      <button class="big-btn ad-btn" onclick="useReviveAd()">📺 看广告 — 复活（撤回3张）</button>
+      <button class="big-btn ad-btn" onclick="useReviveAd()">📺 看广告复活 — 撤回最后3张</button>
+      ${previewHtml}
       <button class="big-btn ad-btn" onclick="useExtraSlotAd()" ${extraSlotGranted ? 'disabled' : ''}>📺 看广告 — 退回1张牌</button>
+      <button class="big-btn ad-btn" onclick="useExtraSlotsBoost()" ${slotsBoosted ? 'disabled' : ''}>📺 看广告获得 +2 槽位</button>
       <button class="big-btn primary" onclick="restartGame()">🔄 重新开始</button>
     </div>`;
   } else if (type === 'share') {
@@ -631,7 +656,17 @@ function showShareCard() {
 }
 
 // ── Game Flow ──
-function startGame() { gameState = 'playing'; ensureAudio();
+function startGame() {
+  checkFreePlays();
+  if (!dailySessionStarted) {
+    if (dailyPlays >= 3) { showDailyLimitOverlay(); return; }
+    dailyPlays++;
+    dailySessionStarted = true;
+    lsSet('sm_daily_plays', String(dailyPlays));
+    updateDailyUI();
+    updateStreak();
+  }
+  gameState = 'playing'; ensureAudio();
   hideOverlay();
   generateTiles(1);
   updateStats();
@@ -660,8 +695,8 @@ function nextLevel() {
 
 function updateStats() {
   document.getElementById('win-count').textContent = winCount;
-  document.getElementById('lose-count').textContent = loseCount;
   document.getElementById('province-label').textContent = province || '-';
+  updateDailyUI();
 }
 
 // ── Tutorial ──
@@ -759,12 +794,106 @@ function getDailyLeaderboard() {
   return data;
 }
 
+// ── Daily Play System ──
+function checkFreePlays() {
+  const today = new Date().toDateString();
+  if (dailyDate !== today) {
+    dailyPlays = 0; dailyDate = today;
+    lsSet('sm_daily_plays', '0'); lsSet('sm_daily_date', today);
+  }
+}
+function updateDailyUI() {
+  const remaining = Math.max(0, 3 - dailyPlays);
+  const el = document.getElementById('daily-plays-label');
+  const sl = document.getElementById('streak-label');
+  if (el) el.textContent = '🎮x' + remaining;
+  if (sl) sl.textContent = '🔥x' + streak;
+}
+function showDailyLimitOverlay() {
+  const ov = document.getElementById('overlay');
+  ov.innerHTML = '<div class="overlay-panel"><h2>😅 今日次数已用完</h2><p>每日免费 <b>3</b> 次，午夜重置</p><p style="font-size:13px;color:#aab">已玩 ' + dailyPlays + ' 次</p><button class="big-btn ad-btn" onclick="useDailyExtraPlay()">📺 看广告获得 +1 次挑战</button><button class="big-btn secondary" onclick="showProvinceSelect()">返回</button></div>';
+  ov.classList.remove('hidden');
+}
+function useDailyExtraPlay() {
+  showAd('daily_extra').then(function() {
+    dailyPlays = Math.max(0, dailyPlays - 1);
+    dailySessionStarted = false;
+    lsSet('sm_daily_plays', String(dailyPlays));
+    updateDailyUI();
+    hideOverlay();
+    startGame();
+  });
+}
+
+// ── Streak Tracking ──
+function updateStreak() {
+  const today = new Date().toDateString();
+  if (lastPlayDate === today) return;
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  if (lastPlayDate === yesterday) streak++;
+  else streak = 1;
+  lastPlayDate = today;
+  lsSet('sm_streak', String(streak));
+  lsSet('sm_last_play_date', today);
+  updateDailyUI();
+  if (streak === 7 || streak === 30 || streak === 100)
+    setTimeout(function() { showStreakCelebration(streak); }, 800);
+}
+function showStreakCelebration(days) {
+  const ov = document.getElementById('overlay');
+  ov.innerHTML = '<div class="overlay-panel sp"><span class="bf">🔥</span><h2>' + days + '天连击！</h2><p>你已经连续玩了 <span class="bd">' + days + '</span> 天！</p><p style="color:#f6d365">太厉害了！继续加油！</p><button class="big-btn primary" onclick="hideOverlay()">🎉 继续</button></div>';
+  ov.classList.remove('hidden');
+}
+
+// ── Fly Animation ──
+function spawnFly(emoji, fromX, fromY, toX, toY) {
+  flies.push({ emoji: emoji, x: fromX, y: fromY, fromX: fromX, fromY: fromY, toX: toX, toY: toY, progress: 0 });
+}
+function updateFlies() {
+  for (let i = flies.length - 1; i >= 0; i--) {
+    const f = flies[i]; f.progress += 0.05;
+    if (f.progress >= 1) { flies.splice(i, 1); continue; }
+    const t = f.progress, e = 1 - Math.pow(1 - t, 3);
+    f.x = f.fromX + (f.toX - f.fromX) * e;
+    f.y = f.fromY + (f.toY - f.fromY) * e - Math.sin(t * Math.PI) * 40;
+  }
+}
+function renderFlies() {
+  for (const f of flies) {
+    ctx.globalAlpha = 1 - f.progress * 0.3;
+    ctx.font = '26px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(f.emoji, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ── Share-to-Earn ──
+function shareToEarn() {
+  if (navigator.share) {
+    try { navigator.share({ title: 'StackMatch - 堆叠消消乐', text: '我在StackMatch通关了！来挑战我吧！' }); } catch(e) {}
+  }
+  earnedPowerUps.freeShuffle = (earnedPowerUps.freeShuffle || 0) + 1;
+  lsSet('sm_powerups', JSON.stringify(earnedPowerUps));
+  alert('已分享！获得免费洗牌道具 🎉');
+  hideOverlay();
+}
+
+// ── Extra Slots Boost ──
+function useExtraSlotsBoost() {
+  if (slotsBoosted) return;
+  showAd('extra_slots').then(function() {
+    MAX_SLOTS += 2; slotsBoosted = true; gameOver = false;
+    hideOverlay(); updateSlotBar(); renderTiles();
+  });
+}
+
 // ── Animation Loop (particles) ──
 function animLoop() {
-  if (particles.length > 0) {
-    updateParticles();
+  if (flies.length > 0) { updateFlies(); }
+  if (particles.length > 0 || flies.length > 0) {
     renderTiles();
-    renderParticles();
+    if (particles.length > 0) renderParticles();
+    if (flies.length > 0) renderFlies();
   }
   requestAnimationFrame(animLoop);
 }
@@ -772,11 +901,23 @@ function animLoop() {
 // ── Init ──
 function init() {
   resizeCanvas();
+  checkFreePlays();
   updateStats();
+  updateDailyUI();
   if (!province) {
     showProvinceSelect();
   } else {
     document.getElementById('province-label').textContent = province;
+    if (dailyPlays >= 3) {
+      showDailyLimitOverlay();
+      animLoop();
+      return;
+    }
+    dailyPlays++;
+    dailySessionStarted = true;
+    lsSet('sm_daily_plays', String(dailyPlays));
+    updateDailyUI();
+    updateStreak();
     generateTiles(1);
     updateStats();
     renderTiles();
@@ -799,7 +940,9 @@ function initAdSDK() {
           shuffle: wx.createRewardedVideoAd({ adUnitId: 'adunit-shuffle' }),
           undo: wx.createRewardedVideoAd({ adUnitId: 'adunit-undo' }),
           remove: wx.createRewardedVideoAd({ adUnitId: 'adunit-remove' }),
-          revive: wx.createRewardedVideoAd({ adUnitId: 'adunit-revive' })
+          revive: wx.createRewardedVideoAd({ adUnitId: 'adunit-revive' }),
+          daily_extra: wx.createRewardedVideoAd({ adUnitId: 'adunit-daily-extra' }),
+          extra_slots: wx.createRewardedVideoAd({ adUnitId: 'adunit-extra-slots' })
         };
       }
     } catch(e) { console.log('Ad SDK init skipped'); }
