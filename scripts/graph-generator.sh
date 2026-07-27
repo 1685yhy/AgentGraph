@@ -61,86 +61,48 @@ TYPE_AGENTS["doc"]="product-manager tech-writer creative-director"
 TYPE_AGENTS["marketing"]="product-manager growth-hacker content-creator data-analyst"
 
 # ── Keyword → product type mapping ────────────────────────────────────
-classify_task() {
+# ── AI-powered task analysis ──────────────────────────────────────────
+# In Claude Code / OpenClaw: the host LLM (Claude) is the intelligence.
+# The script provides execution — keyword fallback for standalone use.
+# For LLM-driven analysis, pipe JSON via --analysis flag or stdin.
+
+ai_analyze_task() {
   local task="$1"
-  local task_lower; task_lower=$(echo "$task" | tr '[:upper:]' '[:lower:]')
 
-  # Score each type by keyword matches
-  local best_type="" best_score=0
+  # Fast path: keyword matching (works everywhere, no deps)
+  local type; type=$(classify_task_fallback "$task")
+  local features; features=$(detect_features "$task")
+  echo "{\"type\":\"$type\",\"agents\":[],\"features\":\"$features\",\"gates\":\"$(select_gates "$type")\",\"reasoning\":\"关键词匹配 — 运行在 ${CLAUDE_CODE:+Claude Code}${OPENCLAW:+OpenClaw}${CLAUDE_CODE:-${OPENCLAW:-(无宿主)}} 中\"}"
+}
 
-  # web-app keywords
-  local web_score=0
-  for kw in 页面 网站 后台 管理 注册 登录 表单 看板 报表 供应商 门户 后台管理 控制台 账号 权限; do
-    echo "$task" | grep -qi "$kw" && web_score=$((web_score + 1))
+classify_task_fallback() {
+  local task="$1"
+  local best="" best_score=0
+  for pair in \
+    "web-app:页面 网站 后台 管理 注册 登录 表单 看板 报表 供应商 门户 控制台 账号 权限" \
+    "landing-page:落地页 官网 landing 主页 首页 品牌页" \
+    "api:API 接口 后端服务 restful graphql 微服务" \
+    "miniapp:小程序 微信 wechat 抖音" \
+    "mobile:APP 安卓 iOS 移动端 手机" \
+    "dashboard:看板 报表 图表 数据可视化 统计 监控 大屏" \
+    "full-stack:全栈 前后端 完整系统" \
+    "game:游戏 关卡 角色 道具 战斗 技能 副本 消除 三消" \
+    "doc:文档 方案 计划 报告 PRD spec" \
+    "marketing:营销 增长 推广 广告 社媒 SEO 获客 转化"; do
+    local type="${pair%%:*}"
+    local kws="${pair#*:}"
+    local score=0
+    for kw in $kws; do echo "$task" | grep -qi "$kw" && score=$((score+1)); done
+    [[ $score -gt $best_score ]] && { best_score=$score; best="$type"; }
   done
-  [[ $web_score -gt $best_score ]] && { best_score=$web_score; best_type="web-app"; }
+  echo "${best:-web-app}"
+}
 
-  # landing-page keywords
-  local lp_score=0
-  for kw in 落地页 官网 landing 主页 首页 品牌页; do
-    echo "$task" | grep -qi "$kw" && lp_score=$((lp_score + 1))
-  done
-  [[ $lp_score -gt $best_score ]] && { best_score=$lp_score; best_type="landing-page"; }
-
-  # api keywords
-  local api_score=0
-  for kw in ^api 接口 后端服务 restful graphql 微服务; do
-    echo "$task" | grep -qi "$kw" && api_score=$((api_score + 1))
-  done
-  [[ $api_score -gt $best_score ]] && { best_score=$api_score; best_type="api"; }
-
-  # miniapp keywords
-  local mp_score=0
-  for kw in 小程序 微信 wechat; do
-    echo "$task" | grep -qi "$kw" && mp_score=$((mp_score + 1))
-  done
-  [[ $mp_score -gt $best_score ]] && { best_score=$mp_score; best_type="miniapp"; }
-
-  # mobile keywords
-  local mob_score=0
-  for kw in app 安卓 ios 移动端 手机; do
-    echo "$task" | grep -qi "$kw" && mob_score=$((mob_score + 1))
-  done
-  [[ $mob_score -gt $best_score ]] && { best_score=$mob_score; best_type="mobile"; }
-
-  # dashboard keywords
-  local dash_score=0
-  for kw in 看板 报表 图表 数据可视化 统计 监控 大屏; do
-    echo "$task" | grep -qi "$kw" && dash_score=$((dash_score + 1))
-  done
-  [[ $dash_score -gt $best_score ]] && { best_score=$dash_score; best_type="dashboard"; }
-
-  # full-stack keywords (many subsystems)
-  local fs_score=0
-  subsystems=$(echo "$task" | grep -oi '前端\|后端\|数据库\|API\|后台\|移动端\|小程序' | sort -u | wc -l)
-  [[ $subsystems -ge 3 ]] && fs_score=5
-  [[ $fs_score -gt $best_score ]] && { best_score=$fs_score; best_type="full-stack"; }
-
-  # game keywords
-  local game_score=0
-  for kw in 游戏 关卡 角色 道具 战斗 技能 副本 boss 成就; do
-    echo "$task" | grep -qi "$kw" && game_score=$((game_score + 1))
-  done
-  [[ $game_score -gt $best_score ]] && { best_score=$game_score; best_type="game"; }
-
-  # doc keywords
-  local doc_score=0
-  for kw in 文档 方案 计划 报告 分析报告 需求文档 设计文档 spec prd; do
-    echo "$task" | grep -qi "$kw" && doc_score=$((doc_score + 1))
-  done
-  [[ $doc_score -gt $best_score ]] && { best_score=$doc_score; best_type="doc"; }
-
-  # marketing keywords
-  local mkt_score=0
-  for kw in 营销 增长 推广 广告 社媒 seo 获客 转化; do
-    echo "$task" | grep -qi "$kw" && mkt_score=$((mkt_score + 1))
-  done
-  [[ $mkt_score -gt $best_score ]] && { best_score=$mkt_score; best_type="marketing"; }
-
-  # Default: web-app
-  [[ -z "$best_type" ]] && best_type="web-app"
-
-  echo "$best_type"
+classify_task() {
+  local analysis
+  analysis=$(ai_analyze_task "$1" 2>/dev/null)
+  local type; type=$(echo "$analysis" | node -e "try{console.log(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).type||'web-app')}catch(e){console.log('web-app')}" 2>/dev/null)
+  echo "${type:-web-app}"
 }
 
 # ── Feature detection ─────────────────────────────────────────────────
@@ -401,6 +363,15 @@ select_gates() {
 # ── Main: generate graph from task ─────────────────────────────────────
 generate_graph() {
   local task="$1"
+  local ai_analysis="${AG_AI_ANALYSIS:-}"  # Accept pre-analyzed JSON from host LLM
+
+  # Parse --analysis flag
+  if [[ "$1" == "--analysis" ]]; then
+    ai_analysis="$2"
+    shift 2
+    task="$*"
+  fi
+
   [[ -z "$task" ]] && { err "Usage: guild plan \"<task description>\""; return 1; }
 
   echo "╔══════════════════════════════════════════╗"
@@ -408,24 +379,43 @@ generate_graph() {
   echo "╚══════════════════════════════════════════╝"
   echo ""
 
-  # Step 1: Classify
-  local type; type=$(classify_task "$task")
-  echo "  📋 任务类型: $type"
+  # Step 1: Task analysis — use host LLM analysis if provided, else keyword
+  local analysis type agents features gates reasoning
 
-  # Step 2: Detect features
-  local features; features=$(detect_features "$task")
+  if [[ -n "$ai_analysis" ]]; then
+    # Use the host LLM's analysis (from Claude Code / orchestrator)
+    analysis="$ai_analysis"
+    echo "  🧠 分析模式: 宿主 LLM (Claude Code)"
+  else
+    # Keyword-based fallback
+    analysis=$(ai_analyze_task "$task" 2>/dev/null)
+    echo "  🧠 分析模式: 关键词匹配"
+  fi
+
+  type=$(echo "$analysis" | node -e "try{console.log(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).type||'web-app')}catch(e){console.log('web-app')}" 2>/dev/null)
+  agents=$(echo "$analysis" | node -e "try{console.log((JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).agents||[]).join(' '))}catch(e){console.log('')}" 2>/dev/null)
+  features=$(echo "$analysis" | node -e "try{console.log(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).features||'')}catch(e){console.log('')}" 2>/dev/null)
+  gates=$(echo "$analysis" | node -e "try{console.log(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).gates||'1 2')}catch(e){console.log('1 2')}" 2>/dev/null)
+  reasoning=$(echo "$analysis" | node -e "try{console.log(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).reasoning||'')}catch(e){console.log('')}" 2>/dev/null)
+
+  # Fallback: if analysis returned no agents, use keyword-based selection
+  if [[ -z "$agents" || "$agents" == " " ]]; then
+    type=$(classify_task_fallback "$task")
+    features=$(detect_features "$task")
+    agents=$(select_agents "$type" "$features")
+    gates=$(select_gates "$type")
+    reasoning="关键词匹配"
+  fi
+
+  local type_label="${type:-web-app}"
+  echo "  📋 任务类型: $type_label"
   echo "  🔍 检测特征: ${features:-无}"
-
-  # Step 3: Select agents
-  local agents; agents=$(select_agents "$type" "$features")
   echo "  👥 Agent 选择:"
   for a in $agents; do echo "      - $a"; done
 
-  # Step 4: Resolve dependencies
+  # Step 2: Resolve dependencies from contracts
   local deps; deps=$(resolve_dependencies "$agents")
 
-  # Step 5: Select gates
-  local gates; gates=$(select_gates "$type")
   echo "  🚪 Gate 选择: $gates"
 
   # Step 6: Assemble graph
