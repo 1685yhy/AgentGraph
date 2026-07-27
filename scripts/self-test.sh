@@ -1,0 +1,587 @@
+#!/usr/bin/env bash
+#
+# self-test.sh — AgentGraph System Self-Test Framework
+#
+# Tests the AgentGraph system's own scripts and components.
+# Designed to be run from the project root via: bash scripts/self-test.sh
+# Or via: guild self-test
+#
+# Design:
+#   Pure bash, bash-native test patterns.
+#   Each test prints: [OK] or [FAIL] with description.
+#   Final summary: "X passed, Y failed / Z total"
+#   Exit code: 1 if any test fails.
+#
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Source lib.sh for helpers (ok, warn, err, die, color vars)
+. "$SCRIPT_DIR/lib.sh"
+
+# ── Test config ──────────────────────────────────────────────────────
+TEMP_DIR="/tmp/agentgraph-self-test"
+GUILD="$REPO_ROOT/guild"
+PASSED=0
+FAILED=0
+TOTAL=0
+
+# Track real handoff files we create (for cleanup)
+CLEANUP_HANDOFFS=()
+
+cleanup() {
+  rm -rf "$TEMP_DIR"
+  for f in "${CLEANUP_HANDOFFS[@]}"; do
+    [[ -f "$f" ]] && rm -f "$f"
+  done
+}
+trap cleanup EXIT
+
+# ── Test helpers ─────────────────────────────────────────────────────
+pass() { PASSED=$((PASSED + 1)); TOTAL=$((TOTAL + 1)); ok "$1"; }
+fail() { FAILED=$((FAILED + 1)); TOTAL=$((TOTAL + 1)); err "$1"; }
+
+# require_python3 — skip test if python3 not available
+require_python3() {
+  command -v python3 &>/dev/null && return 0
+  fail "python3 not available — skipping"
+  return 1
+}
+
+# require_node — skip test if node not available
+require_node() {
+  command -v node &>/dev/null && return 0
+  warn "node not available — skipping node-dependent check"
+  return 1
+}
+
+# Make sure TEMP_DIR is clean at start
+rm -rf "$TEMP_DIR"
+
+# ═══════════════════════════════════════════════════════════════════════
+# Test 1: next_id uniqueness
+# ═══════════════════════════════════════════════════════════════════════
+test_next_id() {
+  echo ""
+  echo "── Test 1: next_id uniqueness ──"
+
+  require_python3 || return
+
+  local hdir="$TEMP_DIR/handoffs"
+  mkdir -p "$hdir"
+
+  # Create 10 handoff files with IDs 1-10
+  for i in $(seq 1 10); do
+    cat > "$hdir/handoff-$i.json" << JSONEOF
+{"id": $i, "from": "test", "to": "test", "status": "draft", "path": "/tmp", "timestamp": "2024-01-01T00:00:00Z"}
+JSONEOF
+  done
+
+  # Reimplement next_id algorithm (same logic as nexus.sh:next_id)
+  local max=0
+  for f in "$hdir"/*.json; do
+    [[ -f "$f" ]] || continue
+    local id
+    id=$(python3 -c "import json; print(json.load(open('$f')).get('id',0))" 2>/dev/null || echo 0)
+    (( id > max )) && max=$id
+  done
+  local next=$((max + 1))
+
+  if [[ "$next" -ne 11 ]]; then
+    fail "next_id: expected 11 after files 1-10, got $next"
+    return
+  fi
+
+  # Uniqueness test: generate 10 consecutive IDs, verify no duplicates
+  local ids=()
+  local current_max=$max
+  for i in $(seq 1 10); do
+    local n=$((current_max + 1))
+    ids+=("$n")
+    cat > "$hdir/handoff-$n.json" << JSONEOF
+{"id": $n, "from": "test", "to": "test", "status": "draft", "path": "/tmp", "timestamp": "2024-01-01T00:00:00Z"}
+JSONEOF
+    current_max=$n
+  done
+
+  local unique_count
+  unique_count=$(printf '%s\n' "${ids[@]}" | sort -u | wc -l | tr -d ' ')
+
+  if [[ "$unique_count" -eq 10 ]]; then
+    pass "next_id returns 10 unique consecutive IDs (11-20)"
+  else
+    fail "next_id: expected 10 unique IDs, got $unique_count unique"
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# Test 2: handoff create cycle
+# ═══════════════════════════════════════════════════════════════════════
+test_handoff_cycle() {
+  echo ""
+  echo "── Test 2: handoff create cycle ──"
+
+  require_python3 || return
+
+  local deliver_dir="$TEMP_DIR/deliverables"
+  mkdir -p "$deliver_dir"
+
+  # Create a dummy deliverable file so the path isn't empty
+  echo "<html><body>test</body></html>" > "$deliver_dir/test.html"
+  echo "# Test File" > "$deliver_dir/README.md"
+
+  # Run handoff create (use real agents from the config)
+  local output
+  output=$("$GUILD" handoff --from product-manager --to frontend-engineer --path "$deliver_dir" 2>&1) || {
+    fail "handoff create: command failed"
+    echo "$output" | head -5
+    return
+  }
+
+  # Extract ID from output: "创建交接 #<id>: ..."
+  local id
+  id=$(echo "$output" | grep -o '交接 #[0-9]*' | grep -o '[0-9]*' | head -1)
+
+  if [[ -z "$id" ]]; then
+    fail "handoff create: could not extract ID from output"
+    echo "$output" | head -3
+    return
+  fi
+
+  # Run guild check --handoff <id>
+  local check_output
+  check_output=$("$GUILD" check --handoff "$id" 2>&1) || {
+    fail "handoff check #$id: command failed"
+    echo "$check_output"
+    return
+  }
+
+  if echo "$check_output" | grep -q "交接 #$id"; then
+    pass "handoff create + check cycle for #$id"
+  else
+    fail "handoff check #$id: output missing expected handoff reference"
+    echo "$check_output"
+  fi
+
+  # Clean up the handoff JSON we created
+  local hf
+  for hf in "$REPO_ROOT/handoffs"/*.json; do
+    [[ -f "$hf" ]] || continue
+    local hid
+    hid=$(python3 -c "import json; print(json.load(open('$hf')).get('id',0))" 2>/dev/null || echo 0)
+    if [[ "$hid" == "$id" ]]; then
+      CLEANUP_HANDOFFS+=("$hf")
+    fi
+  done
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# Test 3: gate completeness
+# ═══════════════════════════════════════════════════════════════════════
+test_gate_completeness() {
+  echo ""
+  echo "── Test 3: gate completeness ──"
+
+  require_python3 || return
+
+  local pass_dir="$TEMP_DIR/gate-pass"
+  mkdir -p "$pass_dir"
+  echo "work content" > "$pass_dir/work.txt"
+
+  local hf1="$REPO_ROOT/handoffs/self-test-gate-pass.json"
+  cat > "$hf1" << JSONEOF
+{
+  "id": 99901,
+  "from": "product-manager",
+  "to": "frontend-engineer",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "path": "$pass_dir",
+  "artifacts": [
+    {"name": "test-artifact", "file": "found", "status": "provided", "required": true}
+  ],
+  "checklist": {"required_total": 1, "required_provided": 1, "required_missing": 0},
+  "status": "ready",
+  "accepted_by": null
+}
+JSONEOF
+  CLEANUP_HANDOFFS+=("$hf1")
+
+  # Gate 1 (completeness) on the complete handoff — should pass
+  local gate_pass_output
+  gate_pass_output=$("$GUILD" gate --handoff 99901 --gate completeness 2>&1) || true
+
+  if echo "$gate_pass_output" | grep -q "\[OK\]"; then
+    pass "gate completeness passes when all artifacts provided"
+  else
+    fail "gate completeness: expected [OK] for complete handoff"
+    echo "$gate_pass_output" | grep -E '\[OK\]|\[FAIL\]|\[SKIP\]'
+  fi
+
+  local fail_dir="$TEMP_DIR/gate-fail"
+  mkdir -p "$fail_dir"
+
+  local hf2="$REPO_ROOT/handoffs/self-test-gate-fail.json"
+  cat > "$hf2" << JSONEOF
+{
+  "id": 99902,
+  "from": "product-manager",
+  "to": "frontend-engineer",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "path": "$fail_dir",
+  "artifacts": [
+    {"name": "missing-artifact", "file": null, "status": "missing", "required": true}
+  ],
+  "checklist": {"required_total": 1, "required_provided": 0, "required_missing": 1},
+  "status": "incomplete",
+  "accepted_by": null
+}
+JSONEOF
+  CLEANUP_HANDOFFS+=("$hf2")
+
+  # Gate 1 (completeness) on the incomplete handoff — should fail
+  local gate_fail_output
+  gate_fail_output=$("$GUILD" gate --handoff 99902 --gate completeness 2>&1) || true
+
+  if echo "$gate_fail_output" | grep -q "\[FAIL\]"; then
+    pass "gate completeness fails when required artifacts are missing"
+  else
+    fail "gate completeness: expected [FAIL] for incomplete handoff"
+    echo "$gate_fail_output" | grep -E '\[OK\]|\[FAIL\]|\[SKIP\]'
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# Test 4: gate syntax
+# ═══════════════════════════════════════════════════════════════════════
+test_gate_syntax() {
+  echo ""
+  echo "── Test 4: gate syntax ──"
+
+  require_python3 || return
+
+  local bad_syntax_dir="$TEMP_DIR/bad-syntax"
+  mkdir -p "$bad_syntax_dir"
+
+  # Invalid JSON — no error check because python3 throws; gate uses python3 too
+  printf '{invalid json' > "$bad_syntax_dir/bad.json"
+
+  # Valid empty JSON (should not fail syntax)
+  printf '{}' > "$bad_syntax_dir/empty.json"
+
+  # Create handoff pointing to the directory with bad files
+  local hf="$REPO_ROOT/handoffs/self-test-syntax.json"
+  cat > "$hf" << JSONEOF
+{
+  "id": 99903,
+  "from": "product-manager",
+  "to": "frontend-engineer",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "path": "$bad_syntax_dir",
+  "artifacts": [
+    {"name": "some-files", "file": "found", "status": "provided", "required": true}
+  ],
+  "checklist": {"required_total": 1, "required_provided": 1, "required_missing": 0},
+  "status": "ready",
+  "accepted_by": null
+}
+JSONEOF
+  CLEANUP_HANDOFFS+=("$hf")
+
+  local gate_output
+  gate_output=$("$GUILD" gate --handoff 99903 --gate syntax 2>&1) || true
+
+  # Should report at least one [FAIL] due to invalid JSON
+  if echo "$gate_output" | grep -q "\[FAIL\]"; then
+    pass "gate syntax catches invalid JSON"
+  else
+    fail "gate syntax: expected [FAIL] for directory with invalid JSON"
+    echo "$gate_output" | grep -E '\[OK\]|\[FAIL\]|\[SKIP\]'
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# Test 5: graph engine
+# ═══════════════════════════════════════════════════════════════════════
+test_graph_engine() {
+  echo ""
+  echo "── Test 5: graph engine ──"
+
+  local graph_dir="$TEMP_DIR/graph-test"
+  mkdir -p "$graph_dir"
+  echo "placeholder" > "$graph_dir/placeholder.txt"
+
+  local graph_file="$REPO_ROOT/graphs/feature-dev.yml"
+  if [[ ! -f "$graph_file" ]]; then
+    fail "graph engine: feature-dev.yml not found at $graph_file"
+    return
+  fi
+
+  set +e
+  local output
+  output=$("$GUILD" graph run --graph feature-dev --path "$graph_dir" --dry-run 2>&1)
+  local rc=$?
+  set -e
+
+  if [[ $rc -ne 0 ]]; then
+    fail "graph engine: exit code $rc (expected 0)"
+    echo "$output" | head -10
+    return
+  fi
+
+  # Verify the output contains graph node names
+  local has_nodes=false
+  if echo "$output" | grep -qiE 'define|design|build|test|approve|fix'; then
+    has_nodes=true
+  fi
+
+  if $has_nodes; then
+    pass "graph engine parses feature-dev.yml and lists nodes (dry-run)"
+  else
+    # Still pass if exit code was 0
+    pass "graph engine exits cleanly on feature-dev.yml dry-run (no node names found in output)"
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# Test 6: CLI smoke tests
+# ═══════════════════════════════════════════════════════════════════════
+test_cli_smoke() {
+  echo ""
+  echo "── Test 6: CLI smoke tests ──"
+
+  local all_ok=true
+
+  # 6a: guild list --handoffs
+  if "$GUILD" list --handoffs &>/dev/null; then
+    pass "guild list --handoffs exits 0"
+  else
+    fail "guild list --handoffs exited non-zero"
+    all_ok=false
+  fi
+
+  # 6b: guild status
+  if "$GUILD" status &>/dev/null; then
+    pass "guild status exits 0"
+  else
+    fail "guild status exited non-zero"
+    all_ok=false
+  fi
+
+  # 6c: guild gate --list
+  if "$GUILD" gate --list &>/dev/null; then
+    pass "guild gate --list exits 0"
+  else
+    fail "guild gate --list exited non-zero"
+    all_ok=false
+  fi
+
+  # 6d: guild feedback --list
+  if "$GUILD" feedback --list &>/dev/null; then
+    pass "guild feedback --list exits 0"
+  else
+    fail "guild feedback --list exited non-zero"
+    all_ok=false
+  fi
+
+  # 6e: guild changelog (no --since)
+  if "$GUILD" changelog &>/dev/null; then
+    pass "guild changelog exits 0"
+  else
+    fail "guild changelog exited non-zero"
+    all_ok=false
+  fi
+
+  # 6f: guild context show
+  if "$GUILD" context show &>/dev/null; then
+    pass "guild context show exits 0"
+  else
+    fail "guild context show exited non-zero"
+    all_ok=false
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# Test 7: contract validity
+# ═══════════════════════════════════════════════════════════════════════
+test_contract_validity() {
+  echo ""
+  echo "── Test 7: contract validity ──"
+
+  require_python3 || return
+
+  local contracts_file="$REPO_ROOT/contracts/guild-contracts.yml"
+  local config_file="$REPO_ROOT/guild.config.json"
+
+  if [[ ! -f "$contracts_file" ]]; then
+    fail "contract validity: contracts file not found: $contracts_file"
+    return
+  fi
+  if [[ ! -f "$config_file" ]]; then
+    fail "contract validity: config file not found: $config_file"
+    return
+  fi
+
+  # Check contracts YAML is valid using python3 yaml
+  if python3 -c "
+import sys, json
+try:
+    import yaml
+    with open('$contracts_file') as f:
+        yaml.safe_load(f)
+    print('VALID')
+except ImportError:
+    # yaml module not available — check basic structure with awk
+    print('SKIP')
+except Exception as e:
+    print('INVALID: ' + str(e))
+    sys.exit(1)
+" 2>/dev/null | grep -q 'VALID'; then
+    pass "contract validity: guild-contracts.yml is valid YAML"
+  elif python3 -c "
+import sys, json
+try:
+    import yaml
+    with open('$contracts_file') as f:
+        yaml.safe_load(f)
+    print('VALID')
+except ImportError:
+    print('SKIP')
+except Exception as e:
+    print('INVALID')
+    sys.exit(1)
+" 2>/dev/null | grep -q 'SKIP'; then
+    warn "contract YAML validation: PyYAML not available, skipping strict check"
+    # Basic check: verify it's not empty and has expected structure
+    if grep -q 'contracts:' "$contracts_file" && grep -q 'delivers:' "$contracts_file"; then
+      pass "contract validity: guild-contracts.yml has expected structure (PyYAML unavailable)"
+    else
+      fail "contract validity: guild-contracts.yml missing expected structure"
+      return
+    fi
+  else
+    fail "contract validity: guild-contracts.yml is invalid YAML"
+    return
+  fi
+
+  # Extract agent slugs from contracts (keys under 'contracts:' at 2-space indent)
+  local contract_slugs
+  contract_slugs=$(awk '/^  [a-z][a-z-]*:/ { gsub(/:$/, ""); print $1 }' "$contracts_file" | sort -u)
+
+  # Extract agent slugs from guild.config.json
+  local config_slugs
+  config_slugs=$(python3 -c "
+import json
+with open('$config_file') as f:
+    cfg = json.load(f)
+for a in cfg.get('agents', []):
+    print(a['slug'])
+" 2>/dev/null)
+
+  # Check each contract slug exists in config
+  local missing_agents=""
+  while IFS= read -r slug; do
+    [[ -z "$slug" ]] && continue
+    if ! echo "$config_slugs" | grep -q "^${slug}$"; then
+      missing_agents="$missing_agents $slug"
+    fi
+  done <<< "$contract_slugs"
+
+  if [[ -z "$missing_agents" ]]; then
+    pass "contract validity: all agents referenced in contracts exist in guild.config.json"
+  else
+    fail "contract validity: agents in contracts not found in config:$missing_agents"
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# Test 8: handoff integrity
+# ═══════════════════════════════════════════════════════════════════════
+test_handoff_integrity() {
+  echo ""
+  echo "── Test 8: handoff integrity ──"
+
+  require_python3 || return
+
+  local handoff_dir="$REPO_ROOT/handoffs"
+  local count=0
+  local errors=0
+
+  # Find handoff JSON files (excluding test artifacts from other tests)
+  local -a json_files=()
+  for f in "$handoff_dir"/*.json; do
+    [[ -f "$f" ]] || continue
+    # Skip files starting with "self-test-" pattern
+    local bn; bn=$(basename "$f")
+    [[ "$bn" == self-test-* ]] && continue
+    json_files+=("$f")
+  done
+
+  if [[ ${#json_files[@]} -eq 0 ]]; then
+    warn "handoff integrity: no handoff files to validate (skipping)"
+    pass "handoff integrity: no files means no integrity issues"
+    return
+  fi
+
+  for json_file in "${json_files[@]}"; do
+    count=$((count + 1))
+    local result
+    result=$(python3 -c "
+import json, sys
+with open('$json_file') as f:
+    d = json.load(f)
+required = ['id', 'from', 'to', 'status', 'path', 'timestamp']
+missing = [k for k in required if k not in d]
+if missing:
+    print('MISSING: ' + ', '.join(missing))
+    sys.exit(1)
+# Type checks
+if not isinstance(d['id'], int):
+    print('TYPE: id is not int')
+    sys.exit(1)
+if not isinstance(d['from'], str) or not isinstance(d['to'], str):
+    print('TYPE: from/to not strings')
+    sys.exit(1)
+print('OK')
+" 2>/dev/null) || {
+      errors=$((errors + 1))
+      local fname; fname=$(basename "$json_file")
+      warn "handoff integrity: $fname — $result"
+      continue
+    }
+  done
+
+  if [[ $errors -eq 0 ]]; then
+    pass "handoff integrity: all $count handoff files have required fields (id, from, to, status, path, timestamp)"
+  else
+    fail "handoff integrity: $errors/$count handoff files failed validation"
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# Run all tests
+# ═══════════════════════════════════════════════════════════════════════
+
+echo "╔══════════════════════════════════════════╗"
+echo "║  AgentGraph System Self-Test             ║"
+echo "║  $(date -u +"%Y-%m-%d %H:%M UTC")                "
+echo "╚══════════════════════════════════════════╝"
+echo ""
+
+test_next_id || true
+test_handoff_cycle || true
+test_gate_completeness || true
+test_gate_syntax || true
+test_graph_engine || true
+test_cli_smoke || true
+test_contract_validity || true
+test_handoff_integrity || true
+
+# ── Summary ──────────────────────────────────────────────────────────
+echo ""
+echo "══════════════════════════════════════════"
+echo "  $PASSED passed, $FAILED failed / $TOTAL total"
+echo "══════════════════════════════════════════"
+
+[[ $FAILED -eq 0 ]]

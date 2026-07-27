@@ -743,14 +743,14 @@ cmd_test() {
     for f in "$REPO_ROOT/handoffs"/*.json; do
       [[ -f "$f" ]] || continue
       local fid
-      fid=$(python3 -c "import json; print(json.load(open('$f'))['id'])" 2>/dev/null)
+      fid=$(json_get "$f" "id")
       if [[ "$fid" == "$handoff_id" ]]; then
         json_file="$f"
         break
       fi
     done
     [[ -f "$json_file" ]] || die "Handoff #$handoff_id not found"
-    file_path=$(python3 -c "import json; print(json.load(open('$json_file'))['path'])" 2>/dev/null)
+    file_path=$(json_get "$json_file" "path")
     [[ -d "$file_path" ]] || die "Handoff #$handoff_id path not found: $file_path"
 
     echo "运行 Handoff #$handoff_id 的行为测试..."

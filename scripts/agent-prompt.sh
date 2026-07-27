@@ -61,32 +61,28 @@ echo ""
 INBOX="$REPO_ROOT/context/inbox/${AGENT_SLUG}.json"
 
 if [[ -f "$INBOX" ]]; then
-  UNREAD=$(python3 -c "
-import json
-d = json.load(open('$INBOX'))
-print(d['unread'])
-" 2>/dev/null || echo "0")
+  UNREAD=$(json_get "$INBOX" "unread" "0")
 
   if [[ "$UNREAD" -gt 0 ]]; then
     echo "在开始工作前，检查以下待办:"
     echo ""
 
-    python3 -c "
-import json
-d = json.load(open('$INBOX'))
-count = 0
-for item in d['items']:
-    if item['read']: continue
-    count += 1
-    icon = {'handoff_incoming': '📨', 'conflict_active': '⚠️', 'decision_relevant': '📋'}.get(item['type'], '📌')
-    from_display = item['from']
-    print(f'  🔵 {count}. {icon} [{from_display}] {item[\"summary\"]}')
-    print(f'      → {item[\"action\"]}')
-    print()
-" 2>/dev/null || {
-      # Fallback: show raw
+    if command -v node &>/dev/null; then
+      node -e "
+const d=JSON.parse(require('fs').readFileSync('$INBOX','utf8'));
+let count=0;
+for(const item of(d.items||[])){
+  if(item.read)continue;
+  count++;
+  const icons={'handoff_incoming':'📨','conflict_active':'⚠️','decision_relevant':'📋'};
+  const icon=icons[item.type]||'📌';
+  console.log('  🔵 '+count+'. '+icon+' ['+item.from+'] '+item.summary);
+  console.log('      → '+item.action);console.log();
+}
+" 2>/dev/null || echo "  (有 $UNREAD 条未读消息)"
+    else
       echo "  (有 $UNREAD 条未读消息)"
-    }
+    fi
     echo "完成待办后开始新任务。"
   else
     echo "收件箱为空。可以开始新任务。"

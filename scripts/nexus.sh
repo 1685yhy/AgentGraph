@@ -39,16 +39,34 @@ FEEDBACK_DIR="$REPO_ROOT/context/feedback"
 
 # ── Helpers ────────────────────────────────────────────────────────
 
-# next_id — auto-increment handoff ID
+# next_id — auto-increment handoff ID (with uniqueness validation)
 next_id() {
   local max=0
   for f in "$HANDOFFS_DIR"/*.json; do
     [[ -f "$f" ]] || continue
     local id
-    id=$(python3 -c "import json; print(json.load(open('$f')).get('id',0))" 2>/dev/null || echo 0)
+    id=$(json_get "$f" "id" "0")
     (( id > max )) && max=$id
   done
-  echo $((max + 1))
+  local candidate=$((max + 1))
+  # Uniqueness validation: verify no existing handoff uses this ID
+  while true; do
+    local collision=0
+    for f in "$HANDOFFS_DIR"/*.json; do
+      [[ -f "$f" ]] || continue
+      local existing_id
+      existing_id=$(json_get "$f" "id" "0")
+      if (( existing_id == candidate )); then
+        collision=1
+        break
+      fi
+    done
+    if (( collision == 0 )); then
+      echo "$candidate"
+      return
+    fi
+    candidate=$((candidate + 1))
+  done
 }
 
 # resolve_agent <name-or-slug> — normalize to slug
@@ -234,23 +252,12 @@ verify_file() {
       [[ $errors -eq 0 ]] && return 0 || return 1
       ;;
     json)
-      if ! python3 -c "import json,sys; json.load(open('$path'))" 2>/dev/null; then
+      if ! json_validate "$path"; then
         err "JSON 格式错误"; return 1
       fi
       return 0
       ;;
     yaml|yml)
-      if command -v python3 >/dev/null 2>&1; then
-        python3 -c "
-import json, sys
-try:
-    # Try JSON first (valid JSON is also valid YAML)
-    json.load(open('$path'))
-except:
-    # Need yaml lib — skip if not available, it's optional
-    pass
-" 2>/dev/null || true
-      fi
       return 0
       ;;
     css)
@@ -556,38 +563,79 @@ JSONEOF
 }
 
 cmd_check() {
-  local id=""
+  local id="" check_dups=false
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --handoff) id="$2"; shift 2;;
+      --duplicates) check_dups=true; shift;;
       *) shift;;
     esac
   done
 
+  # --duplicates mode: scan all handoffs for duplicate IDs
+  if $check_dups; then
+    if command -v node &>/dev/null; then
+      node -e "
+const fs = require('fs'), path = require('path');
+const hdir = '$HANDOFFS_DIR';
+const ids = {};
+for (const fn of fs.readdirSync(hdir).filter(f => f.endsWith('.json')).sort()) {
+  try { const d = JSON.parse(fs.readFileSync(path.join(hdir, fn), 'utf8')); (ids[d.id] = ids[d.id] || []).push(fn); } catch(e) {}
+}
+let dupFound = false;
+for (const [idVal, fns] of Object.entries(ids).sort((a,b) => a[0]-b[0])) {
+  if (fns.length > 1) { dupFound = true; console.log('  DUPLICATE ID #' + idVal + ': ' + fns.join('  ')); }
+}
+if (!dupFound) console.log('  No duplicate IDs found');
+else { console.log(''); console.log('  Run \"guild cleanup\" to reset duplicate handoffs'); }
+process.exit(dupFound ? 1 : 0);
+"
+    else
+      err "node required for duplicate check"
+      return 1
+    fi
+    return
+  fi
+
   [[ -z "$id" ]] && die "--handoff <id> is required"
 
-  local json_file
-  json_file=$(find "$HANDOFFS_DIR" -name "*.json" -exec python3 -c "import json; d=json.load(open('{}')); print('{}' if d.get('id')==$id else '')" 2>/dev/null \; 2>/dev/null | head -1)
+  # Find handoff file by ID (pure bash)
+  local json_file=""
+  for f in "$HANDOFFS_DIR"/*.json; do
+    [[ -f "$f" ]] || continue
+    local fid
+    fid=$(json_get "$f" "id" "0")
+    if [[ "$fid" == "$id" ]]; then
+      json_file="$f"
+      break
+    fi
+  done
 
   [[ -f "$json_file" ]] || die "Handoff #$id not found"
 
-  python3 -c "
-import json
-with open('$json_file') as f:
-    d = json.load(f)
-print(f'交接 #{d[\"id\"]}: {d[\"from\"]} → {d[\"to\"]}')
-print(f'状态: {d[\"status\"]}')
-print(f'时间: {d[\"timestamp\"]}')
-c = d.get('checklist', {})
-print(f'完整度: {c.get(\"required_provided\", \"?\")}/{c.get(\"required_total\", \"?\")} 项')
-if c.get('required_missing', 0) > 0:
-    print('缺失项:')
-    for a in d.get('artifacts', []):
-        if a['status'] == 'missing':
-            print(f'  - {a[\"name\"]}')
-else:
-    print('所有必需项已满足 ✓')
-" 2>/dev/null || cat "$json_file"
+  # Display handoff details
+  local d_id d_from d_to d_status d_timestamp d_provided d_total d_missing
+  d_id=$(json_get "$json_file" "id")
+  d_from=$(json_get "$json_file" "from")
+  d_to=$(json_get "$json_file" "to")
+  d_status=$(json_get "$json_file" "status")
+  d_timestamp=$(json_get "$json_file" "timestamp")
+  echo "交接 #${d_id}: ${d_from} → ${d_to}"
+  echo "状态: ${d_status}"
+  echo "时间: ${d_timestamp:0:19}"
+
+  # Parse checklist via node or bash
+  if command -v node &>/dev/null; then
+    node -e "
+const d=JSON.parse(require('fs').readFileSync('$json_file','utf8'));
+const c=d.checklist||{};
+console.log('完整度: '+c.required_provided+'/'+c.required_total+' 项');
+if((c.required_missing||0)>0){console.log('缺失项:');for(const a of(d.artifacts||[])){if(a.status==='missing')console.log('  - '+a.name)}}
+else{console.log('所有必需项已满足 ✓')}
+"
+  else
+    cat "$json_file"
+  fi
 }
 
 cmd_status() {
@@ -607,11 +655,12 @@ cmd_status() {
   for f in "$HANDOFFS_DIR"/*.json; do
     [[ -f "$f" ]] || continue
     local id from to status timestamp
-    read -r id from to status timestamp <<< $(python3 -c "
-import json
-d = json.load(open('$f'))
-print(d['id'], d['from'], d['to'], d['status'], d['timestamp'][:19])
-" 2>/dev/null)
+    id=$(json_get "$f" "id")
+    from=$(json_get "$f" "from")
+    to=$(json_get "$f" "to")
+    status=$(json_get "$f" "status")
+    timestamp=$(json_get "$f" "timestamp")
+    timestamp="${timestamp:0:19}"
 
     [[ -n "$id" ]] || continue
 
@@ -634,6 +683,33 @@ print(d['id'], d['from'], d['to'], d['status'], d['timestamp'][:19])
 
   if (( count == 0 )); then
     echo "  (无交接记录)"
+  fi
+
+  # Check for stale handoffs (older than 7 days, incomplete or needs_fix)
+  local stale_count=0
+  for f in "$HANDOFFS_DIR"/*.json; do
+    [[ -f "$f" ]] || continue
+    local sid sstatus sts
+    sid=$(json_get "$f" "id")
+    sstatus=$(json_get "$f" "status")
+    sts=$(json_get "$f" "timestamp")
+    sts="${sts:0:19}"
+    [[ -n "$sid" ]] || continue
+    [[ "$sstatus" == "incomplete" || "$sstatus" == "needs_fix" ]] || continue
+    local septokh
+    septokh=$(date -d "$(echo "$sts" | tr 'T' ' ')" +%s 2>/dev/null || echo 0)
+    local now_epoch
+    now_epoch=$(date +%s)
+    local age_days=$(( (now_epoch - septokh) / 86400 ))
+    if (( age_days >= 7 )); then
+      stale_count=$((stale_count + 1))
+    fi
+  done
+
+  if (( stale_count > 0 )); then
+    echo ""
+    echo "  ⚠  Warning: $stale_count stale handoff(s) found (older than 7 days, incomplete/needs_fix)."
+    echo "     Run 'guild cleanup' to review or 'guild cleanup --stale' to archive."
   fi
 }
 
@@ -660,7 +736,7 @@ cmd_gate() {
   for f in "$HANDOFFS_DIR"/*.json; do
     [[ -f "$f" ]] || continue
     local fid
-    fid=$(python3 -c "import json; print(json.load(open('$f'))['id'])" 2>/dev/null)
+    fid=$(json_get "$f" "id")
     if [[ "$fid" == "$handoff" ]]; then
       json_file="$f"
       break
@@ -669,9 +745,9 @@ cmd_gate() {
   [[ -f "$json_file" ]] || die "Handoff #$handoff not found"
 
   local path from to
-  path=$(python3 -c "import json; print(json.load(open('$json_file'))['path'])" 2>/dev/null)
-  from=$(python3 -c "import json; print(json.load(open('$json_file'))['from'])" 2>/dev/null)
-  to=$(python3 -c "import json; print(json.load(open('$json_file'))['to'])" 2>/dev/null)
+  path=$(json_get "$json_file" "path")
+  from=$(json_get "$json_file" "from")
+  to=$(json_get "$json_file" "to")
 
   echo "╔══════════════════════════════════════╗"
   echo "║  Quality Gates: Handoff #$handoff"
@@ -689,8 +765,11 @@ cmd_gate() {
 
     case "$gate" in
       completeness)
-        local missing
-        missing=$(python3 -c "import json; d=json.load(open('$json_file')); print(sum(1 for a in d.get('artifacts',[]) if a.get('status')=='missing' and a.get('required',True)))" 2>/dev/null || echo 0)
+        local missing=0
+        # Count missing required artifacts using node
+        if command -v node &>/dev/null; then
+          missing=$(node -e "const d=JSON.parse(require('fs').readFileSync('$json_file','utf8'));let m=0;for(const a of(d.artifacts||[])){if(a.status==='missing'&&a.required!==false)m++}console.log(m)" 2>/dev/null) || missing=0
+        fi
         if [[ "$missing" -eq 0 ]]; then
           echo "  [OK] 所有必需交付物已提供"
           passed=$((passed + 1))
@@ -840,17 +919,14 @@ cmd_gate() {
         local agent_ok=true
 
         for agent_slug in "$from" "$to"; do
-          # Find agent file from config
-          local agent_file
-          agent_file=$(python3 -c "
-import json
-with open('$CONFIG') as f:
-    config = json.load(f)
-for a in config.get('agents', []):
-    if a['slug'] == '$agent_slug':
-        print('$REPO_ROOT/' + a['file'])
-        break
+          # Find agent file from config using node
+          local agent_file=""
+          if command -v node &>/dev/null; then
+            agent_file=$(node -e "
+const d=JSON.parse(require('fs').readFileSync('$CONFIG','utf8'));
+for(const a of(d.agents||[])){if(a.slug==='$agent_slug'){console.log('$REPO_ROOT/'+a.file);break}}
 " 2>/dev/null)
+          fi
 
           [[ -f "$agent_file" ]] || { echo "  [SKIP] $agent_slug: 未找到Agent定义文件"; continue; }
 
@@ -977,7 +1053,7 @@ cmd_accept() {
   for f in "$HANDOFFS_DIR"/*.json; do
     [[ -f "$f" ]] || continue
     local fid
-    fid=$(python3 -c "import json; print(json.load(open('$f'))['id'])" 2>/dev/null)
+    fid=$(json_get "$f" "id")
     if [[ "$fid" == "$id" ]]; then
       json_file="$f"
       break
@@ -991,7 +1067,7 @@ cmd_accept() {
 
   # ── Precondition: status must be "ready" ──
   local current_status
-  current_status=$(python3 -c "import json; print(json.load(open('$json_file'))['status'])" 2>/dev/null)
+  current_status=$(json_get "$json_file" "status")
 
   if [[ "$current_status" == "accepted" ]]; then
     err "无法接收: 交接已被接收"
@@ -1017,11 +1093,11 @@ cmd_accept() {
     for ff in "$FEEDBACK_DIR"/fb-*.json; do
       [[ -f "$ff" ]] || continue
       local fb_hid fb_sev fb_status fb_summary fb_id
-      read -r fb_hid fb_sev fb_status fb_summary fb_id <<< $(python3 -c "
-import json
-d = json.load(open('$ff'))
-print(d.get('handoff_id',''), d.get('severity',''), d.get('status',''), d.get('summary',''), d.get('id',''))
-" 2>/dev/null) || true
+      fb_hid=$(json_get "$ff" "handoff_id")
+      fb_sev=$(json_get "$ff" "severity")
+      fb_status=$(json_get "$ff" "status")
+      fb_summary=$(json_get "$ff" "summary")
+      fb_id=$(json_get "$ff" "id")
 
       if [[ "$fb_hid" == "$id" && "$fb_status" == "open" && "$fb_sev" == "critical" ]]; then
         open_criticals="${open_criticals}  - $fb_id ($fb_summary)\n"
@@ -1040,20 +1116,18 @@ print(d.get('handoff_id',''), d.get('severity',''), d.get('status',''), d.get('s
   fi
 
   # ── All gates passed — proceed with accept ──
-  python3 -c "
-import json, sys
-with open('$json_file') as f:
-    d = json.load(f)
-if d['to'] != '$as_slug':
-    print(f'警告: 交接目标为 {d[\"to\"]}，但你以 $as_slug 身份接收')
-d['status'] = 'accepted'
-d['accepted_by'] = '$as_slug'
-with open('$json_file', 'w') as f:
-    json.dump(d, f, indent=2, ensure_ascii=False)
-print(f'交接 #{d[\"id\"]} 已接收 — $as_slug 开始工作')
-" 2>/dev/null || {
-    ok "交接 #$id 已标记为接收"
-  }
+  local accept_ok=false
+  if command -v node &>/dev/null; then
+    node -e "
+const fs=require('fs');
+let d=JSON.parse(fs.readFileSync('$json_file','utf8'));
+if(d.to!=='$as_slug'){console.log('警告: 交接目标为 '+d.to+'，但你以 $as_slug 身份接收')}
+d.status='accepted'; d.accepted_by='$as_slug';
+fs.writeFileSync('$json_file',JSON.stringify(d,null,2)+'\n','utf8');
+console.log('交接 #'+d.id+' 已接收 — $as_slug 开始工作');
+" 2>/dev/null && accept_ok=true
+  fi
+  $accept_ok || ok "交接 #$id 已标记为接收"
 }
 
 cmd_list() {
@@ -1183,41 +1257,30 @@ cmd_run() {
           # Build JSON record
           local json_file="$HANDOFFS_DIR/$(date +%Y-%m-%d)-${pipeline}-${from_slug}-to-${to_slug}.json"
 
-          python3 -c "
-import json, os
-artifacts = []
-matched_lines = '''$matched'''.strip().split('\n') if '''$matched'''.strip() else []
-missing_lines = '''$missing'''.strip().split('\n') if '''$missing'''.strip() else []
-for line in matched_lines:
-    parts = line.split('|')
-    if len(parts) >= 2:
-        artifacts.append({'name': parts[0], 'file': 'found', 'status': 'provided'})
-for line in missing_lines:
-    parts = line.split('|')
-    if len(parts) >= 3:
-        artifacts.append({'name': parts[1], 'file': None, 'status': 'missing', 'required': parts[2] == 'True'})
-req_total = len(artifacts)
-req_provided = sum(1 for a in artifacts if a['status'] == 'provided')
-req_missing = sum(1 for a in artifacts if a['status'] == 'missing' and a.get('required', True))
-record = {
-    'id': $id, 'from': '$from_slug', 'to': '$to_slug',
-    'timestamp': '$date', 'pipeline': '$pipeline',
-    'phase_from': '$current_phase', 'phase_to': '$next_phase',
-    'path': '$path', 'artifacts': artifacts,
-    'checklist': {'required_total': req_total, 'required_provided': req_provided, 'required_missing': req_missing},
-    'status': 'ready' if req_missing == 0 else 'incomplete', 'accepted_by': None
-}
-os.makedirs('$HANDOFFS_DIR', exist_ok=True)
-with open('$json_file', 'w') as f:
-    json.dump(record, f, indent=2, ensure_ascii=False)
-print(f'      状态: {record[\"status\"]}')
-print(f'      完整度: {req_provided}/{req_total}')
-if req_missing > 0:
-    print(f'      [!!] 缺失 {req_missing} 项')
-    for a in artifacts:
-        if a['status'] == 'missing':
-            print(f'           - {a[\"name\"]}')
+          # Write matched/missing to temp files for safe data transfer
+          local mtmp; mtmp=$(mktemp); local mtmp2; mtmp2=$(mktemp)
+          echo "$matched" > "$mtmp"
+          echo "$missing" > "$mtmp2"
+
+          if command -v node &>/dev/null; then
+            node -e "
+const fs=require('fs');
+const matched=fs.readFileSync('$mtmp','utf8').trim().split('\n').filter(l=>l);
+const missing=fs.readFileSync('$mtmp2','utf8').trim().split('\n').filter(l=>l);
+const artifacts=[];
+for(const l of matched){const p=l.split('|');if(p.length>=2)artifacts.push({name:p[0],file:'found',status:'provided'})}
+for(const l of missing){const p=l.split('|');if(p.length>=3)artifacts.push({name:p[1],file:null,status:'missing',required:p[2]==='True'})}
+const rt=artifacts.length,rp=artifacts.filter(a=>a.status==='provided').length;
+const rm=artifacts.filter(a=>a.status==='missing'&&a.required!==false).length;
+const rec={id:$id,from:'$from_slug',to:'$to_slug',timestamp:'$date',pipeline:'$pipeline',phase_from:'$current_phase',phase_to:'$next_phase',path:'$path',artifacts:artifacts,checklist:{required_total:rt,required_provided:rp,required_missing:rm},status:rm===0?'ready':'incomplete',accepted_by:null};
+fs.mkdirSync('$HANDOFFS_DIR',{recursive:true});
+fs.writeFileSync('$json_file',JSON.stringify(rec,null,2)+'\n','utf8');
+console.log('      状态: '+rec.status);
+console.log('      完整度: '+rp+'/'+rt);
+if(rm>0){console.log('      [!!] 缺失 '+rm+' 项');for(const a of artifacts){if(a.status==='missing')console.log('           - '+a.name)}}
 " 2>/dev/null
+          fi
+          rm -f "$mtmp" "$mtmp2"
 
           if [[ "$req_missing" -gt 0 ]]; then
             all_ready=false
@@ -1355,17 +1418,17 @@ cmd_graph() {
         # Fallback: try raw name
         [[ -f "$state_file" ]] || state_file="/tmp/guild-graph-${graph_name}-state.json"
         [[ -f "$state_file" ]] || { echo "图 \"$graph_name\" 无运行中的状态"; return 0; }
-        python3 -c "
-import json
-d=json.load(open('$state_file'))
-print('图状态: ${graph_name}')
-print('迭代: %d' % d.get('current_iteration', 0))
-print()
-for k,n in d['nodes'].items():
-    icons = {'pending':'⏳','running':'🔄','completed':'✅','failed':'❌','timeout':'⌛','exhausted':'💀'}
-    icon = icons.get(n['status'], '⬜')
-    print('  %s %s: %s' % (icon, k, n['status']))
+        if command -v node &>/dev/null; then
+          node -e "
+const d=JSON.parse(require('fs').readFileSync('$state_file','utf8'));
+console.log('图状态: ${graph_name}');
+console.log('迭代: '+d.current_iteration||0);console.log();
+const icons={'pending':'⏳','running':'🔄','completed':'✅','failed':'❌','timeout':'⌛','exhausted':'💀'};
+for(const[k,n]of Object.entries(d.nodes)){console.log('  '+(icons[n.status]||'⬜')+' '+k+': '+n.status)}
 " 2>/dev/null || cat "$state_file"
+        else
+          cat "$state_file"
+        fi
       else
         # List all running graph states
         local found=false
@@ -1374,15 +1437,16 @@ for k,n in d['nodes'].items():
           found=true
           local gname; gname=$(basename "$f" | sed 's/guild-graph-//;s/-state.json//')
           echo "  图: $gname"
-          python3 -c "
-import json
-d=json.load(open('$f'))
-nodes = d['nodes']
-done = sum(1 for n in nodes.values() if n['status']=='completed')
-failed = sum(1 for n in nodes.values() if n['status']=='failed')
-print('    节点: %d/%d 完成, %d 失败' % (done, len(nodes), failed))
-print('    迭代: %d' % d.get('current_iteration',0))
+          if command -v node &>/dev/null; then
+            node -e "
+const d=JSON.parse(require('fs').readFileSync('$f','utf8'));
+const ns=Object.values(d.nodes||{});
+const done=ns.filter(n=>n.status==='completed').length;
+const failed=ns.filter(n=>n.status==='failed').length;
+console.log('    节点: '+done+'/'+ns.length+' 完成, '+failed+' 失败');
+console.log('    迭代: '+(d.current_iteration||0));
 " 2>/dev/null
+          fi
         done
         $found || echo "  无运行中的图"
       fi
@@ -1452,14 +1516,14 @@ cmd_verify() {
     for f in "$HANDOFFS_DIR"/*.json; do
       [[ -f "$f" ]] || continue
       local fid
-      fid=$(python3 -c "import json; print(json.load(open('$f'))['id'])" 2>/dev/null)
+      fid=$(json_get "$f" "id")
       if [[ "$fid" == "$handoff_id" ]]; then
         json_file="$f"
         break
       fi
     done
     [[ -f "$json_file" ]] || die "Handoff #$handoff_id not found"
-    dir_path=$(python3 -c "import json; print(json.load(open('$json_file'))['path'])" 2>/dev/null)
+    dir_path=$(json_get "$json_file" "path")
     [[ -d "$dir_path" ]] || die "Handoff #$handoff_id path not found: $dir_path"
   fi
 
@@ -1525,11 +1589,14 @@ cmd_feedback() {
     for f in "$FEEDBACK_DIR"/fb-*.json; do
       [[ -f "$f" ]] || continue
       local id hid type severity summary status created
-      read -r id hid type severity summary status created <<< $(python3 -c "
-import json
-d = json.load(open('$f'))
-print(d['id'], d['handoff_id'], d['type'], d['severity'], d['summary'], d['status'], d['created'][:19])
-" 2>/dev/null) || true
+      id=$(json_get "$f" "id")
+      hid=$(json_get "$f" "handoff_id")
+      type=$(json_get "$f" "type")
+      severity=$(json_get "$f" "severity")
+      summary=$(json_get "$f" "summary")
+      status=$(json_get "$f" "status")
+      created=$(json_get "$f" "created")
+      created="${created:0:19}"
 
       [[ -n "$id" ]] || continue
       [[ -n "$handoff_id" && "$hid" != "$handoff_id" ]] && continue
@@ -1568,16 +1635,16 @@ print(d['id'], d['handoff_id'], d['type'], d['severity'], d['summary'], d['statu
     local fb_file="$FEEDBACK_DIR/$fix_id.json"
     [[ -f "$fb_file" ]] || die "反馈 $fix_id 不存在"
 
-    python3 -c "
-import json, datetime
-d = json.load(open('$fb_file'))
-d['status'] = 'fixed'
-d['linked_fix_handoff'] = '$fix_handoff'
-d['resolved'] = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-with open('$fb_file', 'w') as f:
-    json.dump(d, f, indent=2, ensure_ascii=False)
-print('反馈 $fix_id 已标记为已修复（关联 Handoff #$fix_handoff）')
-" 2>/dev/null || ok "反馈 $fix_id 已链接"
+    local fix_ok=false
+    if command -v node &>/dev/null; then
+      node -e "
+const fs=require('fs'),d=JSON.parse(fs.readFileSync('$fb_file','utf8'));
+d.status='fixed';d.linked_fix_handoff='$fix_handoff';d.resolved=new Date().toISOString().replace(/\.[0-9]+Z/,'Z');
+fs.writeFileSync('$fb_file',JSON.stringify(d,null,2)+'\n','utf8');
+console.log('反馈 $fix_id 已标记为已修复（关联 Handoff #$fix_handoff）');
+" 2>/dev/null && fix_ok=true
+    fi
+    $fix_ok || ok "反馈 $fix_id 已链接"
     return
   fi
 
@@ -1637,7 +1704,7 @@ cmd_changelog() {
   for f in "$HANDOFFS_DIR"/*.json; do
     [[ -f "$f" ]] || continue
     local status
-    status=$(python3 -c "import json; print(json.load(open('$f')).get('status',''))" 2>/dev/null)
+    status=$(json_get "$f" "status")
     [[ "$status" != "accepted" ]] && continue
     handoff_files+=("$f")
   done
@@ -1650,13 +1717,12 @@ cmd_changelog() {
   # Sort by timestamp
   local sorted
   sorted=$(for f in "${handoff_files[@]}"; do
-    python3 -c "
-import json
-d = json.load(open('$f'))
-ts = d.get('timestamp','')
-msg = d.get('message','')
-print(ts, d['id'], d['from'], d['to'], msg)
+    if command -v node &>/dev/null; then
+      node -e "
+const d=JSON.parse(require('fs').readFileSync('$f','utf8'));
+console.log(d.timestamp+' '+d.id+' '+d.from+' '+d.to+' '+(d.message||''));
 " 2>/dev/null
+    fi
   done | sort)
 
   echo "变更日志"
@@ -1682,20 +1748,15 @@ print(ts, d['id'], d['from'], d['to'], msg)
     for ff in "$FEEDBACK_DIR"/fb-*.json; do
       [[ -f "$ff" ]] || continue
       local linked
-      linked=$(python3 -c "
-import json
-d = json.load(open('$ff'))
-lh = d.get('linked_fix_handoff')
-print(lh or '')
-" 2>/dev/null)
-      if [[ "$linked" != "" ]]; then
+      linked=$(json_get "$ff" "linked_fix_handoff")
+      if [[ -n "$linked" ]]; then
         # Check if linked handoff id matches this handoff's id as string
         local h_id_str="$id"
         if [[ "$linked" == "$h_id_str" ]]; then
           local fb_summary
-          fb_summary=$(python3 -c "import json; print(json.load(open('$ff')).get('summary',''))" 2>/dev/null)
+          fb_summary=$(json_get "$ff" "summary")
           local fb_id_name
-          fb_id_name=$(python3 -c "import json; print(json.load(open('$ff')).get('id',''))" 2>/dev/null)
+          fb_id_name=$(json_get "$ff" "id")
           fb_ref="$fb_id_name: $fb_summary"
           break
         fi
@@ -1822,25 +1883,22 @@ JSONEOF
   # Update index
   local idx="$REPO_ROOT/context/index.json"
   local tmpidx="${idx}.tmp"
-  python3 -c "
-import json
-with open('$idx') as f:
-    idx = json.load(f)
-idx['updated'] = '$timestamp'
-idx['decisions'].append({
-    'id': $id,
-    'agent': '$agent_slug',
-    'type': '$type',
-    'topic': '$topic',
-    'file': '$filename',
-    'status': 'active'
-})
-with open('$tmpidx', 'w') as f:
-    json.dump(idx, f, indent=2, ensure_ascii=False)
-" 2>/dev/null && mv "$tmpidx" "$idx" || {
-    ok "索引更新跳过（python3 不可用）。决策已保存至: $filepath"
+  local idx_ok=false
+  if command -v node &>/dev/null; then
+    node -e "
+const fs=require('fs');
+const idx=JSON.parse(fs.readFileSync('$idx','utf8'));
+idx.updated='$timestamp';
+idx.decisions.push({id:$id,agent:'$agent_slug',type:'$type',topic:'$topic',file:'$filename',status:'active'});
+fs.writeFileSync('$tmpidx',JSON.stringify(idx,null,2)+'\n','utf8');
+" 2>/dev/null && idx_ok=true
+  fi
+  if $idx_ok; then
+    mv "$tmpidx" "$idx"
+  else
+    ok "索引更新跳过。决策已保存至: $filepath"
     return 0
-  }
+  fi
 
   echo ""
   ok "决策 #$id 已记录: $agent_slug / $type / $topic"
@@ -1872,29 +1930,26 @@ cmd_context() {
 
       # Group by type
       echo "按类型分组："
-      local types; types=$(python3 -c "
-import json
-idx = json.load(open('$idx'))
-types = {}
-for d in idx['decisions']:
-    t = d['type']
-    if t not in types: types[t] = []
-    types[t].append(d)
-for t in sorted(types.keys()):
-    print(f'{t}:{len(types[t])}')
+      local types=""
+      if command -v node &>/dev/null; then
+        types=$(node -e "
+const idx=JSON.parse(require('fs').readFileSync('$idx','utf8'));
+const types={};
+for(const d of(idx.decisions||[])){if(!types[d.type])types[d.type]=[];types[d.type].push(d)}
+for(const t of Object.keys(types).sort())console.log(t+':'+types[t].length);
 " 2>/dev/null)
+      fi
 
       if [[ -n "$types" ]]; then
         echo "$types" | while IFS=':' read -r t count; do
           echo "  $t ($count 条)"
           # List decisions of this type
-          python3 -c "
-import json
-idx = json.load(open('$idx'))
-for d in idx['decisions']:
-    if d['type'] == '$t':
-        print(f'    #{d[\"id\"]} [{d[\"agent\"]}] {d[\"topic\"]} ({d[\"status\"]})')
+          if command -v node &>/dev/null; then
+            node -e "
+const idx=JSON.parse(require('fs').readFileSync('$idx','utf8'));
+for(const d of(idx.decisions||[])){if(d.type==='$t')console.log('    #'+d.id+' ['+d.agent+'] '+d.topic+' ('+d.status+')')}
 " 2>/dev/null
+          fi
         done
       else
         # Fallback: list all from files
@@ -1921,28 +1976,24 @@ for d in idx['decisions']:
 
       # Check 1: Decisions on same topic by different agents
       echo "1. 同主题多决策："
-      local check1_output; check1_output=$(python3 -c "
-import json
-from collections import defaultdict
-idx = json.load(open('$idx'))
-topics = defaultdict(list)
-for d in idx['decisions']:
-    if d['status'] == 'active':
-        topics[d['topic']].append(d)
-found = 0
-for topic, decs in topics.items():
-    if len(decs) > 1:
-        agents = set(d['agent'] for d in decs)
-        if len(agents) > 1:
-            found += 1
-            print(f'  ⚠️  冲突: {topic}')
-            for d in decs:
-                print(f'      #{d[\"id\"]} [{d[\"agent\"]}]: {d[\"topic\"]}')
-print(f'CONFLICT_COUNT={found}')
-" 2>/dev/null) || {
-        echo "  (无法运行冲突检查 — python3 不可用)"
-        check1_output="CONFLICT_COUNT=0"
-      }
+      local check1_output="CONFLICT_COUNT=0"
+      if command -v node &>/dev/null; then
+        check1_output=$(node -e "
+const idx=JSON.parse(require('fs').readFileSync('$idx','utf8'));
+const topics={};
+for(const d of(idx.decisions||[])){if(d.status==='active'){if(!topics[d.topic])topics[d.topic]=[];topics[d.topic].push(d)}}
+let found=0;
+for(const[t,decs]of Object.entries(topics)){
+  if(decs.length>1){const agents=new Set(decs.map(d=>d.agent));if(agents.size>1){
+    found++;console.log('  ⚠️  冲突: '+t);
+    for(const d of decs)console.log('      #'+d.id+' ['+d.agent+']: '+d.topic);
+  }}
+}
+console.log('CONFLICT_COUNT='+found);
+" 2>/dev/null) || check1_output="CONFLICT_COUNT=0"
+      else
+        echo "  (无法运行冲突检查 — node required)"
+      fi
 
       # Print check output (excluding the CONFLICT_COUNT marker)
       echo "$check1_output" | grep -v "^CONFLICT_COUNT="
@@ -2169,6 +2220,70 @@ cmd_resolve() {
   echo "  受影响方应被通知最终决定"
 }
 
+# ── cmd_cleanup ──────────────────────────────────────────────────────
+
+# Usage: guild cleanup [--stale]
+cmd_cleanup() {
+  local stale_mode=false
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --stale) stale_mode=true; shift;;
+      *) shift;;
+    esac
+  done
+
+  # Gather stuck handoffs (incomplete or needs_fix)
+  local -a stale_items=()
+  for f in "$HANDOFFS_DIR"/*.json; do
+    [[ -f "$f" ]] || continue
+    local sid sfrom sto sstatus sts
+    sid=$(json_get "$f" "id")
+    sfrom=$(json_get "$f" "from")
+    sto=$(json_get "$f" "to")
+    sstatus=$(json_get "$f" "status")
+    sts=$(json_get "$f" "timestamp")
+    sts="${sts:0:19}"
+    [[ -n "$sid" ]] || continue
+    [[ "$sstatus" == "incomplete" || "$sstatus" == "needs_fix" ]] || continue
+    local septokh
+    septokh=$(date -d "$(echo "$sts" | tr 'T' ' ')" +%s 2>/dev/null || echo 0)
+    local now_epoch
+    now_epoch=$(date +%s)
+    local age_days=$(( (now_epoch - septokh) / 86400 ))
+    stale_items+=("$sid|$sfrom|$sto|$sstatus|$age_days|$f")
+  done
+
+  if [[ ${#stale_items[@]} -eq 0 ]]; then
+    echo "  No stale handoffs found."
+    return 0
+  fi
+
+  if $stale_mode; then
+    local archive_dir="$HANDOFFS_DIR/.archive"
+    mkdir -p "$archive_dir"
+    echo "Archiving stale handoffs:"
+    for entry in "${stale_items[@]}"; do
+      local sid sfrom sto sstatus age_days fpath
+      IFS='|' read -r sid sfrom sto sstatus age_days fpath <<< "$entry"
+      mv "$fpath" "$archive_dir/"
+      echo "  Archived #$sid: $sfrom → $sto ($sstatus, ${age_days}d old)"
+    done
+  else
+    echo "Stale handoffs (incomplete/needs_fix):"
+    for entry in "${stale_items[@]}"; do
+      local sid sfrom sto sstatus age_days fpath
+      IFS='|' read -r sid sfrom sto sstatus age_days fpath <<< "$entry"
+      if (( age_days >= 7 )); then
+        echo "  ⚠ #$sid: $sfrom → $sto ($sstatus, ${age_days}d old)"
+      else
+        echo "    #$sid: $sfrom → $sto ($sstatus, ${age_days}d old)"
+      fi
+    done
+    echo ""
+    echo "Run 'guild cleanup --stale' to archive them."
+  fi
+}
+
 # ── Main ────────────────────────────────────────────────────────────
 
 if [[ $# -eq 0 ]]; then
@@ -2190,6 +2305,7 @@ if [[ $# -eq 0 ]]; then
   echo "  guild inbox     — 查看 Agent 收件箱"
   echo "  guild read      — 标记收件箱消息为已读"
   echo "  guild resolve   — 基于决策权重自动解决冲突"
+  echo "  guild cleanup   — 查看/清理过期交接（--stale 执行归档）"
   echo "  guild gate      — 运行质量门禁 (completeness/syntax/behavior/playability/agent-standards)"
   echo "  guild test      — 运行交付物行为测试（超越静态验证）"
   echo ""
@@ -2209,6 +2325,7 @@ case "$CMD" in
   verify)    cmd_verify "$@";;
   feedback)  cmd_feedback "$@";;
   changelog) cmd_changelog "$@";;
+  cleanup)   cmd_cleanup "$@";;
   list)      cmd_list "$@";;
   run)       cmd_run "$@";;
   decide)    cmd_decide "$@";;
@@ -2218,8 +2335,9 @@ case "$CMD" in
   resolve)   cmd_resolve "$@";;
   test)      cmd_test "$@";;
   gate)      cmd_gate "$@";;
+  self-test) bash "$SCRIPT_DIR/self-test.sh";;
   --help|-h|help)
     sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, list, run, decide, context, inbox, read, resolve, gate, test";;
+  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, self-test, test";;
 esac

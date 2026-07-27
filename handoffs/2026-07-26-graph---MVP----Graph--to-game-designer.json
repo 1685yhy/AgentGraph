@@ -6,14 +6,18 @@
   "message": "Graph node completed: concept",
   "path": "/tmp/test-graph-real",
   "artifacts": [
-    {"name": "graph_node_output", "file": "/tmp/test-graph-real", "status": "provided"}
+    {
+      "name": "graph_node_output",
+      "file": "/tmp/test-graph-real",
+      "status": "provided"
+    }
   ],
   "checklist": {
     "required_total": 1,
     "required_provided": 1,
     "required_missing": 0
   },
-  "status": "ready",
-  "accepted_by": null,
+  "status": "accepted",
+  "accepted_by": "game-designer",
   "source": "graph-engine"
 }

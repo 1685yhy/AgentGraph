@@ -1,12 +1,16 @@
 {
-  "id": 9,
+  "id": 14,
   "from": "graph:游戏MVP开发 (Graph)",
   "to": "game-ui-designer",
   "timestamp": "2026-07-26T12:47:10Z",
   "message": "Graph node completed: ui",
   "path": "/tmp/test-graph-real",
   "artifacts": [
-    {"name": "graph_node_output", "file": "/tmp/test-graph-real", "status": "provided"}
+    {
+      "name": "graph_node_output",
+      "file": "/tmp/test-graph-real",
+      "status": "provided"
+    }
   ],
   "checklist": {
     "required_total": 1,

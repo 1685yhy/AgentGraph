@@ -4,6 +4,45 @@
 # Bash 3.2+ compatible. No external dependencies.
 # Groups: frontmatter parsers, slug helpers, terminal helpers.
 
+# ── JSON helpers ─────────────────────────────────────────────────────
+
+# json_get — read a single top-level field from a JSON file
+# Usage: json_get <file> <field> [default]
+# Returns: the field value (string/number), or default
+json_get() {
+  local file="$1" field="$2" default="${3:-}"
+  # Use node if available (fast path)
+  if command -v node &>/dev/null; then
+    local val
+    val=$(node -e "const d=JSON.parse(require('fs').readFileSync('$file','utf8'));console.log(d['$field']===undefined?'$default':String(d['$field']))" 2>/dev/null)
+    if [[ $? -eq 0 && -n "$val" ]]; then
+      echo "$val"
+      return
+    fi
+  fi
+  # Pure bash fallback — works for simple string/number values
+  local val
+  val=$(grep -o "\"${field}\"[[:space:]]*:[[:space:]]*[^\",}\n]*" "$file" 2>/dev/null | head -1 | sed 's/.*:[[:space:]]*//' | tr -d '"' | tr -d ',' | xargs)
+  echo "${val:-$default}"
+}
+
+# json_validate — check if a file is valid JSON
+json_validate() {
+  local file="$1"
+  # node fast path
+  if command -v node &>/dev/null; then
+    node -e "JSON.parse(require('fs').readFileSync('$file','utf8'))" 2>/dev/null && return 0 || return 1
+  fi
+  return 1
+}
+
+# js_syntax_check — validate JS/TS syntax
+js_syntax_check() {
+  local file="$1"
+  command -v node &>/dev/null || { echo "  (node not available — skip JS syntax check)"; return 0; }
+  node --check "$file" 2>&1 && return 0 || return 1
+}
+
 # ── Frontmatter / slug helpers ────────────────────────────────────
 
 # get_field <field> <file> — value of a YAML frontmatter field (first match).

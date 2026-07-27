@@ -1,0 +1,37 @@
+{
+  "id": 13,
+  "from": "game-programmer",
+  "to": "game-qa-engineer",
+  "timestamp": "2026-07-26T15:47:48Z",
+  "message": "FreezeMatch v1.0 完整交付",
+  "path": "/tmp/freezematch-handoff",
+  "artifacts": [
+    {
+      "name": "设计的预期玩家行为",
+      "file": "found",
+      "status": "provided"
+    },
+    {
+      "name": "关卡的关键路径、地标系统和节奏图",
+      "file": "found",
+      "status": "provided"
+    },
+    {
+      "name": "已知的技术限制和已知bug列表",
+      "file": "found",
+      "status": "provided"
+    },
+    {
+      "name": "付费系统的经济模型",
+      "file": "found",
+      "status": "provided"
+    }
+  ],
+  "checklist": {
+    "required_total": 4,
+    "required_provided": 4,
+    "required_missing": 0
+  },
+  "status": "accepted",
+  "accepted_by": "game-qa-engineer"
+}

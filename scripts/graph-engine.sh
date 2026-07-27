@@ -433,21 +433,10 @@ _compute_topological_order() {
 # Validate state file JSON integrity
 _validate_state_file() {
   [[ -f "$_STATE_FILE" ]] || return 1
-  python3 -c "
-import json
-try:
-    with open('$_STATE_FILE') as f:
-        d = json.load(f)
-    # Validate required fields
-    assert 'name' in d, 'missing name'
-    assert 'nodes' in d, 'missing nodes'
-    for nid, ndata in d['nodes'].items():
-        assert 'status' in ndata, f'missing status for {nid}'
-    print('VALID')
-except Exception as e:
-    print('CORRUPT: ' + str(e))
-    sys.exit(1)
-" 2>/dev/null | grep -q 'VALID'
+  json_validate "$_STATE_FILE" || return 1
+  # Basic field presence check via grep
+  grep -q '"name"' "$_STATE_FILE" 2>/dev/null || return 1
+  grep -q '"nodes"' "$_STATE_FILE" 2>/dev/null || return 1
 }
 
 # Backup state file
@@ -496,16 +485,14 @@ JSONEOF
 _get_state() {
   local node="$1" field="$2"
   _lock_state
-  local result
-  result=$(python3 -c "
-import json
-with open('$_STATE_FILE') as f:
-    d = json.load(f)
-if '$node' == '__graph__':
-    print(d.get('$field', ''))
-else:
-    print(d['nodes'].get('$node', {}).get('$field', ''))
+  local result=""
+  if command -v node &>/dev/null; then
+    result=$(node -e "
+const d=JSON.parse(require('fs').readFileSync('$_STATE_FILE','utf8'));
+const t='$node'==='__graph__'?d:(d.nodes['$node']||{});
+console.log(t['$field']===undefined?'':String(t['$field']));
 " 2>/dev/null || echo "")
+  fi
   _unlock_state
   echo "$result"
 }
@@ -513,22 +500,16 @@ else:
 _set_state() {
   local node="$1" field="$2" value="$3"
   _lock_state
-  local scr; scr=$(mktemp /tmp/guild-setstate-XXXXXX.py)
-  cat > "$scr" << 'PYEOF'
-import json, sys
-node, field, value, state_file = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-with open(state_file) as f:
-    d = json.load(f)
-target = d if node == '__graph__' else d['nodes'].setdefault(node, {})
-try:
-    target[field] = json.loads(value)
-except (json.JSONDecodeError, TypeError):
-    target[field] = value
-with open(state_file, 'w') as f:
-    json.dump(d, f, indent=2, ensure_ascii=False)
-PYEOF
-  python3 "$scr" "$node" "$field" "$value" "$_STATE_FILE" 2>/dev/null || true
-  rm -f "$scr" 2>/dev/null || true
+  if command -v node &>/dev/null; then
+    node -e "
+const fs=require('fs');
+const sf='$_STATE_FILE';
+let d=JSON.parse(fs.readFileSync(sf,'utf8'));
+const target='$node'==='__graph__'?d:(d.nodes['$node']=d.nodes['$node']||{});
+try{target['$field']=JSON.parse('$value')}catch(e){target['$field']='$value'}
+fs.writeFileSync(sf,JSON.stringify(d,null,2)+'\n','utf8');
+" 2>/dev/null || true
+  fi
   _unlock_state
 }
 
@@ -536,19 +517,17 @@ _set_node_status() {
   local node="$1" status="$2" output="${3:-}"
   local now; now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   _lock_state
-  python3 -c "
-import json
-with open('$_STATE_FILE') as f:
-    d = json.load(f)
-d['nodes']['$node']['status'] = '$status'
-if '$status' == 'running':
-    d['nodes']['$node']['started_at'] = '$now'
-elif '$status' in ('completed', 'failed', 'timeout', 'exhausted'):
-    d['nodes']['$node']['completed_at'] = '$now'
-    d['nodes']['$node']['output'] = '$output'
-with open('$_STATE_FILE', 'w') as f:
-    json.dump(d, f, indent=2, ensure_ascii=False)
+  if command -v node &>/dev/null; then
+    node -e "
+const fs=require('fs');
+const sf='$_STATE_FILE';
+let d=JSON.parse(fs.readFileSync(sf,'utf8'));
+d.nodes['$node'].status='$status';
+if('$status'==='running'){d.nodes['$node'].started_at='$now'}
+else if(['completed','failed','timeout','exhausted'].includes('$status')){d.nodes['$node'].completed_at='$now';d.nodes['$node'].output='$output'}
+fs.writeFileSync(sf,JSON.stringify(d,null,2)+'\n','utf8');
 " 2>/dev/null || true
+  fi
   _backup_state_file
   _unlock_state
   _EDGES_PROCESSED[$node]=""
@@ -556,13 +535,13 @@ with open('$_STATE_FILE', 'w') as f:
 
 _get_status() {
   _lock_state
-  local result
-  result=$(python3 -c "
-import json
-with open('$_STATE_FILE') as f:
-    d = json.load(f)
-print(d['nodes'].get('$1', {}).get('status', 'unknown'))
+  local result="unknown"
+  if command -v node &>/dev/null; then
+    result=$(node -e "
+const d=JSON.parse(require('fs').readFileSync('$_STATE_FILE','utf8'));
+console.log((d.nodes['$1']||{}).status||'unknown');
 " 2>/dev/null || echo "unknown")
+  fi
   _unlock_state
   echo "$result"
 }
@@ -801,7 +780,7 @@ execute_node() {
                   bash -n "$filepath" 2>/dev/null && file_ok=true || file_ok=false
                   ;;
                 json)
-                  python3 -c "import json; json.load(open('$filepath'))" 2>/dev/null && file_ok=true || file_ok=false
+                  json_validate "$filepath" && file_ok=true || file_ok=false
                   ;;
                 *)
                   [[ -s "$filepath" ]] && file_ok=true || file_ok=false
@@ -953,7 +932,7 @@ _create_handoff_for_node() {
   for f in "$handoffs_dir"/*.json; do
     [[ -f "$f" ]] || continue
     local id_val
-    id_val=$(python3 -c "import json; print(json.load(open('$f')).get('id',0))" 2>/dev/null || echo 0)
+    id_val=$(json_get "$f" "id" "0")
     (( id_val > max_id )) && max_id=$id_val
   done
   local new_id=$((max_id + 1))
@@ -968,16 +947,14 @@ _create_handoff_for_node() {
   # Try to resolve agent slug from config
   local config="$repo_root/guild.config.json"
   if [[ -f "$config" ]]; then
-    local resolved
-    resolved=$(python3 -c "
-import json
-with open('$config') as f:
-    data = json.load(f)
-for a in data.get('agents', []):
-    if a.get('name','').lower().replace(' ','-') == '$agent_name'.lower().replace(' ','-') or a.get('slug','') == '$agent_name':
-        print(a['slug'])
-        break
+    local resolved=""
+    if command -v node &>/dev/null; then
+      resolved=$(node -e "
+const d=JSON.parse(require('fs').readFileSync('$config','utf8'));
+const an='$agent_name'.toLowerCase().replace(/ /g,'-');
+for(const a of(d.agents||[])){if(a.slug==='$agent_name'||a.name.toLowerCase().replace(/ /g,'-')===an){console.log(a.slug);break}}
 " 2>/dev/null)
+    fi
     [[ -n "$resolved" ]] && agent_slug="$resolved"
   fi
 
@@ -1417,6 +1394,9 @@ _simulate_graph() {
 resume_graph() {
   local graph_name="$1" work_dir="$2" auto_yes="${3:-false}"
 
+  # graph-engine requires python3 for YAML parsing
+  command -v python3 >/dev/null 2>&1 || { err "graph-engine requires python3 (for YAML parsing). Install python3."; return 1; }
+
   local state_file="/tmp/guild-graph-${graph_name}-state.json"
   # Also check from graph file name
   local state_basename
@@ -1462,44 +1442,37 @@ resume_graph() {
 
   # Read graph name from state
   local state_graph_name
-  state_graph_name=$(python3 -c "
-import json
-with open('$_STATE_FILE') as f:
-    d = json.load(f)
-print(d.get('name', ''))
-" 2>/dev/null)
+  state_graph_name=$(json_get "$_STATE_FILE" "name" "")
 
   if [[ -n "$state_graph_name" && "$state_graph_name" != "$graph_name" ]]; then
     warn "状态文件中的图名称 '${state_graph_name}' 与请求的 '${graph_name}' 不匹配"
   fi
 
   # Mark running/interrupted nodes for re-execution
-  local nodes_to_reset
-  nodes_to_reset=$(python3 -c "
-import json
-with open('$_STATE_FILE') as f:
-    d = json.load(f)
-reset_nodes = []
-for nid, ndata in d['nodes'].items():
-    if ndata.get('status') in ('running', 'interrupted'):
-        reset_nodes.append(nid)
-print(' '.join(reset_nodes))
+  local nodes_to_reset=""
+  if command -v node &>/dev/null; then
+    nodes_to_reset=$(node -e "
+const d=JSON.parse(require('fs').readFileSync('$_STATE_FILE','utf8'));
+const reset=[];
+for(const[nid,nd]of Object.entries(d.nodes)){if(['running','interrupted'].includes(nd.status))reset.push(nid)}
+console.log(reset.join(' '));
 " 2>/dev/null)
+  fi
 
   _lock_state
-  python3 -c "
-import json
-with open('$_STATE_FILE') as f:
-    d = json.load(f)
-for nid in d['nodes']:
-    if d['nodes'][nid].get('status') in ('running', 'interrupted'):
-        d['nodes'][nid]['status'] = 'pending'
-        d['nodes'][nid]['output'] = '中断 - 已重置为待执行'
-        d['nodes'][nid]['started_at'] = None
-        d['nodes'][nid]['completed_at'] = None
-with open('$_STATE_FILE', 'w') as f:
-    json.dump(d, f, indent=2, ensure_ascii=False)
+  if command -v node &>/dev/null; then
+    node -e "
+const fs=require('fs');
+const sf='$_STATE_FILE';
+let d=JSON.parse(fs.readFileSync(sf,'utf8'));
+for(const nid of Object.keys(d.nodes)){
+  if(['running','interrupted'].includes(d.nodes[nid].status)){
+    d.nodes[nid].status='pending';d.nodes[nid].output='中断 - 已重置为待执行';d.nodes[nid].started_at=null;d.nodes[nid].completed_at=null;
+  }
+}
+fs.writeFileSync(sf,JSON.stringify(d,null,2)+'\n','utf8');
 " 2>/dev/null || true
+  fi
   _backup_state_file
   _unlock_state
 
@@ -1508,17 +1481,15 @@ with open('$_STATE_FILE', 'w') as f:
   fi
 
   # Find last completed node
-  local last_completed
-  last_completed=$(python3 -c "
-import json
-with open('$_STATE_FILE') as f:
-    d = json.load(f)
-last = None
-for nid, ndata in d['nodes'].items():
-    if ndata.get('status') == 'completed':
-        last = nid
-print(last or '')
+  local last_completed=""
+  if command -v node &>/dev/null; then
+    last_completed=$(node -e "
+const d=JSON.parse(require('fs').readFileSync('$_STATE_FILE','utf8'));
+let last='';
+for(const[nid,nd]of Object.entries(d.nodes)){if(nd.status==='completed')last=nid}
+console.log(last);
 " 2>/dev/null)
+  fi
 
   echo ""
   ok "正在恢复图执行: ${graph_name}"
@@ -1671,6 +1642,9 @@ run_graph() {
 
   [[ -f "$graph_file" ]] || { err "Graph file not found: $graph_file"; return 1; }
   [[ -d "$work_dir" ]] || mkdir -p "$work_dir"
+
+  # graph-engine requires python3 for YAML parsing
+  command -v python3 >/dev/null 2>&1 || { err "graph-engine requires python3 (for YAML parsing). Install python3."; return 1; }
 
   echo "  解析图定义: $(basename "$graph_file")..."
   parse_graph "$graph_file" || return 1
