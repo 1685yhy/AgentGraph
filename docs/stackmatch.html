@@ -85,6 +85,13 @@ let gameState = 'init'; // init|playing|paused|won|lost
 const EMOJIS = ['🍎','🍊','🍋','🍇','🍓','🌸','🌻','🍀','💎','🔥','⭐','🦊','🐸','🐼','🦋','🐙'];
 const MAX_SLOTS = 7;
 const MATCH_COUNT = 3;
+const DAILY_SEED = Math.floor(Date.now() / 86400000); // 每日种子
+
+// -- Seeded PRNG (for daily challenge consistency) --
+function seededRandom(seed) {
+  let s = seed;
+  return function() { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+}
 
 // ── Game State ──
 let tiles = [];           // {id, type, x, y, layer, removed, ...}
@@ -110,6 +117,22 @@ function ensureAudio() {
     try { _audioCtx.resume(); } catch(e) {}
   }
 }
+function playBeep(freq, dur, type='square', vol=0.08) {
+  if (!_audioCtx) return;
+  try {
+    const o = _audioCtx.createOscillator();
+    const g = _audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, _audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, _audioCtx.currentTime + dur);
+    o.connect(g); g.connect(_audioCtx.destination);
+    o.start(); o.stop(_audioCtx.currentTime + dur);
+  } catch(e) {}
+}
+function sfxClick() { playBeep(800, 0.08, 'sine', 0.06); }
+function sfxMatch() { playBeep(523, 0.1, 'sine', 0.08); setTimeout(() => playBeep(659, 0.1, 'sine', 0.08), 80); setTimeout(() => playBeep(784, 0.15, 'sine', 0.08), 160); }
+function sfxFail() { playBeep(200, 0.3, 'sawtooth', 0.1); }
+function sfxWin() { playBeep(523, 0.12, 'sine', 0.1); setTimeout(() => playBeep(659, 0.12, 'sine', 0.1), 100); setTimeout(() => playBeep(784, 0.12, 'sine', 0.1), 200); setTimeout(() => playBeep(1047, 0.25, 'sine', 0.1), 300); }
 
 // -- Safe localStorage wrapper (try-catch保护) --
 function lsGet(key, fallback) {
@@ -136,7 +159,7 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 
 // ── Tile Generation ──
-function generateTiles(level) {
+function generateTiles(level, useSeed = false) {
   tiles = [];
   tileIdCounter = 0;
   slots = [];
@@ -147,38 +170,49 @@ function generateTiles(level) {
   moves = 0;
   currentLevel = level;
 
-  const cols = level === 1 ? 5 : 6;
-  const rows = level === 1 ? 4 : 6;
-  const layers = level === 1 ? 2 : 3;
+  const rng = useSeed ? seededRandom(DAILY_SEED + level * 1000) : seededRandom(Date.now() % 2147483647);
 
-  // Calculate how many tile positions we need
+  // 羊了个羊难度设计:
+  // Level 1: 简单 — 2层, 30块 (10种), 给玩家信心
+  // Level 2: 地狱 — 4层, 96块 (32种), 只有~0.1%能过
+  const config = level === 1
+    ? { cols: 5, rows: 3, layers: 2, density: 0.85 }
+    : { cols: 7, rows: 5, layers: 4, density: 0.92 };
+
   let positions = [];
-  for (let l = 0; l < layers; l++) {
-    const lCols = cols - l;
-    const lRows = rows - l;
+  for (let l = 0; l < config.layers; l++) {
+    const lCols = config.cols - l;
+    const lRows = config.rows - (l > 1 ? l : 0);
     for (let r = 0; r < lRows; r++) {
       for (let c = 0; c < lCols; c++) {
-        // Skip some positions randomly for visual variety
-        if (Math.random() < 0.1 + l * 0.05) continue;
+        if (rng() > config.density) continue;
         positions.push({ layer: l, col: c, row: r });
       }
     }
   }
 
-  // Ensure total is divisible by 3
-  while (positions.length % 3 !== 0) positions.pop();
+  // 确保Level 2更难: 故意在不同层放相同图案来制造"陷阱"
+  if (level >= 2) {
+    // 确保位置数量是3的倍数
+    while (positions.length % 3 !== 0) positions.splice(Math.floor(rng() * positions.length), 1);
+  } else {
+    while (positions.length % 3 !== 0) positions.pop();
+  }
 
-  // Assign types (each type appears exactly 3 times)
   const numTypes = Math.floor(positions.length / 3);
   const types = [];
+
+  // Level 2: 使用更多图案类型 = 更难匹配
+  const availableEmojis = level >= 2 ? [...EMOJIS] : EMOJIS.slice(0, 10);
   for (let i = 0; i < numTypes; i++) {
-    const emoji = EMOJIS[i % EMOJIS.length];
+    const emoji = availableEmojis[i % availableEmojis.length];
     types.push(emoji, emoji, emoji);
   }
 
-  // Shuffle positions and types
-  shuffle(positions);
-  shuffle(types);
+  // 用种子随机打乱
+  const shufArr = (arr) => { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } };
+  shufArr(positions);
+  shufArr(types);
 
   for (let i = 0; i < positions.length; i++) {
     const p = positions[i];
@@ -334,6 +368,7 @@ function onTileClick(tileId) {
   // Remove tile from board
   tile.removed = true;
   moves++;
+  sfxClick();
 
   // Add to slot bar
   let found = false;
@@ -356,6 +391,7 @@ function onTileClick(tileId) {
       matched = true;
       slots[i].count -= MATCH_COUNT;
       score += 10;
+      sfxMatch();
       if (slots[i].count <= 0) {
         slots.splice(i, 1);
       }
@@ -366,13 +402,15 @@ function onTileClick(tileId) {
   const remaining = tiles.filter(t => !t.removed);
   if (remaining.length === 0 && slots.every(s => s.count === 0)) {
     gameState = 'won'; gameWon = true;
+    sfxWin(); spawnCelebration();
     winCount++;
     lsSet('sm_wins', winCount);
     updateStats();
-    setTimeout(() => showOverlay('win'), 300);
-  } else if (slots.length >= MAX_SLOTS && !matched) {
-    // Game over: slots full with no matches
+    setTimeout(() => showOverlay('win'), 600);
+  } else if (slots.length >= MAX_SLOTS && !matched && slots.every(s => s.count < MATCH_COUNT)) {
+    // Game over: slots full with no matches possible
     gameState = 'lost'; gameOver = true;
+    sfxFail();
     loseCount++;
     lsSet('sm_losses', loseCount);
     updateStats();
@@ -514,19 +552,24 @@ function showOverlay(type) {
   const ov = document.getElementById('overlay');
   let html = '';
   if (type === 'win') {
+    const lb = getDailyLeaderboard();
+    const myRank = lb.findIndex(l => l.name === province) + 1;
     html = `<div class="overlay-panel">
-      <h2>🎉 恭喜通关！</h2><p>你真厉害！这关太难了！</p>
+      <h2>🎉 恭喜通关！</h2>
       <p style="color:#f6d365;font-size:24px;font-weight:800">🏆 ${province || '神秘'} 省 +1分！</p>
+      <p>你的省份今日排名: <b style="color:#f6d365">#${myRank}</b></p>
+      <div style="text-align:left;max-height:150px;overflow-y:auto;margin:8px 0;font-size:12px;color:#aab">
+        ${lb.slice(0, 5).map((l, i) => `<div style="padding:2px 0">${i+1}. ${l.name} ${l.score}分 ${l.name===province?'👈':''}</div>`).join('')}
+      </div>
       <button class="big-btn primary" onclick="nextLevel()">下一关 ▶️</button>
       <button class="big-btn secondary" onclick="showShareCard()">📤 分享战绩</button>
     </div>`;
   } else if (type === 'lose') {
     html = `<div class="overlay-panel">
-      <h2>😤 槽位已满！</h2><p>再试一次吧！就差一点点~</p>
-      <p style="color:#aab">💡 提示：用道具可以帮助你通关</p>
-      <button class="big-btn ad-btn" onclick="useReviveAd()">📺 看广告复活</button>
+      <h2>😤 槽位已满！</h2><p>就差一点点！别放弃~</p>
+      <button class="big-btn ad-btn" onclick="useReviveAd()">📺 看广告 — 复活（撤回3张）</button>
+      <button class="big-btn ad-btn" onclick="useExtraSlotAd()" ${extraSlotGranted ? 'disabled' : ''}>📺 看广告 — 退回1张牌</button>
       <button class="big-btn primary" onclick="restartGame()">🔄 重新开始</button>
-      <button class="big-btn secondary" onclick="showShareCard()">📤 求助好友</button>
     </div>`;
   } else if (type === 'share') {
     html = `<div class="overlay-panel">
@@ -655,6 +698,77 @@ canvas.addEventListener('click', (e) => {
   if (best) onTileClick(best.id);
 });
 
+// ── Celebration Particles ──
+let particles = [];
+function spawnCelebration() {
+  for (let i = 0; i < 30; i++) {
+    particles.push({
+      x: canvas.width/2, y: canvas.height/2,
+      vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8 - 3,
+      life: 1, color: `hsl(${Math.random()*360},80%,60%)`, size: 4 + Math.random()*6,
+      emoji: ['🎉','✨','🌟','💫','🎊'][Math.floor(Math.random()*5)]
+    });
+  }
+}
+function updateParticles() {
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= 0.02;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+function renderParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.font = `${p.size*4}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.emoji, p.x, p.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ── Extra Slot Ad ──
+let extraSlotGranted = false;
+function useExtraSlotAd() {
+  if (extraSlotGranted || slots.length === 0) return;
+  showAd('extraslot').then(() => {
+    // Remove rightmost slot entry and put tiles back
+    const last = slots[slots.length - 1];
+    for (const tid of last.tileIds) {
+      const tile = tiles.find(t => t.id === tid);
+      if (tile) tile.removed = false;
+    }
+    slots.pop();
+    extraSlotGranted = true;
+    gameOver = false;
+    hideOverlay();
+    updateSlotBar();
+    renderTiles();
+  });
+}
+
+// ── Daily Leaderboard (simulated province ranking) ──
+function getDailyLeaderboard() {
+  const seed = DAILY_SEED;
+  const rng = seededRandom(seed);
+  const data = PROVINCES.map(p => {
+    const base = p === province ? (winCount * 10 + 50) : 20;
+    return { name: p, score: Math.floor(base + rng() * 200) };
+  });
+  data.sort((a, b) => b.score - a.score);
+  return data;
+}
+
+// ── Animation Loop (particles) ──
+function animLoop() {
+  if (particles.length > 0) {
+    updateParticles();
+    renderTiles();
+    renderParticles();
+  }
+  requestAnimationFrame(animLoop);
+}
+
 // ── Init ──
 function init() {
   resizeCanvas();
@@ -671,6 +785,7 @@ function init() {
       setTimeout(showTutorial, 300);
     }
   }
+  animLoop();
 }
 
 // Handle WeChat/Douyin ad SDK availability
