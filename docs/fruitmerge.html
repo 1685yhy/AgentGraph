@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>FruitMerge - 水果合成</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body{height:100%;display:flex;flex-direction:column;align-items:center;background:linear-gradient(180deg,#1b2838 0%,#1a3a2a 50%,#0d2818 100%);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;overflow:hidden}
+#header{width:100%;padding:6px 16px;display:flex;justify-content:space-between;align-items:center;font-size:13px;z-index:10;background:rgba(0,0,0,0.3)}
+#header .title{font-size:18px;font-weight:800;color:#4ecb71}
+#header span{color:#f6d365;font-weight:700}
+#game-wrap{flex:1;width:100%;position:relative;display:flex;justify-content:center;align-items:center}
+canvas{display:block;touch-action:manipulation;border-radius:8px}
+#hint{position:absolute;top:10px;font-size:14px;color:#aab;pointer-events:none}
+#footer{width:100%;max-width:400px;display:flex;gap:6px;padding:6px 10px 10px;justify-content:center}
+.footer-btn{flex:1;max-width:80px;padding:6px 4px;border-radius:10px;border:none;font-size:10px;font-weight:700;cursor:pointer;color:#fff;display:flex;flex-direction:column;align-items:center;gap:2px;transition:all 0.15s}
+.footer-btn:active{transform:scale(0.95)}
+.footer-btn .icon{font-size:18px}
+.footer-btn.remove{background:linear-gradient(135deg,#e74c3c,#c0392b)}
+.footer-btn.shake{background:linear-gradient(135deg,#f39c12,#e67e22)}
+.footer-btn.bigger{background:linear-gradient(135deg,#2ecc71,#27ae60)}
+.footer-btn:disabled{opacity:0.4;pointer-events:none}
+.ad-badge{font-size:8px;opacity:0.7}
+#overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);display:flex;justify-content:center;align-items:center;z-index:100;backdrop-filter:blur(4px)}
+.ov-panel{background:#1e2a3a;border-radius:18px;padding:24px;text-align:center;max-width:320px;width:90%;border:1px solid rgba(255,255,255,0.1)}
+.ov-panel h2{font-size:22px;margin-bottom:6px}
+.ov-panel p{color:#aab;font-size:13px;margin-bottom:12px;line-height:1.5}
+.ov-panel .big-btn{display:block;width:100%;padding:12px;margin:6px 0;border-radius:12px;border:none;font-size:15px;font-weight:700;cursor:pointer;color:#fff;transition:all 0.15s}
+.ov-panel .big-btn:active{transform:scale(0.97)}
+.big-btn.primary{background:linear-gradient(135deg,#f6d365,#fda085)}
+.big-btn.ad{background:linear-gradient(135deg,#667eea,#764ba2)}
+.big-btn.ghost{background:rgba(255,255,255,0.08)}
+.hidden{display:none!important}
+#next-fruit{position:absolute;top:5px;right:10px;font-size:28px}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="title">🍉 FruitMerge</div>
+  <div>🏆<span id="score">0</span> | 🔥<span id="streak">0</span>天 | 📍<span id="prov">-</span></div>
+</div>
+
+<div id="game-wrap">
+  <canvas id="game"></canvas>
+  <div id="hint">👆 点击落果</div>
+</div>
+
+<div id="footer">
+  <button class="footer-btn remove" onclick="usePower('remove')"><span class="icon">🗑️</span>移除最小<span class="ad-badge">📺广告</span></button>
+  <button class="footer-btn shake" onclick="usePower('shake')"><span class="icon">📳</span>摇一摇<span class="ad-badge">📺广告</span></button>
+  <button class="footer-btn bigger" onclick="usePower('bigger')"><span class="icon">⬆️</span>加大碗<span class="ad-badge">📺广告</span></button>
+</div>
+
+<div id="overlay" class="hidden"></div>
+
+<script>
+// ═══════════ FruitMerge — Suika Game 风格下落合成 ═══════════
+const FRUITS = [
+  {name:'樱桃',emoji:'🍒',r:14,score:1,color:'#e74c3c'},
+  {name:'草莓',emoji:'🍓',r:18,score:3,color:'#e74c3c'},
+  {name:'葡萄',emoji:'🍇',r:22,score:6,color:'#8e44ad'},
+  {name:'橘子',emoji:'🍊',r:26,score:10,color:'#f39c12'},
+  {name:'苹果',emoji:'🍎',r:30,score:15,color:'#e74c3c'},
+  {name:'桃子',emoji:'🍑',r:34,score:21,color:'#fdbcb4'},
+  {name:'菠萝',emoji:'🍍',r:38,score:28,color:'#f39c12'},
+  {name:'蜜瓜',emoji:'🍈',r:42,score:36,color:'#2ecc71'},
+  {name:'西瓜',emoji:'🍉',r:48,score:50,color:'#27ae60'}
+];
+const GRAVITY = 0.4, BOUNCE = 0.3, FRICTION = 0.98;
+const DROP_Y = 40;
+
+let fruits = [], currentFruit = null, nextType = 0, score = 0, gameOver = false;
+let containerW = 280, containerH = 400, containerX = 0, wallThick = 6;
+let mouseX = 200, dropping = false;
+
+// Daily & Province
+const TODAY = new Date().toISOString().slice(0,10);
+let province = lsGet('fm_prov',''), streak = parseInt(lsGet('fm_streak','0'));
+let bestScore = parseInt(lsGet('fm_best','0'));
+(function(){
+  const last = lsGet('fm_date','');
+  if(last!==TODAY){const y=new Date(Date.now()-864e5).toISOString().slice(0,10);streak=(last===y)?streak+1:1;lsSet('fm_date',TODAY);lsSet('fm_streak',streak)}
+})();
+
+// Audio
+let _ctx=null;
+function snd(f,d,t='sine',v=0.06){if(!_ctx)return;try{const o=_ctx.createOscillator(),g=_ctx.createGain();o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,_ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,_ctx.currentTime+d);o.connect(g);g.connect(_ctx.destination);o.start();o.stop(_ctx.currentTime+d)}catch(e){}}
+function sfxDrop(){snd(200,0.15,'triangle',0.05)}
+function sfxMerge(n){snd(300+n*50,0.12,'sine',0.07);setTimeout(()=>snd(400+n*60,0.15,'sine',0.07),80)}
+function sfxLose(){snd(100,0.4,'sawtooth',0.1)}
+function sfxWin(){snd(523,0.1,'sine',0.1);setTimeout(()=>snd(659,0.1,'sine',0.1),100);setTimeout(()=>snd(784,0.15,'sine',0.1),200)}
+
+// Safe localStorage
+function lsGet(k,f){try{const v=localStorage.getItem(k);return v!==null?v:f}catch(e){return f}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+// Canvas
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const wrap=document.getElementById('game-wrap');
+function resize(){
+  const w=Math.min(wrap.clientWidth-8,400),h=wrap.clientHeight-8;
+  canvas.width=w;canvas.height=h;
+  containerW=Math.floor(w*0.7);containerH=Math.floor(h*0.75);containerX=(w-containerW)/2;
+}
+window.addEventListener('resize',resize);
+
+// ── Physics ──
+function spawnFruit(type){
+  const f=FRUITS[type];const x=containerX+containerW/2;
+  return{type,x,y:DROP_Y,vx:(Math.random()-0.5)*2,vy:0,r:f.r,emoji:f.emoji,score:f.score,color:f.color}
+}
+
+function circlesOverlap(a,b){const dx=a.x-b.x,dy=a.y-b.y,dist=Math.sqrt(dx*dx+dy*dy);return{overlap:dist<a.r+b.r,dist,dx,dy}}
+
+function resolveCollision(a,b){
+  const c=circleOverlap(a,b);if(!c.overlap||c.dist===0)return;
+  const nx=c.dx/c.dist,ny=c.dy/c.dist;
+  const overlap=c.r.dist-(a.r+b.r);
+  const totalMass=a.r*a.r+b.r*b.r;
+  const ma=a.r*a.r/totalMass,mb=b.r*b.r/totalMass;
+  a.x-=nx*overlap*mb;a.y-=ny*overlap*mb;
+  b.x+=nx*overlap*ma;b.y+=ny*overlap*ma;
+  const dvx=a.vx-b.vx,dvy=a.vy-b.vy;
+  const impulse=(dvx*nx+dvy*ny)*0.5;
+  a.vx-=nx*impulse*mb*2;a.vy-=ny*impulse*mb*2;
+  b.vx+=nx*impulse*ma*2;b.vy+=ny*impulse*ma*2;
+}
+
+function clampToContainer(f){
+  const left=containerX+wallThick+f.r,right=containerX+containerW-wallThick-f.r,bottom=canvas.height-10-f.r;
+  if(f.x<left){f.x=left;f.vx*=-BOUNCE}
+  if(f.x>right){f.x=right;f.vx*=-BOUNCE}
+  if(f.y>bottom){f.y=bottom;f.vy*=-BOUNCE*0.6}
+  // Overflow check
+  if(f.y<f.r+10 && f.vy<0 && f.vx===f.vx) return true; // near top
+  return false;
+}
+
+function updatePhysics(){
+  for(const f of fruits){
+    f.vy+=GRAVITY;f.vx*=FRICTION;f.x+=f.vx;f.y+=f.vy;
+    clampToContainer(f);
+  }
+  // Collisions
+  for(let i=0;i<fruits.length;i++){
+    for(let j=i+1;j<fruits.length;j++){
+      const a=fruits[i],b=fruits[j];
+      if(a.type===b.type&&a.type<FRUITS.length-1){
+        if(circlesOverlap(a,b).overlap){
+          merge(a,b,i,j);return;
+        }
+      }
+      resolveCollision(a,b);
+    }
+  }
+}
+
+function merge(a,b,ai,bi){
+  const newType=a.type+1;const f=FRUITS[newType];
+  const nx=(a.x*a.r+b.x*b.r)/(a.r+b.r),ny=(a.y*a.r+b.y*b.r)/(a.r+b.r);
+  const merged={type:newType,x:nx,y:ny,vx:(a.vx+b.vx)/2,vy:-3,r:f.r,emoji:f.emoji,score:f.score,color:f.color};
+  fruits.splice(Math.max(ai,bi),1);fruits.splice(Math.min(ai,bi),1);
+  fruits.push(merged);
+  score+=f.score;sfxMerge(newType);
+  if(newType>=FRUITS.length-1){score+=50;sfxWin()}
+  updateUI();
+}
+
+// ── Rendering ──
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Container
+  ctx.fillStyle='rgba(255,255,255,0.04)';ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=wallThick;
+  ctx.beginPath();roundRect(ctx,containerX,10,containerW,canvas.height-20,12);ctx.fill();ctx.stroke();
+  // Danger line
+  ctx.strokeStyle='rgba(255,80,80,0.4)';ctx.lineWidth=1;ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(containerX,60);ctx.lineTo(containerX+containerW,60);ctx.stroke();ctx.setLineDash([]);
+  // Fruits
+  for(const f of fruits){
+    ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,Math.PI*2);ctx.fillStyle=f.color+'cc';ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=2;ctx.stroke();
+    ctx.font=`${Math.floor(f.r*0.85)}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(f.emoji,f.x,f.y);
+  }
+  // Current falling fruit preview
+  if(currentFruit&&!gameOver){
+    const cf=currentFruit,tf=FRUITS[nextType];
+    ctx.beginPath();ctx.arc(cf.x,cf.y,tf.r,0,Math.PI*2);ctx.fillStyle=tf.color+'80';ctx.fill();
+    ctx.font=`${Math.floor(tf.r*0.85)}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(tf.emoji,cf.x,cf.y);
+  }
+  // Walls
+  ctx.fillStyle='rgba(255,255,255,0.15)';
+  ctx.fillRect(0,0,containerX,canvas.height);ctx.fillRect(containerX+containerW,0,canvas.width-containerX-containerW,canvas.height);
+}
+
+function roundRect(c,x,y,w,h,r){c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.arcTo(x+w,y,x+w,y+r,r);c.lineTo(x+w,y+h-r);c.arcTo(x+w,y+h,x+w-r,y+h,r);c.lineTo(x+r,y+h);c.arcTo(x,y+h,x,y+r,r);c.lineTo(x,y+r);c.arcTo(x,y,x+r,y,r);c.closePath()}
+
+// ── Game Flow ──
+function dropFruit(){
+  if(gameOver||!currentFruit)return;
+  const tf=FRUITS[nextType];
+  fruits.push({type:nextType,x:currentFruit.x,y:DROP_Y,vx:(Math.random()-0.5)*2,vy:0,r:tf.r,emoji:tf.emoji,score:tf.score,color:tf.color});
+  sfxDrop();dropping=false;currentFruit=null;
+  nextType=Math.random()<0.7?Math.floor(Math.random()*3):Math.floor(Math.random()*5);
+  setTimeout(()=>{if(!gameOver)currentFruit={x:containerX+containerW/2,y:DROP_Y}},200);
+  setTimeout(checkOverflow,500);
+}
+
+function checkOverflow(){
+  for(const f of fruits){
+    if(f.y-f.r<20){endGame();return}
+  }
+}
+
+function endGame(){
+  if(gameOver)return;
+  gameOver=true;sfxLose();currentFruit=null;
+  if(score>bestScore){bestScore=score;lsSet('fm_best',bestScore)}
+  lsSet('fm_score',score);
+  updateUI();
+  setTimeout(showLoseOverlay,600);
+}
+
+function showLoseOverlay(){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov-panel"><h2>🍉 碗满了！</h2><p>得分: <b style="color:#f6d365;font-size:20px">${score}</b> | 最高: ${bestScore}</p>
+    <button class="big-btn ad" onclick="revive()">📺 看广告 — 移除所有小水果</button>
+    <button class="big-btn ad" onclick="reviveBigger()">📺 看广告 — 加大碗继续</button>
+    <button class="big-btn primary" onclick="restart()">🔄 重新开始</button></div>`;
+  ov.classList.remove('hidden');
+}
+function revive(){showAd('revive').then(()=>{fruits=fruits.filter(f=>f.type>=2);gameOver=false;hideOverlay()})}
+function reviveBigger(){showAd('bigger').then(()=>{containerH+=60;containerW+=30;containerX=(canvas.width-containerW)/2;fruits=[];gameOver=false;hideOverlay();updateUI()})}
+function restart(){fruits=[];score=0;gameOver=false;currentFruit={x:containerX+containerW/2,y:DROP_Y};nextType=Math.floor(Math.random()*3);hideOverlay();updateUI()}
+function hideOverlay(){document.getElementById('overlay').classList.add('hidden')}
+
+// ── Power Ups ──
+function usePower(type){
+  if(gameOver||fruits.length===0)return;
+  showAd(type).then(()=>{
+    if(type==='remove'){let min=0;for(let i=1;i<fruits.length;i++)if(fruits[i].type<fruits[min].type)min=i;fruits.splice(min,1)}
+    else if(type==='shake'){for(const f of fruits){f.vx=(Math.random()-0.5)*8;f.vy=(Math.random()-0.5)*6-4}}
+    else if(type==='bigger'){containerH+=40;containerW+=20;containerX=(canvas.width-containerW)/2}
+  })
+}
+
+function showAd(type){
+  return new Promise(r=>{
+    if(typeof wx!=='undefined'&&wx.createRewardedVideoAd){try{const a=wx.createRewardedVideoAd({adUnitId:'adunit-'+type});a.onClose(res=>{if(res.isEnded)r()});a.show().catch(()=>{if(confirm('📺 看广告?'))r()});return}catch(e){}}
+    if(confirm('📺 观看广告以使用道具？\n（上线后展示真实广告）'))r()
+  })
+}
+
+// ── UI ──
+function updateUI(){document.getElementById('score').textContent=score;document.getElementById('streak').textContent=streak}
+function updateProv(){document.getElementById('prov').textContent=province||'-'}
+
+// ── Input ──
+canvas.addEventListener('mousemove',e=>{if(currentFruit){const r=canvas.getBoundingClientRect();mouseX=e.clientX-r.left;const tf=FRUITS[nextType||0];currentFruit.x=Math.max(containerX+tf.r,Math.min(containerX+containerW-tf.r,mouseX))}});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();if(currentFruit){const r=canvas.getBoundingClientRect();mouseX=e.touches[0].clientX-r.left;const tf=FRUITS[nextType||0];currentFruit.x=Math.max(containerX+tf.r,Math.min(containerX+containerW-tf.r,mouseX))}});
+canvas.addEventListener('click',()=>{ensureAudio();dropFruit()});
+canvas.addEventListener('touchend',e=>{e.preventDefault();ensureAudio();dropFruit()});
+
+function ensureAudio(){if(!_ctx){try{_ctx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){_ctx=null}}if(_ctx&&_ctx.state==='suspended'){try{_ctx.resume()}catch(e){}}}
+
+// ── Province ──
+function showProvinceSelect(){
+  const provs=['北京','上海','广东','浙江','江苏','四川','湖北','湖南','福建','山东','河南','河北','辽宁','陕西','重庆','云南','贵州','其他'];
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov-panel"><h2>📍 选择省份</h2><p>加入你的省份战队！</p><div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin:10px 0">${provs.map(p=>`<span style="padding:6px 12px;border-radius:16px;border:1px solid rgba(255,255,255,0.2);font-size:12px;cursor:pointer;${p===province?'background:rgba(246,211,101,0.2);border-color:#f6d365;color:#f6d365':'color:#ccc'}" onclick="selectProv('${p}')">${p}</span>`).join('')}</div><button class="big-btn primary" onclick="startGame()">开始游戏</button></div>`;
+  ov.classList.remove('hidden');
+}
+function selectProv(p){province=p;lsSet('fm_prov',p);updateProv();showProvinceSelect()}
+function startGame(){fruits=[];score=0;gameOver=false;nextType=Math.floor(Math.random()*3);currentFruit={x:containerX+containerW/2,y:DROP_Y};hideOverlay();updateUI();updateProv()}
+
+// ── Init ──
+function init(){
+  resize();updateUI();updateProv();
+  if(!province){showProvinceSelect()}else{startGame()}
+  // Game loop
+  setInterval(()=>{if(!gameOver){updatePhysics();draw()}},1000/60);
+  // Tutorial
+  if(!lsGet('fm_tut','')){lsSet('fm_tut','1');setTimeout(()=>{
+    const ov=document.getElementById('overlay');
+    ov.innerHTML=`<div class="ov-panel"><h2>🍉 水果合成</h2><p>👆 点击屏幕放下水果</p><p>🔄 相同水果碰撞 → 合成更大的！</p><p>🍉 目标是合成大西瓜！</p><p>⚠️ 水果堆到顶部线就输了</p><p>💡 下方按钮看广告使用道具</p><button class="big-btn primary" onclick="hideOverlay()">知道了！</button></div>`;
+    ov.classList.remove('hidden');
+  },500)}
+}
+init();
+</script>
+</body>
+</html>
