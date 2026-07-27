@@ -1,0 +1,477 @@
+#!/usr/bin/env bash
+#
+# graph-generator.sh — Task → Graph 自动映射引擎
+#
+# 输入: 自然语言任务描述
+# 输出: 可执行的 Graph YAML (stdout)
+#
+# 核心逻辑:
+#   任务 → 分析类型+特征 → 匹配contracts → 选Agent → 建依赖图 → 生成Graph
+#
+# Usage:
+#   bash scripts/graph-generator.sh "做一个供应商注册登录页面"
+#   guild plan "做一个供应商注册登录页面"
+#   guild build "做一个供应商注册登录页面"  # plan + execute
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck source=lib.sh
+. "$SCRIPT_DIR/lib.sh"
+
+CONTRACTS="$REPO_ROOT/contracts/guild-contracts.yml"
+CONFIG="$REPO_ROOT/guild.config.json"
+
+# ── Product type definitions ─────────────────────────────────────────
+# Each type maps to: agent chain + default gates + keywords
+
+# Product type → core agents (in dependency order)
+declare -A TYPE_AGENTS
+
+# web-app: 网页应用（后台/门户/注册登录/看板）
+TYPE_AGENTS["web-app"]="product-manager ui-designer frontend-engineer backend-architect database-specialist qa-engineer security-engineer"
+
+# landing-page: 落地页/官网
+TYPE_AGENTS["landing-page"]="product-manager ui-designer frontend-engineer qa-engineer"
+
+# api: 后端API/服务
+TYPE_AGENTS["api"]="product-manager backend-architect database-specialist qa-engineer security-engineer"
+
+# miniapp: 微信小程序
+TYPE_AGENTS["miniapp"]="product-manager ui-designer frontend-engineer backend-architect qa-engineer"
+
+# mobile: 移动应用
+TYPE_AGENTS["mobile"]="product-manager ui-designer mobile-developer backend-architect qa-engineer"
+
+# full-stack: 全栈应用
+TYPE_AGENTS["full-stack"]="product-manager ui-designer frontend-engineer backend-architect database-specialist mobile-developer qa-engineer security-engineer"
+
+# dashboard: 数据看板/报表
+TYPE_AGENTS["dashboard"]="product-manager ui-designer frontend-engineer backend-architect database-specialist data-analyst qa-engineer"
+
+# game: 游戏
+TYPE_AGENTS["game"]="game-designer game-programmer technical-artist game-ui-designer game-audio-engineer game-qa-engineer game-producer"
+
+# doc: 文档/方案
+TYPE_AGENTS["doc"]="product-manager tech-writer creative-director"
+
+# marketing: 营销/增长
+TYPE_AGENTS["marketing"]="product-manager growth-hacker content-creator data-analyst"
+
+# ── Keyword → product type mapping ────────────────────────────────────
+classify_task() {
+  local task="$1"
+  local task_lower; task_lower=$(echo "$task" | tr '[:upper:]' '[:lower:]')
+
+  # Score each type by keyword matches
+  local best_type="" best_score=0
+
+  # web-app keywords
+  local web_score=0
+  for kw in 页面 网站 后台 管理 注册 登录 表单 看板 报表 供应商 门户 后台管理 控制台 账号 权限; do
+    echo "$task" | grep -qi "$kw" && web_score=$((web_score + 1))
+  done
+  [[ $web_score -gt $best_score ]] && { best_score=$web_score; best_type="web-app"; }
+
+  # landing-page keywords
+  local lp_score=0
+  for kw in 落地页 官网 landing 主页 首页 品牌页; do
+    echo "$task" | grep -qi "$kw" && lp_score=$((lp_score + 1))
+  done
+  [[ $lp_score -gt $best_score ]] && { best_score=$lp_score; best_type="landing-page"; }
+
+  # api keywords
+  local api_score=0
+  for kw in ^api 接口 后端服务 restful graphql 微服务; do
+    echo "$task" | grep -qi "$kw" && api_score=$((api_score + 1))
+  done
+  [[ $api_score -gt $best_score ]] && { best_score=$api_score; best_type="api"; }
+
+  # miniapp keywords
+  local mp_score=0
+  for kw in 小程序 微信 wechat; do
+    echo "$task" | grep -qi "$kw" && mp_score=$((mp_score + 1))
+  done
+  [[ $mp_score -gt $best_score ]] && { best_score=$mp_score; best_type="miniapp"; }
+
+  # mobile keywords
+  local mob_score=0
+  for kw in app 安卓 ios 移动端 手机; do
+    echo "$task" | grep -qi "$kw" && mob_score=$((mob_score + 1))
+  done
+  [[ $mob_score -gt $best_score ]] && { best_score=$mob_score; best_type="mobile"; }
+
+  # dashboard keywords
+  local dash_score=0
+  for kw in 看板 报表 图表 数据可视化 统计 监控 大屏; do
+    echo "$task" | grep -qi "$kw" && dash_score=$((dash_score + 1))
+  done
+  [[ $dash_score -gt $best_score ]] && { best_score=$dash_score; best_type="dashboard"; }
+
+  # full-stack keywords (many subsystems)
+  local fs_score=0
+  subsystems=$(echo "$task" | grep -oi '前端\|后端\|数据库\|API\|后台\|移动端\|小程序' | sort -u | wc -l)
+  [[ $subsystems -ge 3 ]] && fs_score=5
+  [[ $fs_score -gt $best_score ]] && { best_score=$fs_score; best_type="full-stack"; }
+
+  # game keywords
+  local game_score=0
+  for kw in 游戏 关卡 角色 道具 战斗 技能 副本 boss 成就; do
+    echo "$task" | grep -qi "$kw" && game_score=$((game_score + 1))
+  done
+  [[ $game_score -gt $best_score ]] && { best_score=$game_score; best_type="game"; }
+
+  # doc keywords
+  local doc_score=0
+  for kw in 文档 方案 计划 报告 分析报告 需求文档 设计文档 spec prd; do
+    echo "$task" | grep -qi "$kw" && doc_score=$((doc_score + 1))
+  done
+  [[ $doc_score -gt $best_score ]] && { best_score=$doc_score; best_type="doc"; }
+
+  # marketing keywords
+  local mkt_score=0
+  for kw in 营销 增长 推广 广告 社媒 seo 获客 转化; do
+    echo "$task" | grep -qi "$kw" && mkt_score=$((mkt_score + 1))
+  done
+  [[ $mkt_score -gt $best_score ]] && { best_score=$mkt_score; best_type="marketing"; }
+
+  # Default: web-app
+  [[ -z "$best_type" ]] && best_type="web-app"
+
+  echo "$best_type"
+}
+
+# ── Feature detection ─────────────────────────────────────────────────
+# Detect if task needs specific specialist agents
+detect_features() {
+  local task="$1"
+  local features=""
+
+  # Auth/Security
+  echo "$task" | grep -qi '登录\|注册\|权限\|密码\|认证\|授权\|oauth\|sso' && features="$features auth"
+
+  # Payment
+  echo "$task" | grep -qi '支付\|付款\|微信支付\|支付宝\|订单\|交易\|充值' && features="$features payment"
+
+  # Real-time
+  echo "$task" | grep -qi '实时\|即时\|推送\|websocket\|消息' && features="$features realtime"
+
+  # File upload
+  echo "$task" | grep -qi '上传\|文件\|图片\|附件\|导出\|导入' && features="$features upload"
+
+  # Search
+  echo "$task" | grep -qi '搜索\|查询\|筛选\|检索\|全文' && features="$features search"
+
+  # Notification
+  echo "$task" | grep -qi '通知\|提醒\|消息推送\|邮件\|短信' && features="$features notify"
+
+  # Internationalization
+  echo "$task" | grep -qi '多语言\|国际化\|i18n\|英文' && features="$features i18n"
+
+  # Analytics
+  echo "$task" | grep -qi '分析\|统计\|数据\|指标\|报表\|趋势\|洞察' && features="$features analytics"
+
+  # Content-heavy
+  echo "$task" | grep -qi '内容\|文章\|博客\|文档\|知识库\|帮助中心' && features="$features content"
+
+  echo "$features"
+}
+
+# ── Agent selection ───────────────────────────────────────────────────
+# Given product type + features, return ordered list of agent slugs
+select_agents() {
+  local type="$1" features="$2"
+  local agents="${TYPE_AGENTS[$type]}"
+
+  # Add specialist agents based on features
+  for feat in $features; do
+    case "$feat" in
+      auth)    [[ "$agents" != *security-engineer* ]] && agents="$agents security-engineer";;
+      payment) [[ "$agents" != *financial-analyst* ]] && agents="$agents financial-analyst";;
+      analytics) [[ "$agents" != *data-analyst* ]] && agents="$agents data-analyst";;
+      content) [[ "$agents" != *tech-writer* ]] && agents="$agents tech-writer";;
+      i18n)    [[ "$agents" != *tech-writer* ]] && agents="$agents tech-writer";;
+      notify)  [[ "$agents" != *devops-engineer* ]] && agents="$agents devops-engineer";;
+      realtime) [[ "$agents" != *devops-engineer* ]] && agents="$agents devops-engineer";;
+    esac
+  done
+
+  # Always add QA if not present (for non-doc types)
+  [[ "$type" != "doc" && "$type" != "marketing" && "$agents" != *qa-engineer* ]] && agents="$agents qa-engineer"
+
+  # Add accessibility-auditor for UI types
+  case "$type" in
+    web-app|landing-page|miniapp|dashboard|mobile|full-stack)
+      [[ "$agents" != *accessibility-auditor* ]] && agents="$agents accessibility-auditor";;
+  esac
+
+  # Add project-manager for multi-agent projects
+  local agent_count; agent_count=$(echo "$agents" | wc -w)
+  [[ $agent_count -ge 5 ]] && [[ "$agents" != *project-manager* ]] && agents="project-manager $agents"
+
+  echo "$agents"
+}
+
+# ── Dependency resolver ──────────────────────────────────────────────
+# Build dependency map from contracts
+# Returns: agent_slug|depends_on_agent_slug pairs
+resolve_dependencies() {
+  local agents="$1"
+  local deps=""
+
+  for agent in $agents; do
+    # Extract requires.from from contracts
+    local reqs
+    reqs=$(awk -v slug="$agent" '
+      $0 ~ "^  " slug ":" { in_agent=1; next }
+      in_agent && /^  [a-z]/ && $0 !~ "^  " slug ":" { exit }
+      in_agent && /^    requires:/ { in_req=1; next }
+      in_agent && /^    delivers:/ { in_req=0; next }
+      in_req && /^      - from:/ {
+        sub(/.*from: "/, ""); sub(/".*/, "");
+        print $0
+      }
+    ' "$CONTRACTS" 2>/dev/null)
+
+    # Map display names to slugs
+    for req_name in $reqs; do
+      local req_slug; req_slug=$(resolve_by_display_name "$req_name")
+      [[ -z "$req_slug" ]] && req_slug=$(resolve_agent "$req_name")
+      [[ -n "$req_slug" ]] && deps="$deps\n${agent}|${req_slug}"
+    done
+  done
+
+  echo -e "$deps" | grep -v '^$' | sort -u
+}
+
+# ── Graph assembler ───────────────────────────────────────────────────
+# Generate complete graph YAML from agents + dependencies
+assemble_graph() {
+  local task="$1" type="$2" agents="$3" deps="$4"
+
+  local name; name=$(echo "$task" | cut -c1-40 | tr -cd 'a-zA-Z0-9[:space:]' | tr '[:space:]' '-' | tr '[:upper:]' '[:lower:]' | sed 's/--*/-/g; s/^-//; s/-$//')
+  name="task-${name:0:30}"
+  [[ -z "$name" ]] && name="auto-generated"
+
+  cat << YAML
+# Auto-generated graph: $(date -Iseconds)
+# Task: $task
+# Type: $type
+# Agents: $agents
+name: $name
+description: $task
+type: $type
+nodes:
+YAML
+
+  # Assign phases based on dependency order
+  # Phase 0: product-manager, project-manager
+  # Phase 1: ui-designer, backend-architect, database-specialist
+  # Phase 2: frontend-engineer, mobile-developer
+  # Phase 3: qa-engineer, security-engineer, accessibility-auditor
+  # Phase 4: game-producer, creative-director
+
+  local phase_order="product-manager project-manager ux-researcher data-analyst game-designer ui-designer interaction-designer backend-architect database-specialist tech-writer financial-analyst frontend-engineer mobile-developer unity-developer unreal-developer game-programmer technical-artist game-ui-designer game-audio-engineer monetization-designer devops-engineer growth-hacker content-creator seo-specialist social-media-strategist qa-engineer performance-tester accessibility-auditor security-engineer game-qa-engineer game-producer creative-director brand-guardian code-reviewer deal-strategist sales-engineer customer-support"
+
+  # Assign each agent to a phase (order index)
+  for agent in $agents; do
+    local needs=""
+    # Find dependencies for this agent
+    while IFS='|' read -r ag dep; do
+      [[ "$ag" == "$agent" ]] && [[ "$agents" == *"$dep"* ]] && needs="$needs $dep"
+    done <<< "$deps"
+
+    # Build clean YAML needs list
+    local needs_yaml=""
+    local unique_needs; unique_needs=$(echo "$needs" | tr ' ' '\n' | grep -v '^$' | sort -u)
+    if [[ -n "$unique_needs" ]]; then
+      while IFS= read -r nd; do
+        [[ -z "$nd" ]] && continue
+        needs_yaml="${needs_yaml}
+      - $nd"
+      done <<< "$unique_needs"
+    fi
+
+    # Determine action: QA/test agents use "verify"
+    local action="deliver"
+    case "$agent" in
+      qa-engineer|performance-tester|accessibility-auditor|security-engineer|game-qa-engineer|code-reviewer|creative-director|game-producer)
+        action="verify";;
+    esac
+
+    # Deliverables from contracts
+    local delivers
+    delivers=$(awk -v slug="$agent" '
+      $0 ~ "^  " slug ":" { in_agent=1; next }
+      in_agent && /^  [a-z]/ && $0 !~ "^  " slug ":" { exit }
+      in_agent && /^    delivers:/ { in_del=1; next }
+      in_agent && /^    requires:/ { in_del=0; next }
+      in_del && /^      - name:/ {
+        sub(/.*name: "/, ""); sub(/".*/, "");
+        gsub(/[{}"]/, "");  # strip YAML special chars
+        print $0
+      }
+    ' "$CONTRACTS" 2>/dev/null | head -3 | sed 's/^/        - /')
+
+    local node_name; node_name=$(echo "$agent" | tr '-' '_')
+    # Build the complete node YAML including deliverables
+    local node_block="  $node_name:
+    agent: $agent
+    action: $action"
+    if [[ -z "$needs_yaml" ]]; then
+      node_block="${node_block}
+    needs: []"
+    else
+      node_block="${node_block}
+    needs:$needs_yaml"
+    fi
+    node_block="${node_block}
+    delivers:"
+    # Add deliverable items
+    while IFS= read -r dline; do
+      [[ -z "$dline" ]] && continue
+      node_block="${node_block}
+$dline"
+    done <<< "$delivers"
+
+    echo "$node_block"
+    echo ""
+  done
+
+  # Generate edges: QA feedback loops
+  cat << YAML
+edges:
+YAML
+
+  # For each verify agent, add feedback loop to the agent before it
+  for agent in $agents; do
+    case "$agent" in
+      qa-engineer|performance-tester|game-qa-engineer)
+        # Find the implementor agent before this one
+        local prev=""
+        for a in $agents; do
+          [[ "$a" == "$agent" ]] && break
+          case "$a" in
+            frontend-engineer|backend-architect|mobile-developer|game-programmer|unity-developer|unreal-developer)
+              prev="$a";;
+          esac
+        done
+        if [[ -n "$prev" ]]; then
+          cat << YAML
+  - { from: $agent, to: $prev, when: "$agent.status == failed", label: "修复后重测" }
+  - { from: $prev, to: $agent, label: "重新验证" }
+YAML
+        fi
+        ;;
+    esac
+  done
+
+  # Add completion edge
+  local last_agent; last_agent=$(echo "$agents" | awk '{print $NF}')
+  cat << YAML
+  - { from: $last_agent, to: complete, when: "$last_agent.status == passed", label: "完成" }
+YAML
+}
+
+# ── Gate selection ─────────────────────────────────────────────────────
+select_gates() {
+  local type="$1"
+  local gates="1 2"  # completeness + syntax always
+
+  case "$type" in
+    web-app|landing-page|miniapp|mobile|full-stack)
+      gates="$gates 3 4"  # behavior + playability
+      ;;
+    api)
+      gates="$gates 3"    # behavior only
+      ;;
+    game)
+      gates="$gates 3 4 5" # behavior + playability + agent-standards
+      ;;
+    doc)
+      gates="1 2"          # completeness + syntax only
+      ;;
+  esac
+
+  echo "$gates"
+}
+
+# ── Main: generate graph from task ─────────────────────────────────────
+generate_graph() {
+  local task="$1"
+  [[ -z "$task" ]] && { err "Usage: guild plan \"<task description>\""; return 1; }
+
+  echo "╔══════════════════════════════════════════╗"
+  echo "║  AgentGraph — 智能 Task → Graph 映射    ║"
+  echo "╚══════════════════════════════════════════╝"
+  echo ""
+
+  # Step 1: Classify
+  local type; type=$(classify_task "$task")
+  echo "  📋 任务类型: $type"
+
+  # Step 2: Detect features
+  local features; features=$(detect_features "$task")
+  echo "  🔍 检测特征: ${features:-无}"
+
+  # Step 3: Select agents
+  local agents; agents=$(select_agents "$type" "$features")
+  echo "  👥 Agent 选择:"
+  for a in $agents; do echo "      - $a"; done
+
+  # Step 4: Resolve dependencies
+  local deps; deps=$(resolve_dependencies "$agents")
+
+  # Step 5: Select gates
+  local gates; gates=$(select_gates "$type")
+  echo "  🚪 Gate 选择: $gates"
+
+  # Step 6: Assemble graph
+  local graph_yaml; graph_yaml=$(assemble_graph "$task" "$type" "$agents" "$deps")
+
+  echo ""
+  echo "$graph_yaml"
+
+  # Save to temp file for execution
+  local graph_file; graph_file=$(mktemp /tmp/guild-auto-XXXXXX.yml)
+  echo "$graph_yaml" > "$graph_file"
+  echo ""
+  echo "  💾 Graph 已保存: $graph_file"
+  echo "  ▶️  运行: guild graph --file $graph_file"
+
+  # Return the file path (for guild build to chain)
+  echo "$graph_file" > /tmp/guild-last-graph.txt
+}
+
+# build_product — plan + execute in one shot
+build_product() {
+  local task="$*"
+  [[ -z "$task" ]] && { err "Usage: guild build \"<task description>\""; return 1; }
+
+  generate_graph "$task"
+
+  local graph_file; graph_file=$(cat /tmp/guild-last-graph.txt 2>/dev/null)
+  [[ -z "$graph_file" || ! -f "$graph_file" ]] && { err "Graph generation failed"; return 1; }
+
+  echo ""
+  echo "╔══════════════════════════════════════════╗"
+  echo "║  🚀 开始执行 Graph                       ║"
+  echo "╚══════════════════════════════════════════╝"
+
+  # Execute via graph engine
+  "$REPO_ROOT/guild" graph --file "$graph_file" --yes 2>&1 || {
+    err "Graph 执行失败"
+    return 1
+  }
+
+  echo ""
+  ok "✅ Build 完成: $task"
+}
+
+# ── CLI entry ──────────────────────────────────────────────────────────
+if [[ "${1:-}" == "--generate" ]]; then
+  shift
+  generate_graph "$*"
+fi

@@ -32,6 +32,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=test-runner.sh
 . "$SCRIPT_DIR/test-runner.sh"
 
+# shellcheck source=graph-generator.sh
+. "$SCRIPT_DIR/graph-generator.sh"
+
 CONTRACTS="$REPO_ROOT/contracts/guild-contracts.yml"
 HANDOFFS_DIR="$REPO_ROOT/handoffs"
 CONFIG="$REPO_ROOT/guild.config.json"
@@ -67,56 +70,6 @@ next_id() {
     fi
     candidate=$((candidate + 1))
   done
-}
-
-# resolve_agent <name-or-slug> — normalize to slug
-# Supports: exact slug, case-insensitive, partial match, abbreviation (pm→product-manager)
-resolve_agent() {
-  local input="$1"
-  local slug
-
-  # Try direct slug match
-  if grep -q "\"slug\": \"$input\"" "$CONFIG"; then
-    echo "$input"
-    return
-  fi
-
-  # Try slugify
-  slug=$(echo "$input" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')
-  if grep -q "\"slug\": \"$slug\"" "$CONFIG"; then
-    echo "$slug"
-    return
-  fi
-
-  # Try partial match on slug
-  local match
-  match=$(awk -F'"' '/"slug":/{print $4}' "$CONFIG" | grep "$slug" | head -1)
-  if [[ -n "$match" ]]; then
-    echo "$match"
-    return
-  fi
-
-  # Try abbreviation: first letter of each hyphen-separated segment
-  # e.g., "pm" matches "product-manager"
-  local all_slugs
-  all_slugs=$(awk -F'"' '/"slug":/{print $4}' "$CONFIG")
-  while IFS= read -r s; do
-    [[ -z "$s" ]] && continue
-    local abbr=""
-    local part
-    local saved_ifs="$IFS"
-    IFS='-'
-    for part in $s; do
-      abbr="${abbr}${part:0:1}"
-    done
-    IFS="$saved_ifs"
-    if [[ "$abbr" == "$input" ]]; then
-      echo "$s"
-      return
-    fi
-  done <<< "$all_slugs"
-
-  echo ""
 }
 
 # get_requires <agent-slug> — extract required items from contracts YAML
@@ -408,8 +361,10 @@ case "$CMD" in
   gate)      cmd_gate "$@";;
   self-test) bash "$SCRIPT_DIR/self-test.sh";;
   ci-test)   bash "$SCRIPT_DIR/ci-test.sh";;
+	  plan)      generate_graph "$@";;
+	  build)     build_product "$@";;
   --help|-h|help)
     sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, self-test, test";;
+  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, plan, build, self-test, test, ci-test";;
 esac

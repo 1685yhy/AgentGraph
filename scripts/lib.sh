@@ -318,3 +318,75 @@ parse_contract() {
     }
   '
 }
+
+# ── Agent resolution ──────────────────────────────────────────────────
+# resolve_agent <name-or-slug> — normalize agent name to slug
+# Supports: exact slug, partial match, abbreviation (pm→product-manager)
+# Uses CONFIG from nexus.sh or falls back to REPO_ROOT/guild.config.json
+resolve_agent() {
+  local input="$1"
+  local config="${CONFIG:-$REPO_ROOT/guild.config.json}"
+  local slug
+
+  # Try direct slug match
+  if grep -q "\"slug\": \"$input\"" "$config"; then
+    echo "$input"
+    return
+  fi
+
+  # Try slugify
+  slug=$(echo "$input" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')
+  if grep -q "\"slug\": \"$slug\"" "$config"; then
+    echo "$slug"
+    return
+  fi
+
+  # Try partial match on slug
+  local match
+  match=$(awk -F'"' '/"slug":/{print $4}' "$config" | grep "$slug" | head -1)
+  if [[ -n "$match" ]]; then
+    echo "$match"
+    return
+  fi
+
+  # Try abbreviation: first letter of each hyphen-separated segment
+  local all_slugs
+  all_slugs=$(awk -F'"' '/"slug":/{print $4}' "$config")
+  while IFS= read -r s; do
+    [[ -z "$s" ]] && continue
+    local abbr=""
+    local saved_ifs="$IFS"
+    IFS='-'
+    for part in $s; do
+      abbr="${abbr}${part:0:1}"
+    done
+    IFS="$saved_ifs"
+    if [[ "$abbr" == "$input" ]]; then
+      echo "$s"
+      return
+    fi
+  done <<< "$all_slugs"
+
+  echo ""
+}
+
+# resolve_by_display_name <display-name> — map agent display name to slug
+# e.g., "UI 设计师" → "ui-designer", "前端工程师" → "frontend-engineer"
+resolve_by_display_name() {
+  local display="$1"
+  local config="${CONFIG:-$REPO_ROOT/guild.config.json}"
+
+  # Build mapping: iterate over all agent .md files, read their 'short:' field
+  local agents_dir="${REPO_ROOT}/agents"
+  for md_file in "$agents_dir"/*/*.md "$agents_dir"/*/*/*.md; do
+    [[ -f "$md_file" ]] || continue
+    local short; short=$(grep "^short:" "$md_file" 2>/dev/null | head -1 | sed 's/^short:[[:space:]]*//')
+    [[ "$short" != "$display" ]] && continue
+    # Extract slug from filename: agents/design/ui-designer.md → ui-designer
+    local slug; slug=$(basename "$md_file" .md)
+    echo "$slug"
+    return 0
+  done
+
+  echo ""
+}
