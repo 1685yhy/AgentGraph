@@ -391,59 +391,80 @@ cmd_handoff() {
   local missing
   missing=$(echo "$scan_result" | awk '/^MISSING_START/{found=1; next} /^MISSING_END/{found=0} found')
 
-  # Build JSON
+  # Build JSON using node for proper string escaping
   local json_file
   json_file="$HANDOFFS_DIR/$(date +%Y-%m-%d)-${from_slug}-to-${to_slug}.json"
-
-  # Count stats and build artifacts array (pure bash — no python3)
-  local req_total=0 req_provided=0 req_missing_count=0
-  local artifacts_json=""
-  local first_item=true
-
-  # Parse matched items
-  while IFS='|' read -r name source status; do
-    [[ -z "$name" ]] && continue
-    req_total=$((req_total + 1))
-    req_provided=$((req_provided + 1))
-    if $first_item; then first_item=false; else artifacts_json+=","; fi
-    artifacts_json+="{\"name\":\"$name\",\"file\":\"$source\",\"status\":\"provided\"}"
-  done <<< "$(echo -e "$matched" | grep -v '^$')"
-
-  # Parse missing items
-  while IFS='|' read -r from_name name required; do
-    [[ -z "$name" ]] && continue
-    req_total=$((req_total + 1))
-    if $first_item; then first_item=false; else artifacts_json+=","; fi
-    local req_bool="false"
-    [[ "$required" == "True" ]] && req_bool="true"
-    artifacts_json+="{\"name\":\"$name\",\"file\":null,\"status\":\"missing\",\"required\":$req_bool}"
-    [[ "$required" == "True" ]] && req_missing_count=$((req_missing_count + 1))
-  done <<< "$(echo -e "$missing" | grep -v '^$')"
-
-  local new_status="incomplete"
-  [[ $req_missing_count -eq 0 ]] && new_status="ready"
-
   mkdir -p "$HANDOFFS_DIR"
 
-  # Build JSON with pure bash heredoc — NO python3
-  cat > "$json_file" << JSONEOF
-{
-  "id": $id,
-  "from": "$from_slug",
-  "to": "$to_slug",
-  "timestamp": "$date",
-  "message": "$message",
-  "path": "$path",
-  "artifacts": [$artifacts_json],
-  "checklist": {
-    "required_total": $req_total,
-    "required_provided": $req_provided,
-    "required_missing": $req_missing_count
-  },
-  "status": "$new_status",
-  "accepted_by": null
+  # Write matched/missing to temp files for node to read
+  local matched_file; matched_file=$(mktemp /tmp/guild-matched-XXXXXX.tsv)
+  local missing_file; missing_file=$(mktemp /tmp/guild-missing-XXXXXX.tsv)
+  echo -e "$matched" | grep -v '^$' > "$matched_file"
+  echo -e "$missing" | grep -v '^$' > "$missing_file"
+
+  # Pass variables via env to avoid bash escaping issues in node -e
+  local req_total=0 req_provided=0 req_missing_count=0 new_status="incomplete"
+  AG_HANDOFF_ID="$id" \
+  AG_HANDOFF_FROM="$from_slug" \
+  AG_HANDOFF_TO="$to_slug" \
+  AG_HANDOFF_DATE="$date" \
+  AG_HANDOFF_MSG="$message" \
+  AG_HANDOFF_PATH="$path" \
+  AG_HANDOFF_JSON="$json_file" \
+  AG_MATCHED_FILE="$matched_file" \
+  AG_MISSING_FILE="$missing_file" \
+  node -e '
+const { readFileSync, writeFileSync } = require("fs");
+
+const matched = readFileSync(process.env.AG_MATCHED_FILE, "utf8").trim().split("\n").filter(Boolean);
+const missing = readFileSync(process.env.AG_MISSING_FILE, "utf8").trim().split("\n").filter(Boolean);
+
+const artifacts = [];
+let req_provided = 0, req_missing_count = 0;
+
+for (const line of matched) {
+  const parts = line.split("|");
+  const name = parts[0], source = parts[1] || "found";
+  if (!name) continue;
+  artifacts.push({ name, file: source, status: "provided" });
+  req_provided++;
 }
-JSONEOF
+
+for (const line of missing) {
+  const parts = line.split("|");
+  const name = parts[1], required = parts[2];
+  if (!name) continue;
+  const isRequired = required === "True";
+  artifacts.push({ name, file: null, status: "missing", required: isRequired });
+  if (isRequired) req_missing_count++;
+}
+
+const req_total = req_provided + artifacts.filter(a => a.status === "missing").length;
+const new_status = req_missing_count === 0 ? "ready" : "incomplete";
+
+const doc = {
+  id: parseInt(process.env.AG_HANDOFF_ID),
+  from: process.env.AG_HANDOFF_FROM,
+  to: process.env.AG_HANDOFF_TO,
+  timestamp: process.env.AG_HANDOFF_DATE,
+  message: process.env.AG_HANDOFF_MSG,
+  path: process.env.AG_HANDOFF_PATH,
+  artifacts,
+  checklist: { required_total: req_total, required_provided: req_provided, required_missing: req_missing_count },
+  status: new_status,
+  accepted_by: null
+};
+
+writeFileSync(process.env.AG_HANDOFF_JSON, JSON.stringify(doc, null, 2) + "\n", "utf8");
+'
+
+  # Read stats from the written JSON
+  req_total=$(json_get "$json_file" "required_total" "0")
+  req_provided=$(json_get "$json_file" "required_provided" "0")
+  req_missing_count=$(json_get "$json_file" "required_missing" "0")
+  new_status=$(json_get "$json_file" "status" "incomplete")
+
+  rm -f "$matched_file" "$missing_file"
 
   echo "  状态: $new_status"
   echo "  完整度: $req_provided/$req_total 项已提供"
