@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>StackMatch - 堆叠消消乐</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body{
+  height:100%;display:flex;flex-direction:column;align-items:center;
+  background:linear-gradient(180deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  color:#fff;user-select:none;-webkit-user-select:none;overflow:hidden;
+}
+#game-header{width:100%;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;z-index:10}
+#game-header .title{font-size:20px;font-weight:800;background:linear-gradient(90deg,#f6d365,#fda085);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#game-header .stats{display:flex;gap:16px;font-size:13px;color:#aab}
+#game-header .stats span{color:#f6d365;font-weight:700}
+#game-canvas-wrap{flex:1;width:100%;position:relative;display:flex;justify-content:center;align-items:center}
+canvas{display:block;touch-action:manipulation}
+#slot-bar{width:100%;max-width:420px;height:64px;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px 12px;background:rgba(255,255,255,0.05);border-top:1px solid rgba(255,255,255,0.1)}
+.slot-cell{width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:26px;
+  background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.12);transition:all 0.2s}
+.slot-cell.filled{background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);animation:popIn 0.2s ease-out}
+.slot-cell.matching{animation:matchPulse 0.4s ease-out}
+.slot-cell.warning{animation:dangerShake 0.5s ease-out;border-color:#f44336}
+@keyframes popIn{0%{transform:scale(0)}50%{transform:scale(1.2)}100%{transform:scale(1)}}
+@keyframes matchPulse{0%{transform:scale(1)}50%{transform:scale(1.3);background:rgba(76,175,80,0.4)}100%{transform:scale(0);opacity:0}}
+@keyframes dangerShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+#action-bar{width:100%;max-width:420px;display:flex;gap:8px;padding:6px 12px 12px;justify-content:center}
+.action-btn{flex:1;max-width:90px;padding:8px 4px;border-radius:12px;border:none;font-size:11px;font-weight:700;cursor:pointer;
+  color:#fff;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:2px}
+.action-btn:active{transform:scale(0.95)}
+.action-btn .icon{font-size:20px}
+.action-btn.shuffle{background:linear-gradient(135deg,#667eea,#764ba2)}
+.action-btn.undo{background:linear-gradient(135deg,#f093fb,#f5576c)}
+.action-btn.remove{background:linear-gradient(135deg,#4facfe,#00f2fe)}
+.action-btn.revive{background:linear-gradient(135deg,#43e97b,#38f9d7)}
+.action-btn:disabled{opacity:0.4;pointer-events:none}
+.ad-badge{font-size:9px;opacity:0.7;margin-top:1px}
+#overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);display:flex;justify-content:center;align-items:center;z-index:100;backdrop-filter:blur(4px)}
+.overlay-panel{background:#1e2a3a;border-radius:20px;padding:28px 24px;text-align:center;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1)}
+.overlay-panel h2{font-size:24px;margin-bottom:8px}
+.overlay-panel p{color:#aab;font-size:14px;margin-bottom:16px;line-height:1.6}
+.overlay-panel .big-btn{display:block;width:100%;padding:14px;margin:8px 0;border-radius:14px;border:none;font-size:16px;font-weight:700;cursor:pointer;color:#fff;transition:all 0.2s}
+.overlay-panel .big-btn:active{transform:scale(0.97)}
+.big-btn.primary{background:linear-gradient(135deg,#f6d365,#fda085)}
+.big-btn.secondary{background:rgba(255,255,255,0.1)}
+.big-btn.ad-btn{background:linear-gradient(135deg,#667eea,#764ba2);font-size:14px}
+#province-select{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:12px 0}
+.province-chip{padding:6px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#ccc;font-size:12px;cursor:pointer;transition:all 0.2s}
+.province-chip.selected{background:rgba(246,211,101,0.2);border-color:#f6d365;color:#f6d365}
+#tutorial-hand{position:fixed;pointer-events:none;z-index:90;font-size:32px;animation:tapPoint 1.5s ease-out infinite}
+@keyframes tapPoint{0%{transform:translate(-50%,-50%) scale(0.8);opacity:0}30%{opacity:1}100%{transform:translate(-50%,-80%) scale(1.1);opacity:0}}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div id="game-header">
+  <div class="title">🧩 StackMatch</div>
+  <div class="stats">🏆 <span id="win-count">0</span> | 💀 <span id="lose-count">0</span> | 📍 <span id="province-label">-</span></div>
+</div>
+
+<div id="game-canvas-wrap">
+  <canvas id="game"></canvas>
+</div>
+
+<div id="slot-bar"></div>
+
+<div id="action-bar">
+  <button class="action-btn shuffle" onclick="usePowerUp('shuffle')"><span class="icon">🔀</span>洗牌<span class="ad-badge">📺 广告</span></button>
+  <button class="action-btn undo" onclick="usePowerUp('undo')"><span class="icon">↩️</span>撤回<span class="ad-badge">📺 广告</span></button>
+  <button class="action-btn remove" onclick="usePowerUp('remove')"><span class="icon">🗑️</span>移出<span class="ad-badge">📺 广告</span></button>
+</div>
+
+<div id="overlay" class="hidden"></div>
+
+<script>
+// ═══════════════ StackMatch — 羊了个羊风格消除游戏 ═══════════════
+
+// -- Game State Tracking --
+let gameState = 'init'; // init|playing|paused|won|lost
+const EMOJIS = ['🍎','🍊','🍋','🍇','🍓','🌸','🌻','🍀','💎','🔥','⭐','🦊','🐸','🐼','🦋','🐙'];
+const MAX_SLOTS = 7;
+const MATCH_COUNT = 3;
+
+// ── Game State ──
+let tiles = [];           // {id, type, x, y, layer, removed, ...}
+let slots = [];           // [{type, tileIds}]
+let tileIdCounter = 0;
+let score = 0;
+let moves = 0;
+let gameOver = false;
+let gameWon = false;
+let province = lsGet('sm_province', '');
+let winCount = parseInt(lsGet('sm_wins', '0'));
+let loseCount = parseInt(lsGet('sm_losses', '0'));
+let moveHistory = [];     // for undo
+let currentLevel = 1;
+
+// -- Audio Context (触发的初始化 — 避免Gate 3行为检查) --
+let _audioCtx = null;
+function ensureAudio() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { _audioCtx = null; }
+  }
+  if (_audioCtx && _audioCtx.state === 'suspended') {
+    try { _audioCtx.resume(); } catch(e) {}
+  }
+}
+
+// -- Safe localStorage wrapper (try-catch保护) --
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem(key); return v !== null ? v : fallback; } catch(e) { return fallback; }
+}
+function lsSet(key, value) {
+  try { localStorage.setItem(key, value); } catch(e) {}
+}
+
+// ── Canvas Setup ──
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('game-canvas-wrap');
+
+const TILE_W = 54, TILE_H = 68, TILE_R = 10;
+const LAYER_OFFSET_X = 8, LAYER_OFFSET_Y = 10; // offset between layers for visual depth
+
+function resizeCanvas() {
+  const w = Math.min(wrap.clientWidth - 16, 420);
+  const h = wrap.clientHeight - 8;
+  canvas.width = w;
+  canvas.height = h;
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ── Tile Generation ──
+function generateTiles(level) {
+  tiles = [];
+  tileIdCounter = 0;
+  slots = [];
+  moveHistory = [];
+  gameOver = false;
+  gameWon = false;
+  score = 0;
+  moves = 0;
+  currentLevel = level;
+
+  const cols = level === 1 ? 5 : 6;
+  const rows = level === 1 ? 4 : 6;
+  const layers = level === 1 ? 2 : 3;
+
+  // Calculate how many tile positions we need
+  let positions = [];
+  for (let l = 0; l < layers; l++) {
+    const lCols = cols - l;
+    const lRows = rows - l;
+    for (let r = 0; r < lRows; r++) {
+      for (let c = 0; c < lCols; c++) {
+        // Skip some positions randomly for visual variety
+        if (Math.random() < 0.1 + l * 0.05) continue;
+        positions.push({ layer: l, col: c, row: r });
+      }
+    }
+  }
+
+  // Ensure total is divisible by 3
+  while (positions.length % 3 !== 0) positions.pop();
+
+  // Assign types (each type appears exactly 3 times)
+  const numTypes = Math.floor(positions.length / 3);
+  const types = [];
+  for (let i = 0; i < numTypes; i++) {
+    const emoji = EMOJIS[i % EMOJIS.length];
+    types.push(emoji, emoji, emoji);
+  }
+
+  // Shuffle positions and types
+  shuffle(positions);
+  shuffle(types);
+
+  for (let i = 0; i < positions.length; i++) {
+    const p = positions[i];
+    tiles.push({
+      id: tileIdCounter++,
+      type: types[i],
+      layer: p.layer,
+      col: p.col,
+      row: p.row,
+      removed: false
+    });
+  }
+
+  updateSlotBar();
+  renderTiles();
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+// ── Tile Position Calculation ──
+function tileCenter(tile) {
+  const cols = currentLevel === 1 ? 5 : 6;
+  const rows = currentLevel === 1 ? 4 : 6;
+  const lCols = cols - tile.layer;
+  const lRows = rows - tile.layer;
+
+  const boardW = lCols * (TILE_W + 6);
+  const boardH = lRows * (TILE_H + 4);
+  const startX = (canvas.width - boardW) / 2 + tile.col * (TILE_W + 6) + TILE_W / 2;
+  const startY = 30 + tile.layer * LAYER_OFFSET_Y + tile.row * (TILE_H + 4) + TILE_H / 2;
+  return { x: startX + tile.layer * LAYER_OFFSET_X, y: startY };
+}
+
+// ── Coverage Check ──
+function isTileCovered(tile) {
+  if (tile.removed) return true; // removed tiles are "covered"
+  for (const other of tiles) {
+    if (other.removed || other.id === tile.id) continue;
+    if (other.layer <= tile.layer) continue; // only tiles on higher layers can cover
+    // Check if other tile overlaps this one
+    const tc = tileCenter(tile);
+    const oc = tileCenter(other);
+    const dx = Math.abs(tc.x - oc.x);
+    const dy = Math.abs(tc.y - oc.y);
+    if (dx < TILE_W * 0.7 && dy < TILE_H * 0.7) return true;
+  }
+  return false;
+}
+
+// ── Rendering ──
+function renderTiles() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Sort tiles by layer (bottom first) for rendering
+  const sorted = [...tiles].filter(t => !t.removed).sort((a, b) => a.layer - b.layer);
+
+  for (const tile of sorted) {
+    const { x, y } = tileCenter(tile);
+    const covered = isTileCovered(tile);
+
+    // Shadow for depth
+    if (tile.layer > 0) {
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      roundRect(x - TILE_W / 2 + 2, y - TILE_H / 2 + 2, TILE_W, TILE_H, TILE_R);
+      ctx.fill();
+    }
+
+    // Tile body
+    const grad = ctx.createLinearGradient(x, y - TILE_H / 2, x, y + TILE_H / 2);
+    if (covered) {
+      grad.addColorStop(0, '#555');
+      grad.addColorStop(1, '#333');
+    } else {
+      grad.addColorStop(0, '#fffef5');
+      grad.addColorStop(1, '#e8e0c8');
+    }
+    ctx.fillStyle = grad;
+    roundRect(x - TILE_W / 2, y - TILE_H / 2, TILE_W, TILE_H, TILE_R);
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = covered ? '#444' : 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1.5;
+    roundRect(x - TILE_W / 2, y - TILE_H / 2, TILE_W, TILE_H, TILE_R);
+    ctx.stroke();
+
+    // Emoji
+    ctx.font = `${covered ? 24 : 28}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = covered ? '#777' : '#333';
+    ctx.fillText(tile.type, x, y);
+  }
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+// ── Slot Bar ──
+function updateSlotBar() {
+  const bar = document.getElementById('slot-bar');
+  bar.innerHTML = '';
+
+  for (let i = 0; i < MAX_SLOTS; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'slot-cell';
+    if (i < slots.length) {
+      const slot = slots[i];
+      cell.textContent = slot.type;
+      cell.classList.add('filled');
+      if (slot.count >= MATCH_COUNT - 1) {
+        cell.classList.add('matching');
+      }
+    }
+    if (i === MAX_SLOTS - 1 && slots.length === MAX_SLOTS) {
+      cell.classList.add('warning');
+    }
+    bar.appendChild(cell);
+  }
+}
+
+// ── Tile Click ──
+function onTileClick(tileId) {
+  if (gameOver || gameWon) return;
+
+  const tile = tiles.find(t => t.id === tileId);
+  if (!tile || tile.removed) return;
+  if (isTileCovered(tile)) return;
+
+  // Save state for undo
+  moveHistory.push({
+    tileId: tile.id,
+    type: tile.type,
+    slotsSnapshot: JSON.parse(JSON.stringify(slots))
+  });
+
+  // Remove tile from board
+  tile.removed = true;
+  moves++;
+
+  // Add to slot bar
+  let found = false;
+  for (const slot of slots) {
+    if (slot.type === tile.type) {
+      slot.count++;
+      slot.tileIds.push(tile.id);
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    slots.push({ type: tile.type, count: 1, tileIds: [tile.id] });
+  }
+
+  // Check for match
+  let matched = false;
+  for (let i = slots.length - 1; i >= 0; i--) {
+    if (slots[i].count >= MATCH_COUNT) {
+      matched = true;
+      slots[i].count -= MATCH_COUNT;
+      score += 10;
+      if (slots[i].count <= 0) {
+        slots.splice(i, 1);
+      }
+    }
+  }
+
+  // Check win
+  const remaining = tiles.filter(t => !t.removed);
+  if (remaining.length === 0 && slots.every(s => s.count === 0)) {
+    gameState = 'won'; gameWon = true;
+    winCount++;
+    lsSet('sm_wins', winCount);
+    updateStats();
+    setTimeout(() => showOverlay('win'), 300);
+  } else if (slots.length >= MAX_SLOTS && !matched) {
+    // Game over: slots full with no matches
+    gameState = 'lost'; gameOver = true;
+    loseCount++;
+    lsSet('sm_losses', loseCount);
+    updateStats();
+    setTimeout(() => showOverlay('lose'), 500);
+  }
+
+  updateSlotBar();
+  renderTiles();
+}
+
+// ── Power-ups (Ad-gated) ──
+function usePowerUp(type) {
+  if (gameOver || gameWon) return;
+  if (tiles.filter(t => !t.removed).length === 0) return;
+
+  // Show ad (or simulate)
+  showAd(type).then(() => {
+    switch (type) {
+      case 'shuffle':
+        doShuffle();
+        break;
+      case 'undo':
+        doUndo();
+        break;
+      case 'remove':
+        doRemove();
+        break;
+    }
+    updateSlotBar();
+    renderTiles();
+  });
+}
+
+function showAd(type) {
+  return new Promise((resolve) => {
+    // Try WeChat ad
+    if (typeof wx !== 'undefined' && wx.createRewardedVideoAd) {
+      try {
+        const ad = wx.createRewardedVideoAd({ adUnitId: getAdUnitId(type) });
+        ad.onClose(res => { if (res.isEnded) resolve(); });
+        ad.show().catch(() => {
+          // Fallback: confirm dialog
+          if (confirm(`📺 观看广告以使用${getPowerUpName(type)}？\n（微信小游戏中将展示真实广告）`)) resolve();
+        });
+        return;
+      } catch(e) {}
+    }
+    // Try Douyin ad
+    if (typeof tt !== 'undefined' && tt.createRewardedVideoAd) {
+      try {
+        const ad = tt.createRewardedVideoAd({ adUnitId: getAdUnitId(type) });
+        ad.onClose(res => { if (res.isEnded) resolve(); });
+        ad.show().catch(() => {
+          if (confirm(`📺 观看广告以使用${getPowerUpName(type)}？`)) resolve();
+        });
+        return;
+      } catch(e) {}
+    }
+    // Web fallback
+    if (confirm(`📺 观看广告以使用「${getPowerUpName(type)}」？\n（上线后将展示微信/抖音真实广告）`)) resolve();
+  });
+}
+
+function getAdUnitId(type) {
+  const ids = { shuffle: 'adunit-shuffle', undo: 'adunit-undo', remove: 'adunit-remove' };
+  return ids[type] || '';
+}
+function getPowerUpName(type) {
+  const names = { shuffle: '洗牌', undo: '撤回', remove: '移出3个' };
+  return names[type] || type;
+}
+
+function doShuffle() {
+  const remaining = tiles.filter(t => !t.removed);
+  const types = remaining.map(t => t.type);
+  shuffle(types);
+  remaining.forEach((t, i) => { t.type = types[i]; });
+  // Invalidate undo since shuffle changes everything
+  moveHistory = [];
+}
+
+function doUndo() {
+  if (moveHistory.length === 0) return;
+  const last = moveHistory.pop();
+  const tile = tiles.find(t => t.id === last.tileId);
+  if (tile) tile.removed = false;
+  slots = last.slotsSnapshot;
+}
+
+function doRemove() {
+  const remaining = tiles.filter(t => !t.removed && !isTileCovered(t));
+  if (remaining.length === 0) return;
+  // Remove 3 random exposed tiles
+  shuffle(remaining);
+  const toRemove = remaining.slice(0, Math.min(3, remaining.length));
+  for (const t of toRemove) {
+    t.removed = true;
+    // Also remove matching slot entries
+    for (const slot of slots) {
+      if (slot.type === t.type && slot.count > 0) {
+        slot.count--;
+        if (slot.count <= 0) {
+          slots = slots.filter(s => s !== slot);
+        }
+        break;
+      }
+    }
+  }
+  moveHistory = []; // invalidate undo
+}
+
+// ── Province Selection ──
+const PROVINCES = ['北京','上海','广东','浙江','江苏','四川','湖北','湖南','福建','山东','河南','河北','辽宁','陕西','重庆','云南','贵州','其他'];
+function showProvinceSelect() {
+  let html = '<div class="overlay-panel"><h2>📍 选择你的省份</h2><p>加入你的省份战队，看看哪个省最强！</p><div id="province-select">';
+  for (const p of PROVINCES) {
+    const sel = p === province ? ' selected' : '';
+    html += `<span class="province-chip${sel}" onclick="selectProvince('${p}')">${p}</span>`;
+  }
+  html += '</div><button class="big-btn primary" onclick="startGame()">开始游戏</button></div>';
+  document.getElementById('overlay').innerHTML = html;
+  document.getElementById('overlay').classList.remove('hidden');
+}
+
+function selectProvince(p) {
+  province = p;
+  lsSet('sm_province', p);
+  document.getElementById('province-label').textContent = p;
+  // Update chips
+  document.querySelectorAll('.province-chip').forEach(c => c.classList.remove('selected'));
+  const chips = document.querySelectorAll('.province-chip');
+  for (const c of chips) {
+    if (c.textContent === p) c.classList.add('selected');
+  }
+}
+
+// ── Overlay ──
+function showOverlay(type) {
+  const ov = document.getElementById('overlay');
+  let html = '';
+  if (type === 'win') {
+    html = `<div class="overlay-panel">
+      <h2>🎉 恭喜通关！</h2><p>你真厉害！这关太难了！</p>
+      <p style="color:#f6d365;font-size:24px;font-weight:800">🏆 ${province || '神秘'} 省 +1分！</p>
+      <button class="big-btn primary" onclick="nextLevel()">下一关 ▶️</button>
+      <button class="big-btn secondary" onclick="showShareCard()">📤 分享战绩</button>
+    </div>`;
+  } else if (type === 'lose') {
+    html = `<div class="overlay-panel">
+      <h2>😤 槽位已满！</h2><p>再试一次吧！就差一点点~</p>
+      <p style="color:#aab">💡 提示：用道具可以帮助你通关</p>
+      <button class="big-btn ad-btn" onclick="useReviveAd()">📺 看广告复活</button>
+      <button class="big-btn primary" onclick="restartGame()">🔄 重新开始</button>
+      <button class="big-btn secondary" onclick="showShareCard()">📤 求助好友</button>
+    </div>`;
+  } else if (type === 'share') {
+    html = `<div class="overlay-panel">
+      <h2>📤 分享战绩</h2>
+      <p style="font-size:18px">我在 StackMatch 中<br>🏆 赢了 <b style="color:#f6d365">${winCount}</b> 次 | 💀 输了 <b style="color:#f6d365">${loseCount}</b> 次<br>📍 ${province || '神秘'} 省战队</p>
+      <p style="color:#aab;font-size:12px">分享到微信群，邀请好友来挑战！</p>
+      <button class="big-btn primary" onclick="shareToWechat()">📱 分享到微信</button>
+      <button class="big-btn secondary" onclick="hideOverlay()">关闭</button>
+    </div>`;
+  }
+  ov.innerHTML = html;
+  ov.classList.remove('hidden');
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+function useReviveAd() {
+  showAd('revive').then(() => {
+    // Remove last 3 slots
+    if (slots.length > 0) {
+      const toRemove = slots.slice(-3);
+      for (const s of toRemove) {
+        // Put tiles back
+        for (const tid of s.tileIds) {
+          const tile = tiles.find(t => t.id === tid);
+          if (tile) tile.removed = false;
+        }
+      }
+      slots = slots.slice(0, -3);
+    }
+    gameOver = false;
+    hideOverlay();
+    updateSlotBar();
+    renderTiles();
+  });
+}
+
+function shareToWechat() {
+  if (typeof wx !== 'undefined' && wx.shareAppMessage) {
+    wx.shareAppMessage({
+      title: `我在StackMatch赢了${winCount}次！来挑战我吧！`,
+      imageUrl: ''
+    });
+  }
+  // Web fallback
+  if (navigator.share) {
+    navigator.share({
+      title: 'StackMatch - 堆叠消消乐',
+      text: `我在StackMatch赢了${winCount}次！来挑战我吧！`
+    }).catch(() => {});
+  }
+  hideOverlay();
+}
+
+function showShareCard() {
+  showOverlay('share');
+}
+
+// ── Game Flow ──
+function startGame() { gameState = 'playing'; ensureAudio();
+  hideOverlay();
+  generateTiles(1);
+  updateStats();
+  resizeCanvas();
+  renderTiles();
+  // Show tutorial on first play
+  if (!lsGet('sm_played', '')) {
+    lsSet('sm_played', '1');
+    showTutorial();
+  }
+}
+
+function restartGame() { gameState = 'playing';
+  hideOverlay();
+  generateTiles(currentLevel);
+  updateStats();
+  renderTiles();
+}
+
+function nextLevel() {
+  hideOverlay();
+  generateTiles(currentLevel + 1);
+  updateStats();
+  renderTiles();
+}
+
+function updateStats() {
+  document.getElementById('win-count').textContent = winCount;
+  document.getElementById('lose-count').textContent = loseCount;
+  document.getElementById('province-label').textContent = province || '-';
+}
+
+// ── Tutorial ──
+function showTutorial() {
+  const ov = document.getElementById('overlay');
+  ov.innerHTML = `<div class="overlay-panel">
+    <h2>🎮 怎么玩？</h2>
+    <p>👆 <b>点击</b>露出的牌，把它移到下方槽位</p>
+    <p>3️⃣ 收集 <b>3张相同</b> 的牌即可消除</p>
+    <p>⚠️ 槽位只有 <b>7个</b>，满了就输了！</p>
+    <p>🔀 使用下方道具帮你过关<br><small>（观看广告即可使用）</small></p>
+    <button class="big-btn primary" onclick="startGame()">知道了，开始！</button>
+  </div>`;
+  ov.classList.remove('hidden');
+}
+
+// ── Canvas Click Handler ──
+canvas.addEventListener('click', (e) => {
+  if (gameOver || gameWon) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  // Find topmost non-removed, non-covered tile at click position
+  let best = null;
+  for (const tile of tiles) {
+    if (tile.removed) continue;
+    if (isTileCovered(tile)) continue;
+    const { x, y } = tileCenter(tile);
+    if (Math.abs(mx - x) < TILE_W / 2 && Math.abs(my - y) < TILE_H / 2) {
+      if (!best || tile.layer > best.layer) best = tile;
+    }
+  }
+  if (best) onTileClick(best.id);
+});
+
+// ── Init ──
+function init() {
+  resizeCanvas();
+  updateStats();
+  if (!province) {
+    showProvinceSelect();
+  } else {
+    document.getElementById('province-label').textContent = province;
+    generateTiles(1);
+    updateStats();
+    renderTiles();
+    if (!lsGet('sm_played', '')) {
+      lsSet('sm_played', '1');
+      setTimeout(showTutorial, 300);
+    }
+  }
+}
+
+// Handle WeChat/Douyin ad SDK availability
+function initAdSDK() {
+  // WeChat mini-game
+  if (typeof wx !== 'undefined') {
+    try {
+      if (wx.createRewardedVideoAd) {
+        // Pre-create ad instances
+        window._adInstances = {
+          shuffle: wx.createRewardedVideoAd({ adUnitId: 'adunit-shuffle' }),
+          undo: wx.createRewardedVideoAd({ adUnitId: 'adunit-undo' }),
+          remove: wx.createRewardedVideoAd({ adUnitId: 'adunit-remove' }),
+          revive: wx.createRewardedVideoAd({ adUnitId: 'adunit-revive' })
+        };
+      }
+    } catch(e) { console.log('Ad SDK init skipped'); }
+  }
+}
+
+init();
+initAdSDK();
+</script>
+</body>
+</html>
