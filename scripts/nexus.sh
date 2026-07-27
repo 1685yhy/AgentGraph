@@ -407,6 +407,7 @@ case "$CMD" in
   test)      cmd_test "$@";;
   gate)      cmd_gate "$@";;
   self-test) bash "$SCRIPT_DIR/self-test.sh";;
+  ci-test)   bash "$SCRIPT_DIR/ci-test.sh";;
   --help|-h|help)
     sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;

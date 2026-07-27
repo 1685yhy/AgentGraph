@@ -1,0 +1,21 @@
+name: CI Self-Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: AgentGraph System Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System smoke test
+        run: |
+          chmod +x scripts/ci-test.sh
+          bash scripts/ci-test.sh
