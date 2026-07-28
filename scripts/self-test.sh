@@ -4,13 +4,16 @@
 #
 # Tests the AgentGraph system's own scripts and components.
 # Designed to be run from the project root via: bash scripts/self-test.sh
-# Or via: guild self-test
+# Or via: guild self-test [--quick]
 #
 # Design:
 #   Pure bash, bash-native test patterns.
 #   Each test prints: [OK] or [FAIL] with description.
 #   Final summary: "X passed, Y failed / Z total"
 #   Exit code: 1 if any test fails.
+#
+# Options:
+#   --quick   Skip slow tests (handoff create, graph dry-run)
 #
 
 set -euo pipefail
@@ -20,6 +23,18 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source lib.sh for helpers (ok, warn, err, die, color vars)
 . "$SCRIPT_DIR/lib.sh"
+
+# ── Argument parsing ────────────────────────────────────────────────
+QUICK_MODE=false
+for arg in "$@"; do
+  case "$arg" in
+    --quick) QUICK_MODE=true;;
+  esac
+done
+
+if $QUICK_MODE; then
+  ok "Quick mode enabled — skipping slow tests (handoff create, graph dry-run)"
+fi
 
 # ── Test config ──────────────────────────────────────────────────────
 TEMP_DIR="/tmp/agentgraph-self-test"
@@ -43,17 +58,17 @@ trap cleanup EXIT
 pass() { PASSED=$((PASSED + 1)); TOTAL=$((TOTAL + 1)); ok "$1"; }
 fail() { FAILED=$((FAILED + 1)); TOTAL=$((TOTAL + 1)); err "$1"; }
 
-# require_python3 — skip test if python3 not available
-require_python3() {
-  command -v python3 &>/dev/null && return 0
-  fail "python3 not available — skipping"
-  return 1
-}
-
 # require_node — skip test if node not available
 require_node() {
   command -v node &>/dev/null && return 0
   warn "node not available — skipping node-dependent check"
+  return 1
+}
+
+# require_python3 — only for tests that genuinely need python3 (YAML)
+require_python3() {
+  command -v python3 &>/dev/null && return 0
+  warn "python3 not available — skipping YAML-dependent check"
   return 1
 }
 
@@ -67,7 +82,7 @@ test_next_id() {
   echo ""
   echo "── Test 1: next_id uniqueness ──"
 
-  require_python3 || return
+  require_node || return
 
   local hdir="$TEMP_DIR/handoffs"
   mkdir -p "$hdir"
@@ -84,7 +99,7 @@ JSONEOF
   for f in "$hdir"/*.json; do
     [[ -f "$f" ]] || continue
     local id
-    id=$(python3 -c "import json; print(json.load(open('$f')).get('id',0))" 2>/dev/null || echo 0)
+    id=$(node -e "const d=JSON.parse(require('fs').readFileSync('$f','utf8'));console.log(d.id===undefined?'0':String(d.id))" 2>/dev/null || echo 0)
     (( id > max )) && max=$id
   done
   local next=$((max + 1))
@@ -117,13 +132,18 @@ JSONEOF
 }
 
 # ═══════════════════════════════════════════════════════════════════════
-# Test 2: handoff create cycle
+# Test 2: handoff create cycle (skipped in --quick mode)
 # ═══════════════════════════════════════════════════════════════════════
 test_handoff_cycle() {
   echo ""
   echo "── Test 2: handoff create cycle ──"
 
-  require_python3 || return
+  if $QUICK_MODE; then
+    warn "handoff create: skipped (--quick mode)"
+    return
+  fi
+
+  require_node || return
 
   local deliver_dir="$TEMP_DIR/deliverables"
   mkdir -p "$deliver_dir"
@@ -134,8 +154,8 @@ test_handoff_cycle() {
 
   # Run handoff create (use real agents from the config)
   local output
-  output=$("$GUILD" handoff --from product-manager --to frontend-engineer --path "$deliver_dir" 2>&1) || {
-    fail "handoff create: command failed"
+  output=$(timeout 20 "$GUILD" handoff --from product-manager --to frontend-engineer --path "$deliver_dir" 2>&1) || {
+    fail "handoff create: command failed or timed out"
     echo "$output" | head -5
     return
   }
@@ -152,8 +172,8 @@ test_handoff_cycle() {
 
   # Run guild check --handoff <id>
   local check_output
-  check_output=$("$GUILD" check --handoff "$id" 2>&1) || {
-    fail "handoff check #$id: command failed"
+  check_output=$(timeout 20 "$GUILD" check --handoff "$id" 2>&1) || {
+    fail "handoff check #$id: command failed or timed out"
     echo "$check_output"
     return
   }
@@ -170,7 +190,7 @@ test_handoff_cycle() {
   for hf in "$REPO_ROOT/handoffs"/*.json; do
     [[ -f "$hf" ]] || continue
     local hid
-    hid=$(python3 -c "import json; print(json.load(open('$hf')).get('id',0))" 2>/dev/null || echo 0)
+    hid=$(node -e "const d=JSON.parse(require('fs').readFileSync('$hf','utf8'));console.log(d.id===undefined?'0':String(d.id))" 2>/dev/null || echo 0)
     if [[ "$hid" == "$id" ]]; then
       CLEANUP_HANDOFFS+=("$hf")
     fi
@@ -184,7 +204,7 @@ test_gate_completeness() {
   echo ""
   echo "── Test 3: gate completeness ──"
 
-  require_python3 || return
+  require_node || return
 
   local pass_dir="$TEMP_DIR/gate-pass"
   mkdir -p "$pass_dir"
@@ -210,7 +230,7 @@ JSONEOF
 
   # Gate 1 (completeness) on the complete handoff — should pass
   local gate_pass_output
-  gate_pass_output=$("$GUILD" gate --handoff 99901 --gate completeness 2>&1) || true
+  gate_pass_output=$(timeout 20 "$GUILD" gate --handoff 99901 --gate completeness 2>&1) || true
 
   if echo "$gate_pass_output" | grep -q "\[OK\]"; then
     pass "gate completeness passes when all artifacts provided"
@@ -242,7 +262,7 @@ JSONEOF
 
   # Gate 1 (completeness) on the incomplete handoff — should fail
   local gate_fail_output
-  gate_fail_output=$("$GUILD" gate --handoff 99902 --gate completeness 2>&1) || true
+  gate_fail_output=$(timeout 20 "$GUILD" gate --handoff 99902 --gate completeness 2>&1) || true
 
   if echo "$gate_fail_output" | grep -q "\[FAIL\]"; then
     pass "gate completeness fails when required artifacts are missing"
@@ -259,12 +279,12 @@ test_gate_syntax() {
   echo ""
   echo "── Test 4: gate syntax ──"
 
-  require_python3 || return
+  # This test only uses guild commands and shell builtins — no node/python3 needed
 
   local bad_syntax_dir="$TEMP_DIR/bad-syntax"
   mkdir -p "$bad_syntax_dir"
 
-  # Invalid JSON — no error check because python3 throws; gate uses python3 too
+  # Invalid JSON
   printf '{invalid json' > "$bad_syntax_dir/bad.json"
 
   # Valid empty JSON (should not fail syntax)
@@ -290,7 +310,7 @@ JSONEOF
   CLEANUP_HANDOFFS+=("$hf")
 
   local gate_output
-  gate_output=$("$GUILD" gate --handoff 99903 --gate syntax 2>&1) || true
+  gate_output=$(timeout 20 "$GUILD" gate --handoff 99903 --gate syntax 2>&1) || true
 
   # Should report at least one [FAIL] due to invalid JSON
   if echo "$gate_output" | grep -q "\[FAIL\]"; then
@@ -302,11 +322,16 @@ JSONEOF
 }
 
 # ═══════════════════════════════════════════════════════════════════════
-# Test 5: graph engine
+# Test 5: graph engine (skipped in --quick mode)
 # ═══════════════════════════════════════════════════════════════════════
 test_graph_engine() {
   echo ""
   echo "── Test 5: graph engine ──"
+
+  if $QUICK_MODE; then
+    warn "graph engine: skipped (--quick mode)"
+    return
+  fi
 
   local graph_dir="$TEMP_DIR/graph-test"
   mkdir -p "$graph_dir"
@@ -320,9 +345,15 @@ test_graph_engine() {
 
   set +e
   local output
-  output=$("$GUILD" graph run --graph feature-dev --path "$graph_dir" --dry-run 2>&1)
+  output=$(timeout 20 "$GUILD" graph run --graph feature-dev --path "$graph_dir" --dry-run 2>&1)
   local rc=$?
   set -e
+
+  if [[ $rc -eq 124 ]]; then
+    fail "graph engine: timed out after 10s"
+    echo "$output" | head -5
+    return
+  fi
 
   if [[ $rc -ne 0 ]]; then
     fail "graph engine: exit code $rc (expected 0)"
@@ -354,56 +385,56 @@ test_cli_smoke() {
   local all_ok=true
 
   # 6a: guild list --handoffs
-  if "$GUILD" list --handoffs &>/dev/null; then
+  if timeout 20 "$GUILD" list --handoffs &>/dev/null; then
     pass "guild list --handoffs exits 0"
   else
-    fail "guild list --handoffs exited non-zero"
+    fail "guild list --handoffs exited non-zero or timed out"
     all_ok=false
   fi
 
   # 6b: guild status
-  if "$GUILD" status &>/dev/null; then
+  if timeout 20 "$GUILD" status &>/dev/null; then
     pass "guild status exits 0"
   else
-    fail "guild status exited non-zero"
+    fail "guild status exited non-zero or timed out"
     all_ok=false
   fi
 
   # 6c: guild gate --list
-  if "$GUILD" gate --list &>/dev/null; then
+  if timeout 20 "$GUILD" gate --list &>/dev/null; then
     pass "guild gate --list exits 0"
   else
-    fail "guild gate --list exited non-zero"
+    fail "guild gate --list exited non-zero or timed out"
     all_ok=false
   fi
 
   # 6d: guild feedback --list
-  if "$GUILD" feedback --list &>/dev/null; then
+  if timeout 20 "$GUILD" feedback --list &>/dev/null; then
     pass "guild feedback --list exits 0"
   else
-    fail "guild feedback --list exited non-zero"
+    fail "guild feedback --list exited non-zero or timed out"
     all_ok=false
   fi
 
   # 6e: guild changelog (no --since)
-  if "$GUILD" changelog &>/dev/null; then
+  if timeout 20 "$GUILD" changelog &>/dev/null; then
     pass "guild changelog exits 0"
   else
-    fail "guild changelog exited non-zero"
+    fail "guild changelog exited non-zero or timed out"
     all_ok=false
   fi
 
   # 6f: guild context show
-  if "$GUILD" context show &>/dev/null; then
+  if timeout 20 "$GUILD" context show &>/dev/null; then
     pass "guild context show exits 0"
   else
-    fail "guild context show exited non-zero"
+    fail "guild context show exited non-zero or timed out"
     all_ok=false
   fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════
-# Test 7: contract validity
+# Test 7: contract validity (needs python3 for YAML)
 # ═══════════════════════════════════════════════════════════════════════
 test_contract_validity() {
   echo ""
@@ -424,7 +455,7 @@ test_contract_validity() {
   fi
 
   # Check contracts YAML is valid using python3 yaml
-  if python3 -c "
+  if timeout 20 python3 -c "
 import sys, json
 try:
     import yaml
@@ -432,14 +463,13 @@ try:
         yaml.safe_load(f)
     print('VALID')
 except ImportError:
-    # yaml module not available — check basic structure with awk
     print('SKIP')
 except Exception as e:
     print('INVALID: ' + str(e))
     sys.exit(1)
 " 2>/dev/null | grep -q 'VALID'; then
     pass "contract validity: guild-contracts.yml is valid YAML"
-  elif python3 -c "
+  elif timeout 20 python3 -c "
 import sys, json
 try:
     import yaml
@@ -471,7 +501,7 @@ except Exception as e:
 
   # Extract agent slugs from guild.config.json
   local config_slugs
-  config_slugs=$(python3 -c "
+  config_slugs=$(timeout 20 python3 -c "
 import json
 with open('$config_file') as f:
     cfg = json.load(f)
@@ -496,13 +526,13 @@ for a in cfg.get('agents', []):
 }
 
 # ═══════════════════════════════════════════════════════════════════════
-# Test 8: handoff integrity
+# Test 8: handoff integrity (uses node)
 # ═══════════════════════════════════════════════════════════════════════
 test_handoff_integrity() {
   echo ""
   echo "── Test 8: handoff integrity ──"
 
-  require_python3 || return
+  require_node || return
 
   local handoff_dir="$REPO_ROOT/handoffs"
   local count=0
@@ -512,7 +542,6 @@ test_handoff_integrity() {
   local -a json_files=()
   for f in "$handoff_dir"/*.json; do
     [[ -f "$f" ]] || continue
-    # Skip files starting with "self-test-" pattern
     local bn; bn=$(basename "$f")
     [[ "$bn" == self-test-* ]] && continue
     json_files+=("$f")
@@ -527,23 +556,29 @@ test_handoff_integrity() {
   for json_file in "${json_files[@]}"; do
     count=$((count + 1))
     local result
-    result=$(python3 -c "
-import json, sys
-with open('$json_file') as f:
-    d = json.load(f)
-required = ['id', 'from', 'to', 'status', 'path', 'timestamp']
-missing = [k for k in required if k not in d]
-if missing:
-    print('MISSING: ' + ', '.join(missing))
-    sys.exit(1)
-# Type checks
-if not isinstance(d['id'], int):
-    print('TYPE: id is not int')
-    sys.exit(1)
-if not isinstance(d['from'], str) or not isinstance(d['to'], str):
-    print('TYPE: from/to not strings')
-    sys.exit(1)
-print('OK')
+    result=$(timeout 20 node -e "
+const fs = require('fs');
+try {
+  const d = JSON.parse(fs.readFileSync('$json_file', 'utf8'));
+  const required = ['id', 'from', 'to', 'status', 'path', 'timestamp'];
+  const missing = required.filter(k => d[k] === undefined);
+  if (missing.length > 0) {
+    console.log('MISSING: ' + missing.join(', '));
+    process.exit(1);
+  }
+  if (typeof d.id !== 'number') {
+    console.log('TYPE: id is not number');
+    process.exit(1);
+  }
+  if (typeof d.from !== 'string' || typeof d.to !== 'string') {
+    console.log('TYPE: from/to not strings');
+    process.exit(1);
+  }
+  console.log('OK');
+} catch(e) {
+  console.log('PARSE_ERROR: ' + e.message);
+  process.exit(1);
+}
 " 2>/dev/null) || {
       errors=$((errors + 1))
       local fname; fname=$(basename "$json_file")

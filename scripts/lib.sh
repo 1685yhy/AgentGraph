@@ -515,3 +515,252 @@ chain_graph() {
   echo "  🚪 Gate: $(select_gates "$type")"
   echo "══════════════════════════════════════════"
 }
+
+# ── Agent Memory System ─────────────────────────────────────────────
+
+# agent_memory_dir <slug> — get the memory directory for an agent
+agent_memory_dir() {
+  local slug="$1"
+  echo "$REPO_ROOT/context/memory/${slug}"
+}
+
+# agent_memory_save <slug> <task> <output_summary>
+# Saves agent work to context/memory/<slug>/
+agent_memory_save() {
+  local slug="$1" task="$2" summary="$3"
+  local mem_dir; mem_dir="$REPO_ROOT/context/memory/${slug}"
+  mkdir -p "$mem_dir"
+
+  local timestamp; timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  local file_stamp; file_stamp=$(date -u +"%Y-%m-%d-%H%M%S")
+  local mem_file="$mem_dir/${file_stamp}.json"
+
+  # Collect decisions from context/decisions/<slug>/ if they exist
+  local decisions_json="[]"
+  local dec_dir="$REPO_ROOT/context/decisions/${slug}"
+  if [[ -d "$dec_dir" ]]; then
+    decisions_json=$(node -e "
+const fs=require('fs');
+const dir='$dec_dir';
+const files=fs.readdirSync(dir).filter(f=>f.endsWith('.json')).sort().slice(-3);
+const decs=files.map(f=>{const d=JSON.parse(fs.readFileSync(dir+'/'+f,'utf8'));return d.topic||d.title||d.decision||'see file'});
+console.log(JSON.stringify(decs));
+" 2>/dev/null || echo "[]")
+  fi
+
+  # Escape task and summary for JSON using node if available
+  local escaped_task escaped_summary
+  if command -v node &>/dev/null; then
+    escaped_task=$(echo "$task" | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.stringify(d.trim())));" 2>/dev/null || echo "\"$task\"")
+    escaped_summary=$(echo "$summary" | node -e "process.stdin.resume();let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.stringify(d.trim())));" 2>/dev/null || echo "\"$summary\"")
+  else
+    escaped_task="\"$task\""
+    escaped_summary="\"$summary\""
+  fi
+
+  cat > "$mem_file" << JSONEOF
+{
+  "slug": "${slug}",
+  "task": ${escaped_task},
+  "summary": ${escaped_summary},
+  "timestamp": "${timestamp}",
+  "decisions": ${decisions_json}
+}
+JSONEOF
+  echo "$mem_file"
+}
+
+# agent_memory_load <slug> [limit]
+# Loads recent memories for an agent, returns as formatted context
+agent_memory_load() {
+  local slug="$1" limit="${2:-5}"
+  local mem_dir; mem_dir="$REPO_ROOT/context/memory/${slug}"
+
+  if [[ ! -d "$mem_dir" ]]; then
+    echo ""
+    return
+  fi
+
+  # Use node to safely read and sort JSON memory files
+  if command -v node &>/dev/null; then
+    node -e "
+const fs=require('fs');
+const dir='$mem_dir';
+let files;
+try { files=fs.readdirSync(dir).filter(f=>f.endsWith('.json')).sort().reverse().slice(0,$limit); }
+catch(e) { console.log(''); process.exit(0); }
+if(files.length===0){ console.log(''); process.exit(0); }
+const mems=files.map(f=>{
+  try{ return JSON.parse(fs.readFileSync(dir+'/'+f,'utf8')); }
+  catch(e){ return null; }
+}).filter(Boolean);
+console.log('--- Agent Memory: ' + '$slug' + ' (recent ' + mems.length + ' tasks) ---');
+mems.forEach((m,i)=>{
+  const d=(m.timestamp||'').substring(0,10);
+  const task=(m.task||'').substring(0,120);
+  const summary=(m.summary||'').substring(0,200);
+  console.log((i+1)+'. ['+d+'] '+task);
+  console.log('   Summary: '+summary);
+  if(m.decisions&&m.decisions.length>0){
+    console.log('   Decisions: '+m.decisions.join('; '));
+  }
+});
+console.log('---');
+" 2>/dev/null || true
+  fi
+}
+
+# agent_memory_context <slug>
+# Returns a concise summary string: "Agent X has completed N tasks. Recent: [summaries]"
+agent_memory_context() {
+  local slug="$1"
+  local mem_dir; mem_dir="$REPO_ROOT/context/memory/${slug}"
+
+  if [[ ! -d "$mem_dir" ]]; then
+    echo "Agent ${slug} has no prior memory."
+    return
+  fi
+
+  if command -v node &>/dev/null; then
+    node -e "
+const fs=require('fs');
+const dir='$mem_dir';
+let files;
+try { files=fs.readdirSync(dir).filter(f=>f.endsWith('.json')).sort(); }
+catch(e){ console.log('Agent ${slug} has no prior memory.'); process.exit(0); }
+if(files.length===0){ console.log('Agent ${slug} has no prior memory.'); process.exit(0); }
+const mems=files.map(f=>{
+  try{ return JSON.parse(fs.readFileSync(dir+'/'+f,'utf8')); }
+  catch(e){ return null; }
+}).filter(Boolean);
+const total=mems.length;
+const recent=mems.slice(-3).map(m=>m.task||'').filter(Boolean);
+const recentStr=recent.length>0?recent.join('; '):'none';
+console.log('Agent ${slug} has completed '+total+' tasks. Recent: '+recentStr);
+" 2>/dev/null || echo "Agent ${slug} has completed tasks."
+  fi
+}
+
+# agent_prompt_with_memory <slug>
+# Like agent_prompt but includes the agent's memory context
+agent_prompt_with_memory() {
+  local slug="$1"
+  local prompt; prompt=$(agent_prompt "$slug" 2>/dev/null) || return 1
+  local mem_ctx; mem_ctx=$(agent_memory_context "$slug" 2>/dev/null)
+
+  echo "${prompt}"
+  if [[ -n "$mem_ctx" && "$mem_ctx" != "Agent ${slug} has no prior memory." ]]; then
+    echo ""
+    echo "## \U0001f9e0 Memory Context"
+    echo "${mem_ctx}"
+    echo ""
+    local loaded; loaded=$(agent_memory_load "$slug" 5 2>/dev/null)
+    if [[ -n "$loaded" ]]; then
+      echo "${loaded}"
+    fi
+  fi
+}
+
+# ── Agent Dispatch with Memory ────────────────────────────────────
+
+dispatch_agent_with_memory() {
+  local slug="$1" task="$2"
+  local file; file=$(agent_file "$slug")
+  [[ -z "$file" ]] && { err "Unknown agent: $slug"; return 1; }
+  local name emoji short role
+  name=$(agent_frontmatter "$slug" "name")
+  emoji=$(agent_frontmatter "$slug" "emoji")
+  role=$(agent_frontmatter "$slug" "role")
+  short=$(agent_frontmatter "$slug" "short")
+  local dispatch_file="$REPO_ROOT/context/dispatches/$(date +%Y%m%d-%H%M%S)-${slug}.json"
+  mkdir -p "$REPO_ROOT/context/dispatches"
+  node -e "require('fs').writeFileSync('$dispatch_file',JSON.stringify({agent:'$slug',name:'$name',task:'$task',timestamp:new Date().toISOString(),status:'dispatched'},null,2))" 2>/dev/null || true
+
+  # Auto-save memory with the task as both task and summary placeholder
+  agent_memory_save "$slug" "$task" "(dispatched -- pending completion)" > /dev/null 2>&1 || true
+
+  cat << DISPATCH
+╔══════════════════════════════════════════╗
+║  Agent Dispatch: ${emoji} ${name}
+║  Role: ${role}
+║  Task: ${task}
+║  Record: $(basename "$dispatch_file")
+╚══════════════════════════════════════════╝
+
+$(agent_prompt_with_memory "$slug" 2>/dev/null)
+
+---
+
+## 📋 当前任务
+${task}
+
+## 📤 输出要求
+请以 ${name} 的身份完成此任务。输出你的工作成果、决策理由和下游Agent需要知道的信息。
+DISPATCH
+}
+
+# ── Memory command handler (called from nexus.sh) ─────────────────
+
+cmd_memory() {
+  local slug="" all_flag=false save_flag=false save_task="" save_summary=""
+
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --all) all_flag=true; shift ;;
+      --save) save_flag=true; save_task="$2"; save_summary="$3"; shift 3 ;;
+      --help|-h) echo "Usage: guild memory <agent> [--save \"<task>\" \"<summary>\"] | --all"; return 0 ;;
+      *) if [[ -z "$slug" ]]; then slug="$1"; shift; else die "Unknown argument: $1"; fi ;;
+    esac
+  done
+
+  # --all: show all agents' activity summary
+  if $all_flag; then
+    echo ""
+    echo "All Agent Memory Summaries:"
+    echo ""
+    local mem_root="$REPO_ROOT/context/memory"
+    if [[ ! -d "$mem_root" ]]; then
+      echo "  No memory data found."
+      return 0
+    fi
+    local count=0
+    for agent_dir in "$mem_root"/*/; do
+      [[ -d "$agent_dir" ]] || continue
+      local agent_slug; agent_slug=$(basename "$agent_dir")
+      local ctx; ctx=$(agent_memory_context "$agent_slug" 2>/dev/null)
+      echo "  ${agent_slug}:"
+      echo "    ${ctx}"
+      count=$((count + 1))
+    done
+    if [[ $count -eq 0 ]]; then
+      echo "  No memory data found."
+    fi
+    return 0
+  fi
+
+  # Require an agent slug
+  if [[ -z "$slug" ]]; then
+    die "Usage: guild memory <agent> [--save \"<task>\" \"<summary>\"] | --all"
+  fi
+
+  # Resolve slug if needed
+  local resolved; resolved=$(resolve_agent "$slug")
+  if [[ -n "$resolved" ]]; then
+    slug="$resolved"
+  fi
+
+  # --save: record a memory
+  if $save_flag; then
+    local mem_file; mem_file=$(agent_memory_save "$slug" "$save_task" "$save_summary")
+    echo "  Memory saved: $(basename "$mem_file")"
+    echo "  Agent: ${slug}"
+    return 0
+  fi
+
+  # Default: show memory for a single agent
+  local ctx; ctx=$(agent_memory_context "$slug" 2>/dev/null)
+  echo "${ctx}"
+  echo ""
+  agent_memory_load "$slug" 10 2>/dev/null
+}

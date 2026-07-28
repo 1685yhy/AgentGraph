@@ -332,6 +332,10 @@ if [[ $# -eq 0 ]]; then
   echo "  guild cleanup   — 查看/清理过期交接（--stale 执行归档）"
   echo "  guild gate      — 运行质量门禁 (completeness/syntax/behavior/playability/agent-standards)"
   echo "  guild test      — 运行交付物行为测试（超越静态验证）"
+	  echo "  guild test-runtime — 浏览器运行时测试（真实页面加载+截图）"
+  echo "  guild memory    — 查看 Agent 记忆/历史 (guild memory <agent> | --all)"
+  echo "  guild doctor    — 诊断系统健康状态"
+  echo "  guild self-test [--quick] — 运行系统自测 (--quick 跳过慢测试)"
   echo ""
   echo "Run 'guild <command> --help' for details."
   exit 0
@@ -358,18 +362,21 @@ case "$CMD" in
   read)      cmd_read "$@";;
   resolve)   cmd_resolve "$@";;
   test)      cmd_test "$@";;
+  test-runtime) bash "$SCRIPT_DIR/runtime-test.sh" "$@";;
   gate)      cmd_gate "$@";;
-  self-test) bash "$SCRIPT_DIR/self-test.sh";;
+  self-test) bash "$SCRIPT_DIR/self-test.sh" "$@";;
   ci-test)   bash "$SCRIPT_DIR/ci-test.sh";;
+  doctor)    cmd_doctor "$@";;
 	  plan)      generate_graph "$@";;
-	  prompt)    agent_prompt "${1:-}";;
-	  dispatch)  dispatch_agent "$1" "$2";;
+	  prompt)    agent_prompt_with_memory "${1:-}";;
+	  dispatch)  dispatch_agent_with_memory "$1" "$2";;
 	  chain)     chain_graph "$*";;
 	  task)      agent_task "$1" "$2";;
 	  agents)    agent_list;;
 	  build)     build_product "$@";;
+	  memory)    cmd_memory "$@";;
   --help|-h|help)
     sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, plan, build, prompt, task, dispatch, chain, agents, self-test, test, ci-test";;
+  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, plan, build, prompt, task, dispatch, chain, agents, memory, self-test, test, test-runtime, ci-test, doctor";;
 esac
