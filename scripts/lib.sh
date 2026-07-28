@@ -455,3 +455,63 @@ agent_list() {
     printf "  %-30s %s %s\n" "$slug" "$emoji" "${short:-}"
   done
 }
+
+# ── Agent Dispatch — actually execute agents ─────────────────────────
+
+dispatch_agent() {
+  local slug="$1" task="$2"
+  local file; file=$(agent_file "$slug")
+  [[ -z "$file" ]] && { err "Unknown agent: $slug"; return 1; }
+  local name emoji short role
+  name=$(agent_frontmatter "$slug" "name")
+  emoji=$(agent_frontmatter "$slug" "emoji")
+  role=$(agent_frontmatter "$slug" "role")
+  short=$(agent_frontmatter "$slug" "short")
+  local dispatch_file="$REPO_ROOT/context/dispatches/$(date +%Y%m%d-%H%M%S)-${slug}.json"
+  mkdir -p "$REPO_ROOT/context/dispatches"
+  node -e "require('fs').writeFileSync('$dispatch_file',JSON.stringify({agent:'$slug',name:'$name',task:'$task',timestamp:new Date().toISOString(),status:'dispatched'},null,2))" 2>/dev/null || true
+  cat << DISPATCH
+╔══════════════════════════════════════════╗
+║  Agent Dispatch: ${emoji} ${name}
+║  Role: ${role}
+║  Task: ${task}
+║  Record: $(basename "$dispatch_file")
+╚══════════════════════════════════════════╝
+
+$(agent_prompt "$slug" 2>/dev/null)
+
+---
+
+## 📋 当前任务
+${task}
+
+## 📤 输出要求
+请以 ${name} 的身份完成此任务。输出你的工作成果、决策理由和下游Agent需要知道的信息。
+DISPATCH
+}
+
+chain_graph() {
+  local task="$1"
+  [[ -z "$task" ]] && { err "Usage: guild chain <task>"; return 1; }
+  echo "╔══════════════════════════════════════════╗"
+  echo "║  AgentGraph Chain — 全链路执行计划      ║"
+  echo "╚══════════════════════════════════════════╝"
+  echo ""
+  echo "  📋 任务: ${task}"
+  echo ""
+  local type; type=$(classify_task_fallback "$task")
+  local features; features=$(detect_features "$task")
+  local agents; agents=$(select_agents "$type" "$features")
+  echo "  👥 Agent链 (${type}):"
+  local i=1
+  for agent in $agents; do
+    local name emoji
+    name=$(agent_frontmatter "$agent" "name" 2>/dev/null)
+    emoji=$(agent_frontmatter "$agent" "emoji" 2>/dev/null)
+    echo "    ${i}. ${emoji} ${name} ($agent) — guild dispatch $agent \"...\""
+    i=$((i + 1))
+  done
+  echo ""
+  echo "  🚪 Gate: $(select_gates "$type")"
+  echo "══════════════════════════════════════════"
+}

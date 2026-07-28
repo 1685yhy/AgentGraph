@@ -363,11 +363,13 @@ case "$CMD" in
   ci-test)   bash "$SCRIPT_DIR/ci-test.sh";;
 	  plan)      generate_graph "$@";;
 	  prompt)    agent_prompt "${1:-}";;
+	  dispatch)  dispatch_agent "$1" "$2";;
+	  chain)     chain_graph "$*";;
 	  task)      agent_task "$1" "$2";;
 	  agents)    agent_list;;
 	  build)     build_product "$@";;
   --help|-h|help)
     sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, plan, build, prompt, task, agents, self-test, test, ci-test";;
+  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, plan, build, prompt, task, dispatch, chain, agents, self-test, test, ci-test";;
 esac
