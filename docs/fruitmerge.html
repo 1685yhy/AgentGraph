@@ -72,9 +72,12 @@ const FRUITS = [
 const GRAVITY = 0.4, BOUNCE = 0.3, FRICTION = 0.98;
 const DROP_Y = 40;
 
-let fruits = [], currentFruit = null, nextType = 0, score = 0, gameOver = false;
+let fruits = [], currentFruit = null, nextType = 0, score = 0;
+let gameState = 'init'; // init|playing|won|lost
+let gameOver = false; // kept for backward compat
 let containerW = 280, containerH = 400, containerX = 0, wallThick = 6;
-let mouseX = 200, dropping = false;
+let mouseX = 200, dropping = false, _lastDropTime = 0;
+const DROP_COOLDOWN = 300; // ms between drops (debounce)
 
 // Daily & Province
 const TODAY = new Date().toISOString().slice(0,10);
@@ -107,18 +110,27 @@ function resize(){
 }
 window.addEventListener('resize',resize);
 
-// ── Physics ──
+// ── Physics (deltaTime-based, fixed timestep) ──
+const PHYSICS_STEP = 1/120; // 120Hz physics substep
+let physicsAccum = 0;
 function spawnFruit(type){
-  const f=FRUITS[type];const x=containerX+containerW/2;
-  return{type,x,y:DROP_Y,vx:(Math.random()-0.5)*2,vy:0,r:f.r,emoji:f.emoji,score:f.score,color:f.color}
+  const f=FRUITS[type];
+  return{type,x:containerX+containerW/2,y:DROP_Y,vx:(Math.random()-0.5)*2,vy:0,
+    r:f.r,emoji:f.emoji,score:f.score,color:f.color}
 }
 
-function circlesOverlap(a,b){const dx=a.x-b.x,dy=a.y-b.y,dist=Math.sqrt(dx*dx+dy*dy);return{overlap:dist<a.r+b.r,dist,dx,dy}}
+function circlesOverlap(a,b){
+  const dx=a.x-b.x,dy=a.y-b.y,dist=Math.sqrt(dx*dx+dy*dy);
+  return{overlap:dist<a.r+b.r,dist,dx,dy}
+}
 
 function resolveCollision(a,b){
-  const c=circleOverlap(a,b);if(!c.overlap||c.dist===0)return;
+  const c=circleOverlap(a,b);
+  if(!c.overlap||c.dist===0)return;
   const nx=c.dx/c.dist,ny=c.dy/c.dist;
-  const overlap=c.r.dist-(a.r+b.r);
+  // FIX: overlap = sum of radii - distance (was c.r.dist — broken property access)
+  const overlap=(a.r+b.r)-c.dist;
+  if(overlap<=0)return;
   const totalMass=a.r*a.r+b.r*b.r;
   const ma=a.r*a.r/totalMass,mb=b.r*b.r/totalMass;
   a.x-=nx*overlap*mb;a.y-=ny*overlap*mb;
@@ -130,43 +142,67 @@ function resolveCollision(a,b){
 }
 
 function clampToContainer(f){
-  const left=containerX+wallThick+f.r,right=containerX+containerW-wallThick-f.r,bottom=canvas.height-10-f.r;
+  const left=containerX+wallThick+f.r,right=containerX+containerW-wallThick-f.r;
+  const bottom=canvas.height-10-f.r;
   if(f.x<left){f.x=left;f.vx*=-BOUNCE}
   if(f.x>right){f.x=right;f.vx*=-BOUNCE}
   if(f.y>bottom){f.y=bottom;f.vy*=-BOUNCE*0.6}
-  // Overflow check
-  if(f.y<f.r+10 && f.vy<0 && f.vx===f.vx) return true; // near top
+  // Overflow check: fruit pushed above danger line with upward velocity
+  if(f.y-f.r<20){return true}
   return false;
 }
 
-function updatePhysics(){
+function physicsSubstep(dt){
   for(const f of fruits){
-    f.vy+=GRAVITY;f.vx*=FRICTION;f.x+=f.vx;f.y+=f.vy;
+    f.vy+=GRAVITY*60*dt;f.vx*=Math.pow(FRICTION,60*dt);
+    f.x+=f.vx*60*dt;f.y+=f.vy*60*dt;
     clampToContainer(f);
   }
-  // Collisions
+  // Process ALL merges (not just first), collect pairs to merge
+  const merges=[];
   for(let i=0;i<fruits.length;i++){
     for(let j=i+1;j<fruits.length;j++){
       const a=fruits[i],b=fruits[j];
+      if(a.removed||b.removed)continue;
       if(a.type===b.type&&a.type<FRUITS.length-1){
-        if(circlesOverlap(a,b).overlap){
-          merge(a,b,i,j);return;
-        }
+        if(circlesOverlap(a,b).overlap){merges.push([i,j,a.type])}
       }
       resolveCollision(a,b);
     }
   }
+  // Apply merges (process in reverse index order to avoid index shifting)
+  merges.sort((a,b)=>b[0]-a[0]); // descending by first index
+  const merged=new Set();
+  for(const [ai,bi,type] of merges){
+    if(merged.has(ai)||merged.has(bi))continue;
+    merged.add(ai);merged.add(bi);
+    applyMerge(ai,bi,type);
+  }
 }
 
-function merge(a,b,ai,bi){
-  const newType=a.type+1;const f=FRUITS[newType];
+function applyMerge(ai,bi,type){
+  const a=fruits[ai],b=fruits[bi];
+  if(!a||!b||a.removed||b.removed)return;
+  a.removed=true;b.removed=true;
+  const newType=type+1;const f=FRUITS[newType];
   const nx=(a.x*a.r+b.x*b.r)/(a.r+b.r),ny=(a.y*a.r+b.y*b.r)/(a.r+b.r);
-  const merged={type:newType,x:nx,y:ny,vx:(a.vx+b.vx)/2,vy:-3,r:f.r,emoji:f.emoji,score:f.score,color:f.color};
-  fruits.splice(Math.max(ai,bi),1);fruits.splice(Math.min(ai,bi),1);
-  fruits.push(merged);
+  fruits.push({type:newType,x:nx,y:ny,vx:(a.vx+b.vx)/2,vy:-3,
+    r:f.r,emoji:f.emoji,score:f.score,color:f.color,removed:false});
   score+=f.score;sfxMerge(newType);
   if(newType>=FRUITS.length-1){score+=50;sfxWin()}
   updateUI();
+}
+
+function updatePhysics(dt){
+  try{
+    physicsAccum+=Math.min(dt,0.1); // cap dt to avoid spiral of death
+    while(physicsAccum>=PHYSICS_STEP){
+      physicsSubstep(PHYSICS_STEP);
+      physicsAccum-=PHYSICS_STEP;
+    }
+    // Clean up removed fruits
+    fruits=fruits.filter(f=>!f.removed);
+  }catch(e){console.warn('Physics error:',e.message)}
 }
 
 // ── Rendering ──
@@ -199,7 +235,7 @@ function roundRect(c,x,y,w,h,r){c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.arcTo(x+w,y,
 
 // ── Game Flow ──
 function dropFruit(){
-  if(gameOver||!currentFruit)return;
+  if(gameState!=="playing"||!currentFruit)return;const now=Date.now();if(now-_lastDropTime<DROP_COOLDOWN)return;_lastDropTime=now;
   const tf=FRUITS[nextType];
   fruits.push({type:nextType,x:currentFruit.x,y:DROP_Y,vx:(Math.random()-0.5)*2,vy:0,r:tf.r,emoji:tf.emoji,score:tf.score,color:tf.color});
   sfxDrop();dropping=false;currentFruit=null;
@@ -216,7 +252,7 @@ function checkOverflow(){
 
 function endGame(){
   if(gameOver)return;
-  gameOver=true;sfxLose();currentFruit=null;
+  gameState="lost";sfxLose();currentFruit=null;
   if(score>bestScore){bestScore=score;lsSet('fm_best',bestScore)}
   lsSet('fm_score',score);
   updateUI();
@@ -231,9 +267,9 @@ function showLoseOverlay(){
     <button class="big-btn primary" onclick="restart()">🔄 重新开始</button></div>`;
   ov.classList.remove('hidden');
 }
-function revive(){showAd('revive').then(()=>{fruits=fruits.filter(f=>f.type>=2);gameOver=false;hideOverlay()})}
-function reviveBigger(){showAd('bigger').then(()=>{containerH+=60;containerW+=30;containerX=(canvas.width-containerW)/2;fruits=[];gameOver=false;hideOverlay();updateUI()})}
-function restart(){fruits=[];score=0;gameOver=false;currentFruit={x:containerX+containerW/2,y:DROP_Y};nextType=Math.floor(Math.random()*3);hideOverlay();updateUI()}
+function revive(){showAd('revive').then(()=>{fruits=fruits.filter(f=>f.type>=2);gameState="playing";gameOver=false;hideOverlay()})}
+function reviveBigger(){showAd('bigger').then(()=>{containerH+=60;containerW+=30;containerX=(canvas.width-containerW)/2;fruits=[];gameState="playing";gameOver=false;hideOverlay();updateUI()})}
+function restart(){fruits=[];score=0;gameState="playing";gameOver=false;currentFruit={x:containerX+containerW/2,y:DROP_Y};nextType=Math.floor(Math.random()*3);hideOverlay();updateUI()}
 function hideOverlay(){document.getElementById('overlay').classList.add('hidden')}
 
 // ── Power Ups ──
@@ -273,14 +309,20 @@ function showProvinceSelect(){
   ov.classList.remove('hidden');
 }
 function selectProv(p){province=p;lsSet('fm_prov',p);updateProv();showProvinceSelect()}
-function startGame(){fruits=[];score=0;gameOver=false;nextType=Math.floor(Math.random()*3);currentFruit={x:containerX+containerW/2,y:DROP_Y};hideOverlay();updateUI();updateProv()}
+function startGame(){fruits=[];score=0;gameState="playing";gameOver=false;nextType=Math.floor(Math.random()*3);currentFruit={x:containerX+containerW/2,y:DROP_Y};hideOverlay();updateUI();updateProv()}
 
 // ── Init ──
 function init(){
   resize();updateUI();updateProv();
   if(!province){showProvinceSelect()}else{startGame()}
-  // Game loop
-  setInterval(()=>{if(!gameOver){updatePhysics();draw()}},1000/60);
+  // Game loop (requestAnimationFrame with deltaTime)
+  let _lastTime=performance.now();
+  function gameLoop(now){
+    const dt=(now-_lastTime)/1000;_lastTime=now;
+    if(!gameOver&&gameState==='playing'){updatePhysics(dt);draw()}
+    requestAnimationFrame(gameLoop);
+  }
+  requestAnimationFrame(gameLoop);
   // Tutorial
   if(!lsGet('fm_tut','')){lsSet('fm_tut','1');setTimeout(()=>{
     const ov=document.getElementById('overlay');
