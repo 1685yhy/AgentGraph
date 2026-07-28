@@ -584,6 +584,466 @@ check_replayability() {
   return 1
 }
 
+# ── v3 Static Analysis Checks ──────────────────────────────────────────
+
+# Check 14: Property access safety
+# Detect object property accesses that don't exist on the source object
+# Catches bugs like: c.r.dist (circlesOverlap returns {overlap,dist,dx,dy}, no .r)
+check_property_safety() {
+  local file="$1" issues=0
+
+  # Pattern 1: .r.dist chain property access (FruitMerge-class bug)
+  # circlesOverlap returns {overlap, dist, dx, dy}, accessing .r is always wrong
+  if grep -qE '\.r\.(dist|overlap|dx|dy|r)\b' "$file" 2>/dev/null; then
+    err "可疑链式属性访问: .r.xxx — 碰撞检测结果无 r 属性 (常见错误: c.r.dist → (a.r+b.r)-c.dist)"
+    issues=1
+  fi
+
+  # Pattern 2: Function name typo — defined as X but called as Y
+  if command -v node &>/dev/null; then
+    local typo_js; typo_js=$(mktemp) || typo_js="/tmp/typo_$$.js"
+    cat > "$typo_js" << 'TYPOEOF'
+const fs = require('fs');
+const code = fs.readFileSync(process.argv[2], 'utf8');
+const defs = new Set();
+const builtins = new Set(['function','if','else','for','while','do','switch','case','break','continue','return','typeof','delete','void','new','in','of','this','super','true','false','null','undefined','NaN','Infinity','eval','parseInt','parseFloat','isNaN','isFinite','encodeURI','decodeURI','Array','Object','String','Number','Boolean','Function','Date','RegExp','Error','Map','Set','WeakMap','WeakSet','Promise','Proxy','Reflect','Symbol','BigInt','Math','JSON','console','setTimeout','setInterval','clearTimeout','clearInterval','requestAnimationFrame','cancelAnimationFrame','fetch','localStorage','sessionStorage','document','window','self','global','globalThis','Audio','Image','ImageData','wx','alert','confirm','prompt','performance','navigator','screen','location','history','Worker','WebSocket','Blob','File','FileReader','FormData','Headers','Request','Response','URL','URLSearchParams','TextEncoder','TextDecoder','atob','btoa','Intl','require','module','exports','process','Buffer','setImmediate','clearImmediate','AggregateError','FinalizationRegistry','WeakRef','assert','expect','describe','it','test']);
+
+const defRe = /function\s+(\w+)\s*\(/g;
+let m;
+while ((m = defRe.exec(code)) !== null) defs.add(m[1]);
+const assignRe = /(?:let|const|var)\s+(\w+)\s*=\s*(?:function|\()/g;
+while ((m = assignRe.exec(code)) !== null) defs.add(m[1]);
+
+// Levenshtein distance for one-char edit (insert, delete, substitute)
+function levenshtein1(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return false;
+  // Simple O(n) check for single-edit difference
+  let edits = 0;
+  let i = 0, j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] !== b[j]) {
+      edits++;
+      if (edits > 2) return false;
+      if (a.length > b.length) { i++; continue; } // deletion in a
+      if (b.length > a.length) { j++; continue; } // insertion in a
+    }
+    i++; j++;
+  }
+  edits += (a.length - i) + (b.length - j);
+  return edits <= 1; // at most 1 insert/delete/substitute
+}
+
+const results = [];
+const callRe = /\b([a-zA-Z_]\w+)\s*\(/g;
+while ((m = callRe.exec(code)) !== null) {
+  const name = m[1];
+  if (defs.has(name) || builtins.has(name) || name.length < 3) continue;
+  const idx = m.index;
+  const before = code.slice(Math.max(0, idx-20), idx);
+  if (/\.[a-zA-Z_]\w*$/.test(before.trim())) continue;
+
+  for (const d of defs) {
+    if (d.length < 3) continue;
+    if (name.startsWith(d) || d.startsWith(name)) continue;
+    if (levenshtein1(name, d)) {
+      results.push(name + ':' + d);
+      break;
+    }
+  }
+}
+if (results.length > 0) console.log(results.join('\n'));
+TYPOEOF
+    local typo_out
+    typo_out=$(node "$typo_js" "$file" 2>/dev/null || true)
+    rm -f "$typo_js"
+
+    if [[ -n "$typo_out" ]]; then
+      while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        local call_name="${line%%:*}"
+        local def_name="${line#*:}"
+        err "函数名可能拼写错误: 调用了 '${call_name}()' 但定义了相似函数 '${def_name}()'"
+        issues=1
+      done <<< "$typo_out"
+    fi
+  fi
+
+  # Pattern 3: Node-based analysis — function returns object, caller accesses wrong prop
+  if command -v node &>/dev/null; then
+    local tmp_js; tmp_js=$(mktemp) || tmp_js="/tmp/propcheck_$$.js"
+    cat > "$tmp_js" << 'NODESCRIPT'
+const fs = require('fs');
+const code = fs.readFileSync(process.argv[2], 'utf8');
+const issues = [];
+
+// Find functions returning object literals with 2-8 properties
+const fnRe = /function\s+(\w+)\s*\([^)]*\)\s*\{[\s\S]*?return\s*\{([^}]+)\};?/g;
+let m;
+const retMap = {};
+while ((m = fnRe.exec(code)) !== null) {
+  const fn = m[1];
+  if (['if','else','for','while','do','switch','catch','then','finally'].includes(fn)) continue;
+  const props = m[2].split(',').map(s => s.trim().split(':')[0].split('=')[0].trim()).filter(Boolean);
+  if (props.length >= 2 && props.length <= 8) retMap[fn] = props;
+}
+
+// For each tracked function, check caller property access
+for (const [fn, props] of Object.entries(retMap)) {
+  const cre = new RegExp('(?:let|const|var)?\\s*(\\w+)\\s*=\\s*' + fn + '\\s*\\(', 'g');
+  let cm;
+  while ((cm = cre.exec(code)) !== null) {
+    const vn = cm[1];
+    if (!vn || vn.length > 30) continue;
+    const pre = new RegExp('\\b' + vn + '\\.(\\w+)', 'g');
+    let pm;
+    while ((pm = pre.exec(code)) !== null) {
+      const prop = pm[1];
+      if (['call','apply','bind','length','name','prototype','constructor','toString','valueOf','toLocaleString','hasOwnProperty','isPrototypeOf'].includes(prop)) continue;
+      if (!props.includes(prop)) {
+        issues.push('PROP:' + vn + '.' + prop + ':' + fn + ' returns {' + props.join(',') + '}');
+      }
+    }
+  }
+}
+console.log(issues.join('\n'));
+NODESCRIPT
+    local node_out
+    node_out=$(node "$tmp_js" "$file" 2>/dev/null || true)
+    rm -f "$tmp_js"
+
+    if [[ -n "$node_out" ]]; then
+      while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        local detail="${line#PROP:}"
+        local access="${detail%%:*}"
+        local fn_info="${detail#*:}"
+        err "属性访问不匹配: ${access} — ${fn_info}"
+        issues=1
+      done <<< "$node_out"
+    fi
+  fi
+
+  [[ $issues -eq 0 ]] && { ok "属性访问安全 — 未检测到可疑属性访问模式"; return 0; }
+  return 1
+}
+
+# Check 15: Physics/substep quality
+# Verify game physics patterns: deltaTime, fixed timestep, proper loop structure
+check_physics_quality() {
+  local file="$1" issues=0
+
+  # Pattern 1: requestAnimationFrame callback should use timestamp parameter
+  local has_rAF=0
+  grep -q 'requestAnimationFrame' "$file" && has_rAF=1
+  if [[ $has_rAF -eq 1 ]]; then
+    local rAF_uses_param=0
+    # Check various rAF patterns that properly use the timestamp
+    if grep -qE 'requestAnimationFrame\(\s*(function\s*\(\s*[a-z]|\(?\s*[a-z]+\s*\)?\s*=>)' "$file"; then
+      rAF_uses_param=1
+    fi
+    # Also check the classic pattern: let _lastTime; function gameLoop(now/timestamp)...
+    if grep -qE '(lastTime|_lastTime|prevTime)\s*[=:]' "$file"; then
+      rAF_uses_param=1
+    fi
+    # Fallback: check for gameLoop/animLoop function that takes a parameter
+    if grep -qE 'function\s+(gameLoop|animLoop|mainLoop|tick|update)\s*\(\s*\w+\s*\)' "$file"; then
+      rAF_uses_param=1
+    fi
+
+    if [[ $rAF_uses_param -eq 0 ]]; then
+      warn "requestAnimationFrame 回调可能未使用时间戳参数 — 无法正确计算 deltaTime"
+      issues=1
+    else
+      # Check that dt calculation exists (deltaTime from timestamp)
+      if grep -qE '(now|ts|timestamp|time)\s*-\s*(last|prev|_last|old)' "$file"; then
+        ok "requestAnimationFrame 使用时间戳参数计算 deltaTime"
+      else
+        if grep -qE '(dt|delta|deltaTime|delta_time)\s*=' "$file"; then
+          ok "游戏循环中存在 deltaTime 变量"
+        else
+          warn "rAF 使用时间戳参数但未发现 deltaTime 计算 — 确保时间步长正确"
+          issues=1
+        fi
+      fi
+    fi
+  fi
+
+  # Pattern 2: Fixed timestep accumulator pattern
+  if grep -qE 'physicsAccum|accumulator|_accum' "$file"; then
+    if grep -qE '(physicsAccum|accumulator)\s*[+]=.*dt|PHYSICS_STEP|FIXED_STEP|fixedStep' "$file"; then
+      ok "固定时间步长累加器模式 — physicsAccum/accumulator 累积"
+    else
+      warn "检测到累加器变量但未发现固定步长比较 — 建议使用 fixed timestep"
+      issues=1
+    fi
+  fi
+
+  # Pattern 3: Physics/substep functions should accept dt parameter
+  if grep -qE 'function\s+(physicsSubstep|updatePhysics|step|simulate)\b' "$file"; then
+    if grep -qE 'function\s+(physicsSubstep|updatePhysics|step|simulate)\s*\(\s*(dt|delta|deltaTime|substep)\s*\)' "$file"; then
+      ok "物理子步函数接受 dt 参数"
+    else
+      # Check if the function takes any parameter at all
+      if grep -qE 'function\s+(physicsSubstep|updatePhysics)\s*\(\s*\w+\s*\)' "$file"; then
+        ok "物理更新函数接受时间参数"
+      else
+        warn "物理/碰撞更新函数可能缺少 dt 时间步长参数 — 物理模拟将帧率相关"
+        issues=1
+      fi
+    fi
+  fi
+
+  # Pattern 4: No bare setInterval for game loops
+  if grep -qE 'setInterval\(' "$file" 2>/dev/null; then
+    # Check if it's used for game loop vs. UI/timer purposes
+    if grep -qE 'setInterval\(.*(update|game|loop|physics|tick)' "$file" 2>/dev/null; then
+      err "游戏循环使用 setInterval — 应使用 requestAnimationFrame 实现帧同步"
+      issues=1
+    else
+      warn "检测到 setInterval — 确认非游戏循环用途"
+    fi
+  fi
+
+  [[ $issues -eq 0 ]] && { ok "物理/子步质量合格 — 游戏循环模式正确"; return 0; }
+  [[ $issues -eq 1 ]] && return 1
+  return 0
+}
+
+# Check 16: Dead/trivial code detection
+# Detect x===x, empty catch, functions with no return
+check_dead_code() {
+  local file="$1" issues=0
+
+  # Pattern 1: x === x (always true — except NaN, flagged unless NaN-commented)
+  # Use node for reliable parsing (handles spacing and expression boundaries)
+  if command -v node &>/dev/null; then
+    local selfcmp_out
+    selfcmp_out=$(node -e "
+      const fs = require('fs');
+      const code = fs.readFileSync('$file', 'utf8');
+      const lines = code.split('\n');
+      const issues = [];
+
+      // Match x === x where x is the same identifier on both sides
+      // Handles optional whitespace around ===
+      const re = /\b([a-zA-Z_]\w*)\s*===\s*\1\b/g;
+      for (let i = 0; i < lines.length; i++) {
+        let m;
+        while ((m = re.exec(lines[i])) !== null) {
+          // Skip NaN comparisons if 'NaN' is in the name
+          if (m[1] === 'NaN') continue;
+          // Check context above for NaN
+          let hasNaN = false;
+          for (let j = Math.max(0,i-5); j < i; j++) {
+            if (/NaN|isNaN/.test(lines[j])) { hasNaN = true; break; }
+          }
+          if (!hasNaN) {
+            issues.push('SELF:' + m[1] + ':' + (i+1));
+          }
+        }
+      }
+      if (issues.length > 0) console.log(issues.join('\n'));
+    " 2>/dev/null || true)
+
+    if [[ -n "$selfcmp_out" ]]; then
+      while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        local var_name="${line#SELF:}"
+        var_name="${var_name%%:*}"
+        local line_num="${line##*:}"
+        warn "自身比较检测: 第${line_num}行 '${var_name} === ${var_name}' — 恒为 true (NaN 检查除外)"
+        issues=1
+      done <<< "$selfcmp_out"
+    fi
+  fi
+
+  # Pattern 2: Empty catch blocks
+  local empty_catch
+  empty_catch=$(grep -cE 'catch\s*\([^)]*\)\s*\{\s*\}' "$file" 2>/dev/null)
+  if [[ -z "$empty_catch" ]]; then empty_catch=0; fi
+  if [[ $empty_catch -gt 0 ]]; then
+    warn "检测到 ${empty_catch} 个空 catch 块 — 错误被静默吞没, 建议至少 console.warn"
+    issues=1
+  fi
+
+  # Pattern 3: Functions with clear return intent but no return statement
+  # Look for functions whose name suggests they produce a value
+  if command -v node &>/dev/null; then
+    local tmp_js2; tmp_js2=$(mktemp) || tmp_js2="/tmp/deadcode_$$.js"
+    cat > "$tmp_js2" << 'NODESCRIPT2'
+const fs = require('fs');
+const code = fs.readFileSync(process.argv[2], 'utf8');
+const lines = [];
+
+// Find functions whose name suggests they should return something
+const fnRe = /function\s+(get\w*|calc\w*|compute\w*|find\w*|resolve\w*|make\w*|build\w*|create\w*|gen\w*|hash\w*|parse\w*|convert\w*|transform\w*|merge\w*)\s*\([^)]*\)\s*\{/g;
+let m;
+while ((m = fnRe.exec(code)) !== null) {
+  const fnName = m[1];
+  const start = m.index;
+  // Find the matching closing brace (simple brace counter)
+  let depth = 1;
+  let i = start + m[0].length;
+  while (i < code.length && depth > 0) {
+    if (code[i] === '{') depth++;
+    else if (code[i] === '}') depth--;
+    i++;
+  }
+  const body = code.slice(start + m[0].length, i - 1);
+  // Check if body has a return statement
+  if (!/\breturn\b/.test(body)) {
+    lines.push(fnName);
+  }
+}
+if (lines.length > 0) console.log(lines.join('\n'));
+NODESCRIPT2
+    local missing_returns
+    missing_returns=$(node "$tmp_js2" "$file" 2>/dev/null || true)
+    rm -f "$tmp_js2"
+
+    if [[ -n "$missing_returns" ]]; then
+      while IFS= read -r fn; do
+        [[ -z "$fn" ]] && continue
+        warn "函数 '${fn}' 名称暗示应返回值但无 return 语句"
+      done <<< "$missing_returns"
+      issues=1
+    fi
+  fi
+
+  [[ $issues -eq 0 ]] && { ok "未检测到死代码或琐碎代码"; return 0; }
+  return 1
+}
+
+# Check 17: Error boundary in critical paths
+# Detect game loops, physics, and rAF callbacks without error handling
+check_error_boundary() {
+  local file="$1" issues=0
+
+  # Pattern 1: Game loop / physics functions without try-catch
+  # Use node to check: if a function has no direct try-catch, check if
+  # all its callers have try-catch (walk call chain up to 3 levels)
+  if command -v node &>/dev/null; then
+    local tmp_js3; tmp_js3=$(mktemp) || tmp_js3="/tmp/errbound_$$.js"
+    cat > "$tmp_js3" << 'NODESCRIPT3'
+const fs = require('fs');
+const code = fs.readFileSync(process.argv[2], 'utf8');
+const lines = [];
+
+// Critical functions that should be protected
+const criticalFns = ['gameLoop','mainLoop','updatePhysics','physicsSubstep','resolveCollision','update','tick','animLoop'];
+
+// Build function -> {body, start, callers} map
+const fnRe = /function\s+(\w+)\s*\([^)]*\)\s*\{/g;
+let m;
+const fns = {};
+while ((m = fnRe.exec(code)) !== null) {
+  const fnName = m[1];
+  const start = m.index;
+  let depth = 1;
+  let i = start + m[0].length;
+  const bodyStart = i;
+  while (i < code.length && depth > 0) {
+    if (code[i] === '{') depth++;
+    else if (code[i] === '}') depth--;
+    i++;
+  }
+  fns[fnName] = {
+    body: code.slice(bodyStart, i - 1),
+    bodyStart, bodyEnd: i - 1,
+    calls: []
+  };
+}
+
+// For each function, find what it calls
+for (const [fn, info] of Object.entries(fns)) {
+  const callRe = /\b([a-zA-Z_]\w+)\s*\(/g;
+  let cm;
+  while ((cm = callRe.exec(info.body)) !== null) {
+    const called = cm[1];
+    if (fns[called] && called !== fn) {
+      info.calls.push(called);
+    }
+  }
+}
+
+// Check if a function has try-catch, OR if all its callers have try-catch (up to 3 levels)
+function isProtected(fnName, depth = 0, visited = new Set()) {
+  if (depth > 3 || visited.has(fnName)) return false;
+  visited.add(fnName);
+  const info = fns[fnName];
+  if (!info) return false;
+  // Check direct try-catch in body
+  if (/\btry\s*\{[\s\S]*\}\s*catch\s*\(/.test(info.body)) return true;
+  // Check all callers (functions that call this one)
+  for (const [fn, info2] of Object.entries(fns)) {
+    if (info2.calls.includes(fnName)) {
+      if (isProtected(fn, depth + 1, visited)) return true;
+    }
+  }
+  return false;
+}
+
+for (const fn of criticalFns) {
+  if (!fns[fn]) continue;
+  if (fns[fn].body.length < 40) continue; // skip trivial functions
+  if (!isProtected(fn)) {
+    lines.push(fn);
+  }
+}
+if (lines.length > 0) console.log(lines.join('\n'));
+NODESCRIPT3
+    local unprotected
+    unprotected=$(node "$tmp_js3" "$file" 2>/dev/null || true)
+    rm -f "$tmp_js3"
+
+    if [[ -n "$unprotected" ]]; then
+      while IFS= read -r fn; do
+        [[ -z "$fn" ]] && continue
+        err "关键路径缺少异常保护: '${fn}()' — 游戏循环/碰撞函数应包裹 try-catch"
+        issues=1
+      done <<< "$unprotected"
+    fi
+  fi
+
+  # Pattern 2: requestAnimationFrame callback without error protection (grep fallback)
+  # Check for rAF calls whose callback body lacks try
+  if grep -q 'requestAnimationFrame' "$file"; then
+    # Extract rAF callback pattern and check for try
+    if ! grep -qE 'requestAnimationFrame\s*\([^)]*try\s*\{' "$file" 2>/dev/null; then
+      # Look for inline rAF callbacks and check try presence
+      if grep -qE 'requestAnimationFrame\s*\(\s*function\s*\(|requestAnimationFrame\s*\(\s*\(' "$file" 2>/dev/null; then
+        # Hard to verify inline — check nearby lines for try
+        local rAF_line
+        rAF_line=$(grep -n 'requestAnimationFrame' "$file" 2>/dev/null | head -1 | cut -d: -f1)
+        if [[ -n "$rAF_line" ]]; then
+          local following
+          following=$(sed -n "$((rAF_line)),$((rAF_line + 10))p" "$file" 2>/dev/null || true)
+          if ! echo "$following" | grep -qE 'try\s*\{'; then
+            warn "requestAnimationFrame 回调可能缺少错误保护 — 建议添加 try-catch"
+            issues=1
+          fi
+        fi
+      fi
+    fi
+  fi
+
+  # Pattern 3: Collision/physics functions with compute-heavy logic but no try-catch
+  if [[ $issues -eq 0 ]]; then
+    # Check if physics functions exist and are called from an unprotected context
+    local has_physics=0
+    grep -qE 'function\s+(resolveCollision|circlesOverlap|updatePhysics|physicsSubstep)\b' "$file" && has_physics=1
+    if [[ $has_physics -eq 1 ]]; then
+      if ! grep -qE 'try\s*\{' "$file" 2>/dev/null; then
+        err "存在物理/碰撞函数但完全缺少异常保护 — 物理错误会崩溃整个游戏"
+        issues=1
+      fi
+    fi
+  fi
+
+  [[ $issues -eq 0 ]] && { ok "关键路径异常保护合格 — 游戏循环/物理函数有错误边界"; return 0; }
+  return 1
+}
+
 # ── Run All Behavioral Tests ────────────────────────────────────────
 
 # run_all_tests <file> [spec_file]
@@ -612,9 +1072,9 @@ run_all_tests() {
     echo "  ==== 通用行为测试套件 ===="
     echo ""
 
-    total=13
+    total=17
 
-    echo "  [1/13] 开始交互: 存在启动游戏的机制"
+    echo "  [1/17] 开始交互: 存在启动游戏的机制"
     if check_start_interaction "$file"; then
       passed=$((passed + 1))
     else
@@ -622,7 +1082,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [2/13] 状态管理: 游戏状态追踪 (state/phase)"
+    echo "  [2/17] 状态管理: 游戏状态追踪 (state/phase)"
     if check_state_management "$file"; then
       passed=$((passed + 1))
     else
@@ -630,7 +1090,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [3/13] 音频手势初始化: AudioContext由用户交互触发"
+    echo "  [3/17] 音频手势初始化: AudioContext由用户交互触发"
     if check_audio_gesture_init "$file"; then
       passed=$((passed + 1))
     else
@@ -638,7 +1098,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [4/13] Canvas安全: getContext返回校验"
+    echo "  [4/17] Canvas安全: getContext返回校验"
     if check_canvas_safety "$file"; then
       passed=$((passed + 1))
     else
@@ -646,7 +1106,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [5/13] 错误处理: try-catch异常保护"
+    echo "  [5/17] 错误处理: try-catch异常保护"
     if check_error_handling "$file"; then
       passed=$((passed + 1))
     else
@@ -654,7 +1114,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [6/13] DOM安全: getElementById null检查"
+    echo "  [6/17] DOM安全: getElementById null检查"
     if check_dom_safety "$file"; then
       passed=$((passed + 1))
     else
@@ -662,7 +1122,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [7/13] localStorage安全: try-catch保护"
+    echo "  [7/17] localStorage安全: try-catch保护"
     if check_localStorage_safe "$file"; then
       passed=$((passed + 1))
     else
@@ -670,7 +1130,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [8/13] 移动端适配: viewport meta标签"
+    echo "  [8/17] 移动端适配: viewport meta标签"
     if check_mobile_ready "$file"; then
       passed=$((passed + 1))
     else
@@ -679,25 +1139,42 @@ run_all_tests() {
     echo ""
 
     # ── v2 Critical UX checks ──
-    echo "  [9/13] 流程阻断: 无遮罩阻断游戏启动"
+    echo "  [9/17] 流程阻断: 无遮罩阻断游戏启动"
     if check_flow_blocking "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
     echo ""
 
-    echo "  [10/13] 触摸目标: 交互元素≥44px"
+    echo "  [10/17] 触摸目标: 交互元素≥44px"
     if check_touch_targets "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
     echo ""
 
-    echo "  [11/13] 处理器有效: onclick引用已定义函数"
+    echo "  [11/17] 处理器有效: onclick引用已定义函数"
     if check_handler_validity "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
     echo ""
 
-    echo "  [12/13] 核心可达: ≤1次交互开始游戏"
+    echo "  [12/17] 核心可达: ≤1次交互开始游戏"
     if check_core_loop_accessibility "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
     echo ""
 
-    echo "  [13/13] 复玩机制: 游戏结束可重新开始"
+    echo "  [13/17] 复玩机制: 游戏结束可重新开始"
     if check_replayability "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
     echo ""
+
+	    # ── v3 Static Analysis Checks ──
+	    echo "  [14/17] 属性访问安全: 检测不存在的属性访问"
+	    if check_property_safety "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
+	    echo ""
+
+	    echo "  [15/17] 物理/子步质量: 游戏循环和物理模式"
+	    if check_physics_quality "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
+	    echo ""
+
+	    echo "  [16/17] 死代码/琐碎代码检测"
+	    if check_dead_code "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
+	    echo ""
+
+	    echo "  [17/17] 关键路径异常边界"
+	    if check_error_boundary "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
+	    echo ""
   fi
 
   echo "  ════ 结果: $passed 通过, $failed 失败 / 共 $total 项 ════"
