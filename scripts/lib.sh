@@ -389,4 +389,69 @@ resolve_by_display_name() {
   done
 
   echo ""
+
+# ── Agent Loader — make agents AI-executable ─────────────────────────
+}
+
+agent_file() {
+  local slug="$1"
+  for f in "$REPO_ROOT"/agents/*/*.md "$REPO_ROOT"/agents/*/*/*.md; do
+    [[ -f "$f" ]] || continue
+    [[ "$(basename "$f" .md)" == "$slug" ]] && { echo "$f"; return 0; }
+  done
+  echo ""
+}
+
+agent_frontmatter() {
+  local slug="$1" field="$2"
+  local file; file=$(agent_file "$slug")
+  [[ -z "$file" ]] && { echo ""; return; }
+  awk -v f="$field" '
+    /^---$/ { fm=!fm; next }
+    fm && $0 ~ "^"f":" { sub(/^[^:]+:[[:space:]]*/,""); gsub(/"/,""); print; exit }
+  ' "$file"
+}
+
+agent_prompt() {
+  local slug="$1"
+  local file; file=$(agent_file "$slug")
+  [[ -z "$file" ]] && { err "Unknown agent: $slug"; return 1; }
+  local name emoji desc
+  name=$(agent_frontmatter "$slug" "name")
+  emoji=$(agent_frontmatter "$slug" "emoji")
+  desc=$(agent_frontmatter "$slug" "description")
+  echo "${emoji} ${name} — ${desc}"
+  echo ""
+  awk '/^## [0-9]+\./{section=$0;next} section!=""{print}' "$file"
+}
+
+agent_task() {
+  local slug="$1" task="$2"
+  local name emoji
+  name=$(agent_frontmatter "$slug" "name")
+  emoji=$(agent_frontmatter "$slug" "emoji")
+  cat << TASK
+# ${emoji} ${name} — 任务派发
+
+${task}
+
+---
+TASK
+  agent_prompt "$slug" 2>/dev/null
+  echo ""
+  echo "---"
+  echo "请以 ${name} 的身份完成以上任务。"
+}
+
+agent_list() {
+  echo "可调用 Agent (40个):"
+  echo ""
+  for f in "$REPO_ROOT"/agents/*/*.md "$REPO_ROOT"/agents/*/*/*.md; do
+    [[ -f "$f" ]] || continue
+    local slug emoji short
+    slug=$(basename "$f" .md)
+    emoji=$(grep "^emoji:" "$f" 2>/dev/null | head -1 | sed 's/^emoji:[[:space:]]*//')
+    short=$(grep "^short:" "$f" 2>/dev/null | head -1 | sed 's/^short:[[:space:]]*//')
+    printf "  %-30s %s %s\n" "$slug" "$emoji" "${short:-}"
+  done
 }

@@ -362,9 +362,12 @@ case "$CMD" in
   self-test) bash "$SCRIPT_DIR/self-test.sh";;
   ci-test)   bash "$SCRIPT_DIR/ci-test.sh";;
 	  plan)      generate_graph "$@";;
+	  prompt)    agent_prompt "${1:-}";;
+	  task)      agent_task "$1" "$2";;
+	  agents)    agent_list;;
 	  build)     build_product "$@";;
   --help|-h|help)
     sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, plan, build, self-test, test, ci-test";;
+  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, plan, build, prompt, task, agents, self-test, test, ci-test";;
 esac
