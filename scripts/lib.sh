@@ -389,9 +389,88 @@ resolve_by_display_name() {
   done
 
   echo ""
+}
+
+# ── Display name / slug mapping ──────────────────────────────────────
+
+# build_display_name_slug_map — outputs "display_name|slug" lines for all agents.
+# E.g., "产品经理|product-manager"
+build_display_name_slug_map() {
+  local agents_dir="${REPO_ROOT}/agents"
+  for md_file in "$agents_dir"/*/*.md "$agents_dir"/*/*/*.md; do
+    [[ -f "$md_file" ]] || continue
+    local short; short=$(grep "^short:" "$md_file" 2>/dev/null | head -1 | sed 's/^short:[[:space:]]*//; s/[[:space:]]*$//')
+    [[ -z "$short" ]] && continue
+    local slug; slug=$(basename "$md_file" .md)
+    echo "${short}|${slug}"
+  done
+}
+
+# get_requires_filtered <downstream-slug> <upstream-slug-or-display>
+# Gets requirements for downstream that come from upstream agent only.
+# Maps upstream display names (e.g., "产品经理") to slugs (e.g., "product-manager").
+# Outputs: filtered lines (from|name|required) plus a final __IGNORED__:<count> line.
+get_requires_filtered() {
+  local downstream="$1" upstream_input="$2"
+  local all_reqs; all_reqs=$(get_requires "$downstream")
+  [[ -z "$all_reqs" ]] && { echo "__IGNORED__:0"; return; }
+
+  # Build display name -> slug mapping
+  local name_map; name_map=$(build_display_name_slug_map)
+
+  # Resolve upstream_input to a display name
+  local upstream_display=""
+  if echo "$upstream_input" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
+    # Looks like a slug — find its display name
+    local match; match=$(echo "$name_map" | grep "|${upstream_input}$" | head -1)
+    [[ -n "$match" ]] && upstream_display=$(echo "$match" | cut -d'|' -f1)
+  else
+    upstream_display="$upstream_input"
+  fi
+
+  # Count total requirement lines (lines containing a pipe delimiter)
+  local total=0
+  while IFS= read -r line; do
+    [[ "$line" == *"|"* ]] && total=$((total + 1))
+  done <<< "$all_reqs"
+
+  if [[ -n "$upstream_display" ]]; then
+    # Filter: only show requirements from this upstream agent
+    # Chinese display names have no special regex meaning in BRE mode
+    local filtered
+    filtered=$(echo "$all_reqs" | grep "^${upstream_display}|" || true)
+    if [[ -n "$filtered" ]]; then
+      local filt_count=0
+      while IFS= read -r line; do
+        [[ "$line" == *"|"* ]] && filt_count=$((filt_count + 1))
+      done <<< "$filtered"
+      local ignored=$((total - filt_count))
+      echo "$filtered"
+      echo "__IGNORED__:${ignored}"
+      return
+    fi
+
+    # Try partial match (e.g., "前端工程师/Unity开发者" ≈ "前端工程师")
+    local partial
+    partial=$(echo "$all_reqs" | grep -i "$(echo "$upstream_display" | grep -oP '^[^/]+')" || true)
+    if [[ -n "$partial" ]]; then
+      local part_count=0
+      while IFS= read -r line; do
+        [[ "$line" == *"|"* ]] && part_count=$((part_count + 1))
+      done <<< "$partial"
+      local ignored=$((total - part_count))
+      echo "$partial"
+      echo "__IGNORED__:${ignored}"
+      return
+    fi
+  fi
+
+  # Fallback: return all requirements
+  echo "$all_reqs"
+  echo "__IGNORED__:0"
+}
 
 # ── Agent Loader — make agents AI-executable ─────────────────────────
-}
 
 agent_file() {
   local slug="$1"
@@ -493,27 +572,164 @@ DISPATCH
 chain_graph() {
   local task="$1"
   [[ -z "$task" ]] && { err "Usage: guild chain <task>"; return 1; }
+
   echo "╔══════════════════════════════════════════╗"
-  echo "║  AgentGraph Chain — 全链路执行计划      ║"
+  echo "║  AgentGraph Chain Execution Plan        ║"
   echo "╚══════════════════════════════════════════╝"
   echo ""
-  echo "  📋 任务: ${task}"
+  echo "  Task: ${task}"
   echo ""
+
   local type; type=$(classify_task_fallback "$task")
   local features; features=$(detect_features "$task")
   local agents; agents=$(select_agents "$type" "$features")
-  echo "  👥 Agent链 (${type}):"
+  local gates; gates=$(select_gates "$type")
+
+  echo "  Type: ${type}  |  Agents: $(echo "$agents" | wc -w)  |  Gates: ${gates}"
+  echo ""
+
+  local deps; deps=$(resolve_dependencies "$agents" 2>/dev/null || echo "")
+  local contracts_file="${CONTRACTS:-$REPO_ROOT/contracts/guild-contracts.yml}"
+  local agent_count; agent_count=$(echo "$agents" | wc -w)
   local i=1
+  local chain_ids=""
+
   for agent in $agents; do
     local name emoji
-    name=$(agent_frontmatter "$agent" "name" 2>/dev/null)
-    emoji=$(agent_frontmatter "$agent" "emoji" 2>/dev/null)
-    echo "    ${i}. ${emoji} ${name} ($agent) — guild dispatch $agent \"...\""
+    name=$(agent_frontmatter "$agent" "name" 2>/dev/null || echo "$agent")
+    emoji=$(agent_frontmatter "$agent" "emoji" 2>/dev/null || echo "")
+
+    mkdir -p "$REPO_ROOT/context/dispatches"
+    local dispatch_id; dispatch_id=$(next_dispatch_id)
+    local dispatch_file="$REPO_ROOT/context/dispatches/${dispatch_id}.json"
+    local timestamp; timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    # Resolve needs from upstream
+    local needs_display=""
+    while IFS='|' read -r ag dep; do
+      [[ "$ag" == "$agent" ]] && {
+        local dn; dn=$(agent_frontmatter "$dep" "name" 2>/dev/null || echo "$dep")
+        needs_display="$needs_display $dn($dep)"
+      }
+    done <<< "$deps" 2>/dev/null || true
+    local needs_str="(none)"
+    needs_str=$(echo "$needs_display" | xargs 2>/dev/null || echo "(none)")
+    [[ -z "$needs_str" ]] && needs_str="(none)"
+
+    # Get deliverables from contracts
+    local deliverables=""
+    [[ -f "$contracts_file" ]] && deliverables=$(awk -v slug="$agent" '
+      $0 ~ "^  " slug ":" { in_agent=1; next }
+      in_agent && /^  [a-z]/ && $0 !~ "^  " slug ":" { exit }
+      in_agent && /^    delivers:/ { in_del=1; next }
+      in_agent && /^    requires:/ { in_del=0; next }
+      in_del && /^      - name:/ {
+        sub(/.*name: "/, ""); sub(/".*/, "");
+        print $0
+      }
+    ' "$contracts_file" 2>/dev/null | head -3)
+
+    # Get memory items for manifest
+    local mem_items="[]"
+    local mem_dir="$REPO_ROOT/context/memory/${agent}"
+    if [[ -d "$mem_dir" ]] && command -v node &>/dev/null; then
+      mem_items=$(node -e "
+        const fs=require('fs');
+        try {
+          const files=fs.readdirSync('$mem_dir').filter(f=>f.endsWith('.json')).sort().reverse().slice(0,3);
+          const mems=files.map(f=>{
+            try{ const d=JSON.parse(fs.readFileSync('$mem_dir/'+f,'utf8')); return {task:(d.task||'').substring(0,120), summary:(d.summary||'').substring(0,200)}; }
+            catch(e){ return null; }
+          }).filter(Boolean);
+          console.log(JSON.stringify(mems));
+        } catch(e){ console.log('[]'); }
+      " 2>/dev/null || echo "[]")
+    fi
+
+    # Write manifest via node with env vars (safe from shell escaping)
+    AG_DISPATCH_ID="$dispatch_id" \
+    AG_AGENT_SLUG="$agent" \
+    AG_AGENT_NAME="$name" \
+    AG_TASK="$task" \
+    AG_TIMESTAMP="$timestamp" \
+    AG_CHAIN_INDEX="$((i-1))" \
+    AG_CHAIN_TOTAL="$agent_count" \
+    AG_MEM_ITEMS="$mem_items" \
+    AG_DISPATCH_FILE="$dispatch_file" \
+    node -e '
+      const fs = require("fs");
+      const m = {
+        id: process.env.AG_DISPATCH_ID,
+        agent: process.env.AG_AGENT_SLUG,
+        name: process.env.AG_AGENT_NAME,
+        task: process.env.AG_TASK,
+        status: "dispatched",
+        timestamp: process.env.AG_TIMESTAMP,
+        chain_index: Number(process.env.AG_CHAIN_INDEX || 0),
+        chain_total: Number(process.env.AG_CHAIN_TOTAL || 0),
+        context: {
+          memory: JSON.parse(process.env.AG_MEM_ITEMS || "[]"),
+          upstream_outputs: []
+        },
+        output: null
+      };
+      fs.writeFileSync(process.env.AG_DISPATCH_FILE, JSON.stringify(m, null, 2));
+    ' 2>/dev/null || true
+
+    chain_ids="$chain_ids $dispatch_id"
+
+    # Print execution step
+    echo "  ── Step ${i} ──────────────────────────────"
+    echo "    ${emoji} ${name} (${agent})"
+    echo "    ID:    ${dispatch_id}"
+    echo "    Needs: ${needs_str}"
+    if [[ -n "$deliverables" ]]; then
+      local first_del=true
+      while IFS= read -r dl; do
+        [[ -z "$dl" ]] && continue
+        if $first_del; then
+          echo "    Delivers: ${dl}"
+          first_del=false
+        else
+          echo "             ${dl}"
+        fi
+      done <<< "$deliverables"
+    fi
+    echo ""
+
     i=$((i + 1))
   done
+
+  echo "  ── Execute Chain ──────────────────────────"
+  for id in $chain_ids; do
+    local a; a=$(json_get "$REPO_ROOT/context/dispatches/${id}.json" "agent" "?" 2>/dev/null)
+    echo "    guild execute \"${a}\" \"<task>\"   # ${id}"
+  done
   echo ""
-  echo "  🚪 Gate: $(select_gates "$type")"
+  echo "  ── Complete Steps ─────────────────────────"
+  for id in $chain_ids; do
+    echo "    guild complete ${id} \"<summary>\""
+  done
   echo "══════════════════════════════════════════"
+}
+
+# ── Dispatch ID generator ──────────────────────────────────────────
+# Generates sequential dispatch IDs: d-YYYYMMDD-NNN
+next_dispatch_id() {
+  mkdir -p "$REPO_ROOT/context/dispatches"
+  local date_prefix; date_prefix=$(date -u +"%Y%m%d")
+  local max_seq=0
+  for f in "$REPO_ROOT/context/dispatches"/d-${date_prefix}-*.json; do
+    [[ -f "$f" ]] || continue
+    local bname; bname=$(basename "$f" .json)
+    local seq_str; seq_str="${bname##d-${date_prefix}-}"
+    local seq_num=0
+    [[ -n "$seq_str" ]] && seq_num=$(echo "$seq_str" | sed 's/^0*//')
+    seq_num=${seq_num:-0}
+    [[ "$seq_num" -gt "$max_seq" ]] && max_seq=$seq_num
+  done
+  local next=$((max_seq + 1))
+  printf "d-%s-%03d" "$date_prefix" "$next"
 }
 
 # ── Agent Memory System ─────────────────────────────────────────────
@@ -672,9 +888,69 @@ dispatch_agent_with_memory() {
   emoji=$(agent_frontmatter "$slug" "emoji")
   role=$(agent_frontmatter "$slug" "role")
   short=$(agent_frontmatter "$slug" "short")
-  local dispatch_file="$REPO_ROOT/context/dispatches/$(date +%Y%m%d-%H%M%S)-${slug}.json"
+
+  # Generate structured dispatch manifest with proper ID
   mkdir -p "$REPO_ROOT/context/dispatches"
-  node -e "require('fs').writeFileSync('$dispatch_file',JSON.stringify({agent:'$slug',name:'$name',task:'$task',timestamp:new Date().toISOString(),status:'dispatched'},null,2))" 2>/dev/null || true
+  local dispatch_id; dispatch_id=$(next_dispatch_id)
+  local dispatch_file="$REPO_ROOT/context/dispatches/${dispatch_id}.json"
+  local timestamp; timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  # Get recent memory items for manifest context
+  local mem_items="[]"
+  local mem_dir="$REPO_ROOT/context/memory/${slug}"
+  if [[ -d "$mem_dir" ]] && command -v node &>/dev/null; then
+    mem_items=$(node -e "
+      const fs=require('fs');
+      try {
+        const files=fs.readdirSync('$mem_dir').filter(f=>f.endsWith('.json')).sort().reverse().slice(0,3);
+        const mems=files.map(f=>{
+          try{ const d=JSON.parse(fs.readFileSync('$mem_dir/'+f,'utf8')); return {task:(d.task||'').substring(0,120), summary:(d.summary||'').substring(0,200)}; }
+          catch(e){ return null; }
+        }).filter(Boolean);
+        console.log(JSON.stringify(mems));
+      } catch(e){ console.log('[]'); }
+    " 2>/dev/null || echo "[]")
+  fi
+
+  # Write structured manifest via node with env vars (safe from shell escaping)
+  AG_DISPATCH_ID="$dispatch_id" \
+  AG_AGENT_SLUG="$slug" \
+  AG_AGENT_NAME="$name" \
+  AG_TASK="$task" \
+  AG_TIMESTAMP="$timestamp" \
+  AG_MEM_ITEMS="$mem_items" \
+  AG_DISPATCH_FILE="$dispatch_file" \
+  node -e '
+    const fs = require("fs");
+    const m = {
+      id: process.env.AG_DISPATCH_ID,
+      agent: process.env.AG_AGENT_SLUG,
+      name: process.env.AG_AGENT_NAME,
+      task: process.env.AG_TASK,
+      status: "dispatched",
+      timestamp: process.env.AG_TIMESTAMP,
+      context: {
+        memory: JSON.parse(process.env.AG_MEM_ITEMS || "[]"),
+        upstream_outputs: []
+      },
+      output: null
+    };
+    fs.writeFileSync(process.env.AG_DISPATCH_FILE, JSON.stringify(m, null, 2));
+  ' 2>/dev/null || {
+    # Fallback: plain JSON
+    cat > "$dispatch_file" << JSONEOF
+{
+  "id": "${dispatch_id}",
+  "agent": "${slug}",
+  "name": "${name}",
+  "task": "${task}",
+  "status": "dispatched",
+  "timestamp": "${timestamp}",
+  "context": { "memory": ${mem_items}, "upstream_outputs": [] },
+  "output": null
+}
+JSONEOF
+  }
 
   # Auto-save memory with the task as both task and summary placeholder
   agent_memory_save "$slug" "$task" "(dispatched -- pending completion)" > /dev/null 2>&1 || true
@@ -682,9 +958,9 @@ dispatch_agent_with_memory() {
   cat << DISPATCH
 ╔══════════════════════════════════════════╗
 ║  Agent Dispatch: ${emoji} ${name}
-║  Role: ${role}
-║  Task: ${task}
-║  Record: $(basename "$dispatch_file")
+║  ID:    ${dispatch_id}
+║  Role:  ${role}
+║  Task:  ${task}
 ╚══════════════════════════════════════════╝
 
 $(agent_prompt_with_memory "$slug" 2>/dev/null)
@@ -696,7 +972,231 @@ ${task}
 
 ## 📤 输出要求
 请以 ${name} 的身份完成此任务。输出你的工作成果、决策理由和下游Agent需要知道的信息。
+
+---
+Dispatch ID: ${dispatch_id}
+完成后执行: guild complete ${dispatch_id} "<summary>"
 DISPATCH
+}
+
+# ── Agent Execution (structured dispatch — execute flow) ────────────
+
+# execute_agent <slug> "<task>" [--input <json_array>]
+# Full execution workflow: creates manifest with status=running, loads memory,
+# includes upstream outputs, outputs full execution context
+execute_agent() {
+  local slug="$1" task="$2" upstream_inputs="[]"
+  shift 2 2>/dev/null || true
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --input) upstream_inputs="$2"; shift 2;;
+      *) shift;;
+    esac
+  done
+
+  local file; file=$(agent_file "$slug")
+  [[ -z "$file" ]] && { err "Unknown agent: $slug"; return 1; }
+  local name emoji role
+  name=$(agent_frontmatter "$slug" "name")
+  emoji=$(agent_frontmatter "$slug" "emoji")
+  role=$(agent_frontmatter "$slug" "role")
+
+  # Generate manifest
+  mkdir -p "$REPO_ROOT/context/dispatches"
+  local dispatch_id; dispatch_id=$(next_dispatch_id)
+  local dispatch_file="$REPO_ROOT/context/dispatches/${dispatch_id}.json"
+  local timestamp; timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  # Get memory items
+  local mem_items="[]"
+  local mem_dir="$REPO_ROOT/context/memory/${slug}"
+  if [[ -d "$mem_dir" ]] && command -v node &>/dev/null; then
+    mem_items=$(node -e "
+      const fs=require('fs');
+      try {
+        const files=fs.readdirSync('$mem_dir').filter(f=>f.endsWith('.json')).sort().reverse().slice(0,5);
+        const mems=files.map(f=>{
+          try{ const d=JSON.parse(fs.readFileSync('$mem_dir/'+f,'utf8')); return {task:(d.task||'').substring(0,120), summary:(d.summary||'').substring(0,200)}; }
+          catch(e){ return null; }
+        }).filter(Boolean);
+        console.log(JSON.stringify(mems));
+      } catch(e){ console.log('[]'); }
+    " 2>/dev/null || echo "[]")
+  fi
+
+  # Write manifest (status=running)
+  AG_DISPATCH_ID="$dispatch_id" \
+  AG_AGENT_SLUG="$slug" \
+  AG_AGENT_NAME="$name" \
+  AG_TASK="$task" \
+  AG_TIMESTAMP="$timestamp" \
+  AG_MEM_ITEMS="$mem_items" \
+  AG_UPSTREAM="$upstream_inputs" \
+  AG_DISPATCH_FILE="$dispatch_file" \
+  node -e '
+    const fs = require("fs");
+    const m = {
+      id: process.env.AG_DISPATCH_ID,
+      agent: process.env.AG_AGENT_SLUG,
+      name: process.env.AG_AGENT_NAME,
+      task: process.env.AG_TASK,
+      status: "running",
+      timestamp: process.env.AG_TIMESTAMP,
+      context: {
+        memory: JSON.parse(process.env.AG_MEM_ITEMS || "[]"),
+        upstream_outputs: JSON.parse(process.env.AG_UPSTREAM || "[]")
+      },
+      output: null
+    };
+    fs.writeFileSync(process.env.AG_DISPATCH_FILE, JSON.stringify(m, null, 2));
+  ' 2>/dev/null || true
+
+  # Auto-save memory tracking
+  agent_memory_save "$slug" "$task" "(executing -- id: ${dispatch_id})" > /dev/null 2>&1 || true
+
+  # Output execution context
+  echo "╔══════════════════════════════════════════╗"
+  echo "║  Execute: ${emoji} ${name}"
+  echo "║  ID:     ${dispatch_id}"
+  echo "║  Role:   ${role}"
+  echo "║  Status: running"
+  echo "╚══════════════════════════════════════════╝"
+  echo ""
+  echo "── Manifest ──"
+  cat "$dispatch_file" 2>/dev/null || echo "  (manifest at ${dispatch_file})"
+  echo ""
+
+  # Show upstream outputs if provided
+  if [[ "$upstream_inputs" != "[]" && -n "$upstream_inputs" ]]; then
+    echo "── Upstream Outputs ──"
+    echo "$upstream_inputs" | node -e "
+      process.stdin.resume();
+      let d='';
+      process.stdin.on('data',c=>d+=c);
+      process.stdin.on('end',()=>{
+        try {
+          const items=JSON.parse(d);
+          items.forEach((item,i)=>{
+            console.log('  '+(i+1)+'. '+(item.summary||item.id||JSON.stringify(item)));
+          });
+        } catch(e){ console.log('  '+d); }
+      });
+    " 2>/dev/null || echo "  $upstream_inputs"
+    echo ""
+  fi
+
+  # Agent prompt with memory context
+  agent_prompt_with_memory "$slug" 2>/dev/null
+
+  echo ""
+  echo "── Task ──"
+  echo "$task"
+  echo ""
+  echo "───"
+  echo "Execute the work above, then run: guild complete ${dispatch_id} \"<summary>\""
+
+  echo "$dispatch_id" > /tmp/guild-last-dispatch.txt 2>/dev/null || true
+}
+
+# complete_dispatch <dispatch-id> "<summary>"
+# Marks a dispatch as completed, saves output to agent memory
+complete_dispatch() {
+  local dispatch_id="$1" summary="$2"
+  [[ -z "$dispatch_id" ]] && { err "Usage: guild complete <dispatch-id> \"<summary>\""; return 1; }
+  [[ -z "$summary" ]] && { err "Summary is required"; return 1; }
+
+  local dispatch_file="$REPO_ROOT/context/dispatches/${dispatch_id}.json"
+  [[ -f "$dispatch_file" ]] || { err "Dispatch not found: ${dispatch_id} at ${dispatch_file}"; return 1; }
+
+  # Read current manifest
+  local slug task_str
+  slug=$(json_get "$dispatch_file" "agent" "")
+  task_str=$(json_get "$dispatch_file" "task" "")
+  local name; name=$(agent_frontmatter "$slug" "name" 2>/dev/null || echo "$slug")
+  local emoji; emoji=$(agent_frontmatter "$slug" "emoji" 2>/dev/null || echo "")
+
+  [[ -z "$slug" ]] && { err "Invalid dispatch manifest: no agent field"; return 1; }
+
+  # Update manifest to completed
+  local timestamp; timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  AG_DISPATCH_ID="$dispatch_id" \
+  AG_TIMESTAMP="$timestamp" \
+  AG_SUMMARY="$summary" \
+  AG_DISPATCH_FILE="$dispatch_file" \
+  node -e '
+    const fs = require("fs");
+    const m = JSON.parse(fs.readFileSync(process.env.AG_DISPATCH_FILE, "utf8"));
+    m.status = "completed";
+    m.completed_at = process.env.AG_TIMESTAMP;
+    m.output = process.env.AG_SUMMARY;
+    fs.writeFileSync(process.env.AG_DISPATCH_FILE, JSON.stringify(m, null, 2));
+  ' 2>/dev/null || {
+    err "Failed to update dispatch manifest"
+    return 1
+  }
+
+  # Save to agent memory
+  agent_memory_save "$slug" "$task_str" "$summary" > /dev/null 2>&1 || true
+
+  echo "╔══════════════════════════════════════════╗"
+  echo "║  Dispatch Complete: ${emoji} ${name}"
+  echo "║  ID:     ${dispatch_id}"
+  echo "║  Status: completed"
+  echo "╚══════════════════════════════════════════╝"
+  echo ""
+  echo "  Agent: ${slug}"
+  echo "  Summary: ${summary}"
+  echo ""
+  ok "Dispatch ${dispatch_id} completed. Memory saved."
+}
+
+# cmd_status_dispatches [status-filter]
+# List all dispatch manifests, optionally filtered by status
+cmd_status_dispatches() {
+  local filter="${1:-}"
+
+  echo "Dispatches:"
+  echo ""
+
+  local count=0
+  local dir="$REPO_ROOT/context/dispatches"
+  mkdir -p "$dir"
+  for f in "$dir"/d-*.json; do
+    [[ -f "$f" ]] || continue
+    local id agent status ts
+    id=$(json_get "$f" "id" "")
+    agent=$(json_get "$f" "agent" "")
+    status=$(json_get "$f" "status" "")
+    ts=$(json_get "$f" "timestamp" "")
+    ts="${ts:0:19}"
+
+    [[ -z "$id" ]] && continue
+    [[ -n "$filter" && "$status" != "$filter" ]] && continue
+
+    local icon
+    case "${status}" in
+      completed) icon="✅";;
+      running)   icon="🔄";;
+      dispatched) icon="📋";;
+      failed)    icon="❌";;
+      *)         icon="❓";;
+    esac
+
+    local output_suffix=""
+    if [[ "$status" == "completed" ]]; then
+      local output; output=$(json_get "$f" "output" "")
+      [[ -n "$output" ]] && output_suffix="  Output: ${output:0:60}"
+    fi
+
+    echo "  ${icon} ${id}  ${agent}  (${status})  ${ts}${output_suffix}"
+    count=$((count + 1))
+  done
+
+  if (( count == 0 )); then
+    echo "  (no dispatches found)"
+  fi
 }
 
 # ── Memory command handler (called from nexus.sh) ─────────────────

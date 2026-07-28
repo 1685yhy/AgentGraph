@@ -78,7 +78,7 @@ get_requires() {
   local slug="$1"
   awk -v slug="$slug" '
     $0 ~ "^  " slug ":" { in_contract=1; next }
-    in_contract && /^  [a-z]/ && $0 !~ "^  " slug ":" { in_contract=0; next }
+    in_contract && /^  [a-z]/ && $0 !~ "^  " slug ":" { in_contract=0; in_req=0; next }
     in_contract && /^    requires:/ { in_req=1; next }
     in_contract && /^    delivers:/ { in_req=0; next }
     in_req && /^      - from:/ { sub(/.*from: "/, ""); sub(/".*/, ""); current_from=$0; next }
@@ -261,33 +261,95 @@ verify_directory() {
   $any_failed && return 1 || return 0
 }
 
-# scan_artifacts <path> <requirements-list> — match files to required items
+# scan_artifacts <path> <requirements-list> — score deliverables against contract items
+# Relevance scoring: filename match +3, content keyword match +1 each.
+# Skips non-deliverable dirs (.git, node_modules, etc.) for performance and accuracy.
 scan_artifacts() {
   local path="$1"
   local reqs="$2"
   local matched=""
   local missing=""
 
+  # Pre-build set of exclusion args for find/grep
+  local exclude_dirs=".git node_modules .venv venv __pycache__ .next dist build target"
+  local exclude_files="*.pyc .DS_Store package-lock.json yarn.lock pnpm-lock.yaml"
+
   while IFS='|' read -r from name required; do
     [[ -z "$name" ]] && continue
-    local found=false
-    # Try filename match
-    local pattern
-    pattern=$(echo "$name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/*/g')
-    if find "$path" -type f -name "*${pattern}*" 2>/dev/null | grep -q .; then
-      found=true
-      matched="${matched}${name}|found|provided\n"
-    fi
-    # Try content keyword match (first 8 chars of name)
-    if ! $found; then
-      local keyword
-      keyword=$(echo "$name" | cut -c1-8)
-      if grep -rqi "$keyword" "$path" 2>/dev/null; then
-        found=true
-        matched="${matched}${name}|content_match|provided\n"
+    local score=0
+    local match_type=""
+    local found_file=""
+
+    # Normalize name for matching
+    local name_lower
+    name_lower=$(echo "$name" | tr '[:upper:]' '[:lower:]')
+
+    # Extract meaningful keywords: split Chinese text on punctuation, take 2-6 char segments;
+	    # Extract meaningful keywords: Chinese 4-char substrings, English >=3 chars
+	    local search_terms
+	    search_terms=$(
+	      {
+	        # Chinese: split long sequences into 4-char windows
+	        echo "$name_lower" \
+	          | grep -oP '[\x{4e00}-\x{9fff}][\x{4e00}-\x{9fff}]+' \
+	          | while IFS= read -r seq; do
+	              if [[ ${#seq} -le 6 ]]; then
+	                echo "$seq"
+	              else
+	                for ((i=0; i+3<=${#seq}; i++)); do
+	                  echo "${seq:$i:4}"
+	                done
+	              fi
+	            done
+	        # English words >= 3 chars
+	        echo "$name_lower" | grep -oP '[a-zA-Z]{3,}'
+	        # From-agent name as keyword
+	        echo "$from" | grep -oP '[\x{4e00}-\x{9fff}][\x{4e00}-\x{9fff}]+|[a-zA-Z]{3,}'
+	      } | sort -u | tr '\n' ' '
+	    )
+	    # Fallback: no keywords extracted -- use first 8 chars
+	    if [[ -z "${search_terms// /}" ]]; then
+	      search_terms="${name_lower:0:8}"
+	    fi
+
+    # 1. Filename match (+3) — any keyword matches a deliverable filename
+    for term in $search_terms; do
+      [[ ${#term} -lt 2 ]] && continue
+      local fargs=""
+      for d in $exclude_dirs; do fargs="$fargs -not -path '*/${d}/*'"; done
+      for f in $exclude_files; do fargs="$fargs -not -name '$f'"; done
+      # shellcheck disable=SC2086
+      found_file=$(eval find "'$path'" -maxdepth 5 -type f $fargs -iname "'*${term}*'" 2>/dev/null | head -1)
+      if [[ -n "$found_file" ]]; then
+        score=3
+        match_type="found"
+        break
+      fi
+    done
+
+    # 2. Content keyword match (+1 per keyword found in deliverable files)
+    if [[ $score -eq 0 ]]; then
+      local kw_count=0
+      for term in $search_terms; do
+        [[ ${#term} -lt 2 ]] && continue
+        local gargs=""
+        for d in $exclude_dirs; do gargs="$gargs --exclude-dir=$d"; done
+        # shellcheck disable=SC2086
+        if grep -rqil "$term" "$path" $gargs 2>/dev/null; then
+          kw_count=$((kw_count + 1))
+        fi
+      done
+      if [[ $kw_count -gt 0 ]]; then
+        score=$kw_count
+        match_type="content_match"
       fi
     fi
-    if ! $found; then
+
+    if [[ $score -gt 0 ]]; then
+      matched="${matched}${name}|${match_type}|provided|${score}"
+      [[ -n "$found_file" ]] && matched="${matched}|$(basename "$found_file")"
+      matched="${matched}\n"
+    else
       missing="${missing}${from}|${name}|${required}\n"
     fi
   done <<< "$reqs"
@@ -331,6 +393,7 @@ if [[ $# -eq 0 ]]; then
   echo "  guild resolve   — 基于决策权重自动解决冲突"
   echo "  guild cleanup   — 查看/清理过期交接（--stale 执行归档）"
   echo "  guild gate      — 运行质量门禁 (completeness/syntax/behavior/playability/agent-standards)"
+  echo "  guild fix       — 自动修复门禁失败 (--handoff <id> | --file <path>)"
   echo "  guild test      — 运行交付物行为测试（超越静态验证）"
 	  echo "  guild test-runtime — 浏览器运行时测试（真实页面加载+截图）"
   echo "  guild memory    — 查看 Agent 记忆/历史 (guild memory <agent> | --all)"
@@ -348,7 +411,14 @@ case "$CMD" in
   graph)     cmd_graph "$@";;
   handoff)   cmd_handoff "$@";;
   check)     cmd_check "$@";;
-  status)    cmd_status "$@";;
+  status)
+    if [[ "$1" == "--dispatches" ]]; then
+      shift
+      cmd_status_dispatches "$@"
+    else
+      cmd_status "$@"
+    fi
+    ;;
   accept)    cmd_accept "$@";;
   verify)    cmd_verify "$@";;
   feedback)  cmd_feedback "$@";;
@@ -364,12 +434,15 @@ case "$CMD" in
   test)      cmd_test "$@";;
   test-runtime) bash "$SCRIPT_DIR/runtime-test.sh" "$@";;
   gate)      cmd_gate "$@";;
+  fix)       cmd_fix "$@";;
   self-test) bash "$SCRIPT_DIR/self-test.sh" "$@";;
   ci-test)   bash "$SCRIPT_DIR/ci-test.sh";;
   doctor)    cmd_doctor "$@";;
 	  plan)      generate_graph "$@";;
 	  prompt)    agent_prompt_with_memory "${1:-}";;
 	  dispatch)  dispatch_agent_with_memory "$1" "$2";;
+	  execute)   execute_agent "$@";;
+	  complete)  complete_dispatch "${1:-}" "${2:-}";;
 	  chain)     chain_graph "$*";;
 	  task)      agent_task "$1" "$2";;
 	  agents)    agent_list;;
@@ -378,5 +451,5 @@ case "$CMD" in
   --help|-h|help)
     sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, plan, build, prompt, task, dispatch, chain, agents, memory, self-test, test, test-runtime, ci-test, doctor";;
+  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, fix, plan, build, prompt, task, dispatch, execute, complete, chain, agents, memory, self-test, test, test-runtime, ci-test, doctor";;
 esac

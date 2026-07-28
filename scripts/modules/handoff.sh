@@ -35,9 +35,13 @@ cmd_handoff() {
 
   echo "创建交接 #${id}: ${from_slug} → ${to_slug}"
 
-  # Get receiver's requirements (filter by sender if possible)
+  # Get receiver's requirements filtered to only those from sender
+  local reqs_output
+  reqs_output=$(get_requires_filtered "$to_slug" "$from_slug")
   local reqs
-  reqs=$(get_requires "$to_slug" | grep "|${from_slug}|" || get_requires "$to_slug")
+  reqs=$(echo "$reqs_output" | grep -v '^__IGNORED__:' || true)
+  local ignored_count
+  ignored_count=$(echo "$reqs_output" | grep '^__IGNORED__:' | sed 's/^__IGNORED__://' || echo 0)
 
   # Scan artifacts
   local scan_result
@@ -55,8 +59,8 @@ cmd_handoff() {
   # Write matched/missing to temp files for node to read
   local matched_file; matched_file=$(mktemp /tmp/guild-matched-XXXXXX.tsv)
   local missing_file; missing_file=$(mktemp /tmp/guild-missing-XXXXXX.tsv)
-  echo -e "$matched" | grep -v '^$' > "$matched_file"
-  echo -e "$missing" | grep -v '^$' > "$missing_file"
+  echo -e "$matched" | grep -v '^$' > "$matched_file" || true
+  echo -e "$missing" | grep -v '^$' > "$missing_file" || true
 
   # Pass variables via env to avoid bash escaping issues in node -e
   local req_total=0 req_provided=0 req_missing_count=0 new_status="incomplete"
@@ -69,6 +73,7 @@ cmd_handoff() {
   AG_HANDOFF_JSON="$json_file" \
   AG_MATCHED_FILE="$matched_file" \
   AG_MISSING_FILE="$missing_file" \
+  AG_IGNORED_COUNT="$ignored_count" \
   node -e '
 const { readFileSync, writeFileSync } = require("fs");
 
@@ -106,7 +111,11 @@ const doc = {
   message: process.env.AG_HANDOFF_MSG,
   path: process.env.AG_HANDOFF_PATH,
   artifacts,
-  checklist: { required_total: req_total, required_provided: req_provided, required_missing: req_missing_count },
+  required_total: req_total,
+  required_provided: req_provided,
+  required_missing: req_missing_count,
+  ignored_count: parseInt(process.env.AG_IGNORED_COUNT || "0"),
+  checklist: { required_total: req_total, required_provided: req_provided, required_missing: req_missing_count, ignored_count: parseInt(process.env.AG_IGNORED_COUNT || "0") },
   status: new_status,
   accepted_by: null
 };
@@ -118,12 +127,19 @@ writeFileSync(process.env.AG_HANDOFF_JSON, JSON.stringify(doc, null, 2) + "\n", 
   req_total=$(json_get "$json_file" "required_total" "0")
   req_provided=$(json_get "$json_file" "required_provided" "0")
   req_missing_count=$(json_get "$json_file" "required_missing" "0")
+  ignored_count=$(json_get "$json_file" "ignored_count" "0")
   new_status=$(json_get "$json_file" "status" "incomplete")
 
   rm -f "$matched_file" "$missing_file"
 
+  local from_display
+  from_display=$(agent_frontmatter "$from_slug" "name" 2>/dev/null || echo "$from_slug")
+
   echo "  状态: $new_status"
-  echo "  完整度: $req_provided/$req_total 项已提供"
+  echo "  完整度: $req_provided/$req_total 项已提供 (仅检查与 ${from_display} 相关的需求)"
+  if [[ $ignored_count -gt 0 ]]; then
+    echo "  忽略: $ignored_count 项 (来自其他Agent的需求)"
+  fi
   if [[ $req_missing_count -gt 0 ]]; then
     echo "  [!!] 缺失 $req_missing_count 项:"
     echo -e "$missing" | grep '|True$' | while IFS='|' read -r from_name name required; do

@@ -86,8 +86,9 @@ cmd_run() {
           local id; id=$(next_id)
           local date; date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # Get receiver's requirements
-          local reqs; reqs=$(get_requires "$to_slug" | grep "|${from_slug}|" || get_requires "$to_slug")
+          # Get receiver's requirements (filtered by sender)
+          local reqs_output; reqs_output=$(get_requires_filtered "$to_slug" "$from_slug")
+          local reqs; reqs=$(echo "$reqs_output" | grep -v '^__IGNORED__:' || true)
 
           # Scan artifacts
           local scan_result; scan_result=$(scan_artifacts "$path" "$reqs")
