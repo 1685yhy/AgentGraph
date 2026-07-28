@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>DropFall - 下落弹跳</title>
+<style>
+/* ── Design System ── */
+:root{
+  --bg-deep:#0d1117; --bg-mid:#161b22; --bg-card:#21262d;
+  --text-primary:#f0f6fc; --text-secondary:#8b949e; --text-muted:#484f58;
+  --accent:#58a6ff; --accent-glow:rgba(88,166,255,0.4); --gold:#f6d365;
+  --success:#3fb950; --danger:#f85149; --warning:#d29922;
+  --radius-sm:8px; --radius-md:12px; --radius-lg:20px; --radius-full:50%;
+  --space-xs:4px; --space-sm:8px; --space-md:16px; --space-lg:24px; --space-xl:32px;
+  --font-xs:10px; --font-sm:12px; --font-md:14px; --font-lg:20px; --font-xl:28px;
+  --ease-out:cubic-bezier(0.16,1,0.3,1); --ease-in:cubic-bezier(0.4,0,1,1);
+  --ease-bounce:cubic-bezier(0.34,1.56,0.64,1); --ease-spring:cubic-bezier(0.68,-0.6,0.32,1.6);
+  --shadow-card:0 2px 8px rgba(0,0,0,0.3); --shadow-modal:0 20px 60px rgba(0,0,0,0.5);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body{height:100%;display:flex;flex-direction:column;align-items:center;
+  background:linear-gradient(180deg,var(--bg-deep) 0%,#0d1b2a 40%,#1b2838 100%);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  color:var(--text-primary);user-select:none;-webkit-user-select:none;overflow:hidden}
+/* ── Header ── */
+#hdr{width:100%;padding:var(--space-sm) var(--space-md);display:flex;justify-content:space-between;
+  align-items:center;font-size:var(--font-sm);color:var(--text-secondary);z-index:10}
+#hdr .title{font-size:var(--font-lg);font-weight:800;letter-spacing:-0.5px;
+  background:linear-gradient(135deg,var(--accent),#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#hdr .stat{display:flex;align-items:center;gap:var(--space-xs)}
+#hdr .stat .val{color:var(--gold);font-weight:700;font-size:var(--font-md)}
+/* ── Canvas ── */
+#wrap{flex:1;width:100%;position:relative;display:flex;justify-content:center;align-items:center}
+canvas{display:block;touch-action:manipulation;border-radius:var(--radius-md)}
+/* ── Footer ── */
+#ftr{width:100%;max-width:400px;padding:var(--space-sm) var(--space-md) var(--space-md);text-align:center}
+#ftr .hint{font-size:var(--font-sm);color:var(--text-muted);transition:opacity 0.3s var(--ease-out)}
+/* ── Overlay ── */
+#overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);
+  display:flex;justify-content:center;align-items:center;z-index:100;backdrop-filter:blur(6px);
+  animation:fadeIn 0.3s var(--ease-out)}
+@keyframes fadeIn{from{opacity:0}}
+.ov-panel{background:var(--bg-card);border-radius:var(--radius-lg);padding:var(--space-lg);
+  text-align:center;max-width:330px;width:90%;box-shadow:var(--shadow-modal);
+  border:1px solid rgba(255,255,255,0.08);animation:scaleIn 0.4s var(--ease-bounce)}
+@keyframes scaleIn{from{transform:scale(0.85);opacity:0}to{transform:scale(1);opacity:1}}
+.ov-panel h2{font-size:var(--font-xl);margin-bottom:var(--space-sm);font-weight:800;letter-spacing:-0.5px}
+.ov-panel p{color:var(--text-secondary);font-size:var(--font-md);margin-bottom:var(--space-md);line-height:1.5}
+.ov-panel .big-btn{display:block;width:100%;padding:14px;margin:6px 0;border-radius:var(--radius-md);
+  border:none;font-size:15px;font-weight:700;cursor:pointer;color:#fff;
+  transition:transform 0.15s var(--ease-out),opacity 0.15s var(--ease-out)}
+.ov-panel .big-btn:active{transform:scale(0.96)}
+.big-btn.primary{background:linear-gradient(135deg,var(--accent),#a78bfa)}
+.big-btn.ad{background:linear-gradient(135deg,#667eea,#764ba2);font-size:13px}
+.big-btn.ghost{background:rgba(255,255,255,0.06);color:var(--text-secondary);font-size:13px}
+.hidden{display:none!important}
+/* ── Score popup animation ── */
+.score-pop{position:absolute;color:var(--gold);font-weight:800;font-size:var(--font-lg);
+  pointer-events:none;animation:scoreUp 0.8s var(--ease-out) forwards;z-index:50}
+@keyframes scoreUp{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(1.5)}}
+/* ── Combo indicator ── */
+#combo{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:40px;
+  font-weight:900;color:var(--accent);pointer-events:none;opacity:0;
+  transition:none;text-shadow:0 0 40px var(--accent-glow)}
+#combo.show{animation:comboPop 0.5s var(--ease-spring)}
+@keyframes comboPop{0%{opacity:0;transform:translate(-50%,-50%) scale(0.3)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.2)}100%{opacity:0;transform:translate(-50%,-50%) scale(1)}}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div class="title">🔵 DropFall</div>
+  <div class="stat">🏆 <span class="val" id="sc">0</span></div>
+  <div class="stat">🔥 <span class="val" id="cb">x1</span></div>
+  <div class="stat">💎 <span class="val" id="bs">0</span></div>
+</div>
+
+<div id="wrap"><canvas id="gc"></canvas><div id="combo"></div></div>
+
+<div id="ftr"><span class="hint" id="ht">👆 点击屏幕弹跳</span></div>
+
+<div id="overlay" class="hidden"></div>
+
+<script>
+/* ═══════════ DropFall — 设计系统驱动的下落弹跳 ═══════════ */
+
+// ── Design tokens ──
+const DS={
+  colors:{bg:'#0d1117',accent:'#58a6ff',gold:'#f6d365',success:'#3fb950',danger:'#f85149',
+    platform:['#21262d','#30363d','#388bfd','#8957e5','#3fb950','#f0883e']},
+  easing:{out:'cubic-bezier(0.16,1,0.3,1)',bounce:'cubic-bezier(0.34,1.56,0.64,1)',spring:'cubic-bezier(0.68,-0.6,0.32,1.6)'},
+  anim:{micro:150,normal:300,emphasis:500,celebrate:800},
+  haptic:{light:10,heavy:20}
+};
+
+// ── Game state ──
+let gameState='init',score=0,bestScore=parseInt(lsGet('df_best','0')),combo=0,maxCombo=0;
+let ball,platforms=[],particles=[],cameraY=0,totalDrop=0;
+let ballX,ballY,ballVX,ballVY,ballR=12,gravity=800,jumpForce=-420;
+let platformSpeed=120,platformGap=120,platformW=70,platformH=10;
+let moveLeft=false,moveRight=false,tapReady=false;
+const canvas=document.getElementById('gc'),ctx=canvas.getContext('2d'),wrap=document.getElementById('wrap');
+
+// ── Safe storage ──
+function lsGet(k,f){try{const v=localStorage.getItem(k);return v!==null?v:f}catch(e){return f}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+// ── Audio ──
+let _ctx=null;
+function snd(f,d,t='sine',v=0.06){if(!_ctx)return;try{const o=_ctx.createOscillator(),g=_ctx.createGain();o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,_ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,_ctx.currentTime+d);o.connect(g);g.connect(_ctx.destination);o.start();o.stop(_ctx.currentTime+d)}catch(e){}}
+function sfxBounce(){snd(440,0.1,'triangle',0.05)}
+function sfxCombo(n){const f=300+n*80;snd(f,0.08,'sine',0.06);setTimeout(()=>snd(f*1.5,0.1,'sine',0.06),60)}
+function sfxDie(){snd(80,0.5,'sawtooth',0.1)}
+function sfxMilestone(){snd(523,0.1,'sine',0.08);setTimeout(()=>snd(659,0.1,'sine',0.08),100);setTimeout(()=>snd(784,0.2,'sine',0.08),200)}
+function ensureAudio(){if(!_ctx){try{_ctx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){_ctx=null}}if(_ctx&&_ctx.state==='suspended'){try{_ctx.resume()}catch(e){}}}
+
+// ── Haptic ──
+function haptic(s){try{if(navigator.vibrate)navigator.vibrate(s==='heavy'?DS.haptic.heavy:DS.haptic.light)}catch(e){}}
+
+// ── Particles ──
+function spawnParticles(x,y,color,count=8){
+  for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,s=2+Math.random()*4;particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,decay:0.02+Math.random()*0.04,size:3+Math.random()*3,color})}
+}
+
+// ── Score popup ──
+function showScorePopup(x,y,text){
+  const el=document.createElement('div');el.className='score-pop';el.textContent=text;
+  el.style.left=x+'px';el.style.top=y+'px';wrap.appendChild(el);
+  setTimeout(()=>el.remove(),800);
+}
+
+// ── Combo indicator ──
+function showCombo(n){
+  if(n<3)return;
+  const el=document.getElementById('combo');el.textContent=n+'x';el.className='show';
+  setTimeout(()=>el.className='',400);
+}
+
+// ── Canvas resize ──
+let cw,ch;
+function resize(){cw=Math.min(wrap.clientWidth-8,400);ch=wrap.clientHeight-8;canvas.width=cw;canvas.height=ch}
+window.addEventListener('resize',resize);
+
+// ── Ball ──
+function resetBall(){ballX=cw/2;ballY=80;ballVX=0;ballVY=0;combo=0;totalDrop=0;cameraY=0}
+
+// ── Platforms ──
+function spawnPlatform(y){return{x:Math.random()*(cw-platformW-40)+20,y,w:platformW,h:platformH,color:DS.colors.platform[Math.floor(Math.random()*DS.colors.platform.length)],scored:false}}
+function initPlatforms(){platforms=[];for(let y=100;y<ch+200;y+=platformGap){platforms.push(spawnPlatform(y))}}
+
+// ── Game loop ──
+let lastTime=performance.now(),_dt=0;
+function gameLoop(now){
+  _dt=(now-lastTime)/1000;lastTime=now;
+  if(_dt>0.1)_dt=0.1; // cap
+  if(gameState==='playing')update(_dt);
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function update(dt){
+  // Ball physics
+  ballVY+=gravity*dt;
+  ballX+=ballVX*dt;ballY+=ballVY*dt;
+
+  // Wall bounce
+  if(ballX-ballR<0){ballX=ballR;ballVX=Math.abs(ballVX)*0.5}
+  if(ballX+ballR>cw){ballX=cw-ballR;ballVX=-Math.abs(ballVX)*0.5}
+
+  // Platform collision (only when falling)
+  if(ballVY>0){
+    for(const p of platforms){
+      if(ballY+ballR>=p.y&&ballY+ballR<=p.y+p.h+10&&ballX>p.x-ballR&&ballX<p.x+p.w+ballR){
+        ballY=p.y-ballR;ballVY=jumpForce;
+        if(!p.scored){p.scored=true;onScore(p);}
+        break; // one bounce per frame
+      }
+    }
+  }
+
+  // Camera follow
+  if(ballY<cameraY+ch*0.3){cameraY=ballY-ch*0.3}
+  totalDrop=Math.max(totalDrop,ballY-cameraY);
+
+  // Fall off screen
+  if(ballY>cameraY+ch+80){endGame()}
+
+  // Platform recycling
+  for(let i=platforms.length-1;i>=0;i--){
+    if(platforms[i].y>cameraY+ch+50)platforms.splice(i,1);
+  }
+  // Spawn new platforms above
+  while(platforms.length<8){
+    const top=platforms.length?platforms[0].y:ballY-200;
+    const ny=top-platformGap+Math.random()*20-10;
+    platforms.unshift(spawnPlatform(ny));
+  }
+}
+
+function onScore(p){
+  score+=10+combo*5;combo++;
+  if(combo>maxCombo)maxCombo=combo;
+  sfxBounce();haptic('light');
+  spawnParticles(ballX,ballY-cameraY,p.color,6);
+
+  if(combo%5===0&&combo>0){
+    sfxCombo(combo);haptic('heavy');showCombo(combo);
+    showScorePopup(cw/2,ch/2-40,'🔥 '+combo+'x');
+  }
+  updateUI();
+
+  // Progressive difficulty
+  platformGap=Math.max(80,120-combo*2);
+  gravity=800+combo*15;
+}
+
+function endGame(){
+  if(gameState!=='playing')return;
+  gameState='lost';sfxDie();haptic('heavy');
+  if(score>bestScore){bestScore=score;lsSet('df_best',bestScore);sfxMilestone()}
+  updateUI();document.getElementById('ht').textContent='💀 游戏结束';
+  setTimeout(showLoseOverlay,600);
+}
+
+// ── Draw ──
+function draw(){
+  ctx.clearRect(0,0,cw,ch);
+  // Background grid
+  ctx.strokeStyle='rgba(255,255,255,0.03)';ctx.lineWidth=1;
+  const gridSize=40,offY=(-cameraY%gridSize+gridSize)%gridSize;
+  for(let x=0;x<cw;x+=gridSize){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,ch);ctx.stroke()}
+  for(let y=-offY;y<ch;y+=gridSize){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke()}
+
+  ctx.save();ctx.translate(0,-cameraY);
+
+  // Platforms
+  for(const p of platforms){
+    if(p.y<cameraY-50||p.y>cameraY+ch+50)continue;
+    ctx.fillStyle=p.color;ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=1.5;
+    ctx.beginPath();roundRect(ctx,p.x,p.y,p.w,p.h,4);ctx.fill();ctx.stroke();
+    // Glow on recent score
+    if(p.scored&&combo>2){
+      ctx.shadowColor=p.color+'66';ctx.shadowBlur=12;
+      ctx.fill();ctx.shadowBlur=0;
+    }
+  }
+
+  // Ball with squash/stretch
+  const stretch=1+Math.abs(Math.min(ballVY,0))*0.001;
+  ctx.save();ctx.translate(ballX,ballY);ctx.scale(1+stretch*0.15,1-stretch*0.15);
+  // Glow
+  const glow=ctx.createRadialGradient(0,0,ballR*0.5,0,0,ballR*2);
+  glow.addColorStop(0,DS.colors.accent+'66');glow.addColorStop(1,'transparent');
+  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(0,0,ballR*2,0,Math.PI*2);ctx.fill();
+  // Ball body
+  const grad=ctx.createRadialGradient(-3,-3,0,0,0,ballR);
+  grad.addColorStop(0,'#79c0ff');grad.addColorStop(0.7,DS.colors.accent);grad.addColorStop(1,'#1f6feb');
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,ballR,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;ctx.stroke();
+  ctx.restore();
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=100*_dt;p.life-=p.decay;
+    if(p.life<=0){particles.splice(i,1);continue}
+    ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();
+    ctx.arc(p.x,p.y-cameraY,p.size,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // Combo counter on ball
+  if(combo>=3){
+    ctx.fillStyle=DS.colors.gold;ctx.font='bold 14px -apple-system,sans-serif';
+    ctx.textAlign='center';ctx.fillText(combo+'x',ballX,ballY-ballR-14);
+  }
+
+  ctx.restore();
+}
+
+function roundRect(c,x,y,w,h,r){c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.arcTo(x+w,y,x+w,y+r,r);c.lineTo(x+w,y+h-r);c.arcTo(x+w,y+h,x+w-r,y+h,r);c.lineTo(x+r,y+h);c.arcTo(x,y+h,x,y+r,r);c.lineTo(x,y+r);c.arcTo(x,y,x+r,y,r);c.closePath()}
+
+// ── UI ──
+function updateUI(){document.getElementById('sc').textContent=score;document.getElementById('cb').textContent='x'+(combo+1);document.getElementById('bs').textContent=bestScore}
+
+// ── Input ──
+canvas.addEventListener('touchstart',e=>{e.preventDefault();ensureAudio();if(gameState==='playing'){ballVY=jumpForce*0.8;sfxBounce();haptic('light')}});
+canvas.addEventListener('mousedown',e=>{ensureAudio();if(gameState==='playing'){ballVY=jumpForce*0.8;sfxBounce();haptic('light')}});
+
+// ── Overlays ──
+function showLoseOverlay(){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov-panel"><h2>💀 坠落了！</h2>
+    <p>得分: <b style="color:var(--gold);font-size:22px">${score}</b> | 最高连击: ${maxCombo}x</p>
+    ${score>bestScore-10?'<p style="color:var(--success)">🎉 新最高分！</p>':''}
+    <button class="big-btn primary" onclick="restart()">🔄 再来一局</button>
+    <button class="big-btn ad" onclick="revive()">📺 看广告复活</button>
+    <button class="big-btn ghost" onclick="hideOverlay()">关闭</button></div>`;
+  ov.classList.remove('hidden');
+}
+function revive(){showAd().then(()=>{ballY=cameraY+ch*0.1;ballVY=jumpForce*0.5;combo=Math.max(0,combo-3);gameState='playing';hideOverlay();document.getElementById('ht').textContent='👆 点击弹跳'})}
+function restart(){resetBall();initPlatforms();score=0;combo=0;maxCombo=0;gravity=800;platformGap=120;gameState='playing';hideOverlay();updateUI();document.getElementById('ht').textContent='👆 点击弹跳'}
+function hideOverlay(){document.getElementById('overlay').classList.add('hidden')}
+function showAd(){return new Promise(r=>{if(typeof wx!=='undefined'&&wx.createRewardedVideoAd){try{const a=wx.createRewardedVideoAd({adUnitId:'adunit-revive'});a.onClose(res=>{if(res.isEnded)r()});a.show().catch(()=>{if(confirm('📺 看广告?'))r()});return}catch(e){}}if(confirm('📺 观看广告以复活？'))r()})}
+
+// ── Init ──
+function startGame(){gameState='playing';resetBall();initPlatforms();updateUI();hideOverlay();document.getElementById('ht').textContent='👆 点击屏幕弹跳'}
+function init(){
+  resize();updateUI();
+  document.getElementById('overlay').innerHTML=`<div class="ov-panel"><h2>🔵 DropFall</h2>
+    <p>点击屏幕让球弹跳<br>连续落在平台上积累连击<br>🔥 5连击触发特效！</p><p style="color:var(--text-muted);font-size:var(--font-xs)">最高分: ${bestScore}</p>
+    <button class="big-btn primary" onclick="startGame()">开始游戏</button></div>`;
+  document.getElementById('overlay').classList.remove('hidden');
+  requestAnimationFrame(gameLoop);
+}
+init();
+</script>
+</body>
+</html>
