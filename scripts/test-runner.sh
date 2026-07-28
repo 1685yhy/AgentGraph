@@ -474,6 +474,116 @@ run_html_behavior_test() {
   esac
 }
 
+# ── Critical UX Checks (v2 — catches FruitMerge-class bugs) ──────────
+
+# Check 9: Flow blocking — no overlay/dialog should block game start
+check_flow_blocking() {
+  local file="$1"
+  local issues=0
+  # Pattern: province/name/settings selection overlay shown BEFORE game starts
+  if grep -qiE '(province|省份|select.*prov|choose.*prov)' "$file"; then
+    if grep -qiE 'showProvince|selectProv|provinceSelect' "$file"; then
+      # Check if province selection blocks game initialization
+      if grep -qE 'init\(\)|startGame|generateTiles' "$file"; then
+        local init_line; init_line=$(grep -n 'function init\|function startGame\|showProvince\|if.*province' "$file" | head -5)
+        # If showProvinceSelect is called BEFORE game initialization, it's blocking
+        if echo "$init_line" | grep -q 'province.*show\|showProvince.*init\|!province.*show'; then
+          warn "检测到省份选择可能阻断游戏启动 — 建议: 首次进入先开始游戏, 结束后再问省份"
+          issues=1
+        fi
+      fi
+    fi
+  fi
+  # Pattern: any overlay visible on load
+  if grep -qiE '(overlay|modal|dialog).*hidden.*false|display.*block.*overlay' "$file"; then
+    warn "检测到页面加载时显示遮罩层 — 核心功能可能在遮罩后方不可达"
+    issues=1
+  fi
+  [[ $issues -eq 0 ]] && { ok "核心流程无障碍 — 游戏启动无阻断"; return 0; }
+  return 1
+}
+
+# Check 10: Touch target size — interactive elements ≥44px (Apple HIG)
+check_touch_targets() {
+  local file="$1"
+  local small=0
+  # Parse inline styles and CSS for width/height/min-width/min-height < 44px
+  while IFS= read -r line; do
+    if echo "$line" | grep -qE '(width|height|min-width|min-height)\s*:\s*(3[0-9]|2[0-9]|1[0-9]|[0-9])px'; then
+      local val; val=$(echo "$line" | grep -oE '(width|height|min-width|min-height)\s*:\s*[0-9]+px' | grep -oE '[0-9]+' | head -1)
+      if [[ -n "$val" && "$val" =~ ^[0-9]+$ && "$val" -lt 44 ]]; then
+        small=$((small + 1))
+      fi
+    fi
+    if echo "$line" | grep -qE 'padding\s*:\s*[0-7]px'; then
+      small=$((small + 1))
+    fi
+  done < "$file"
+  [[ $small -le 5 ]] && { ok "触摸目标尺寸合理 (≤5个小元素)" ; return 0; }
+  warn "检测到 ${small} 个触摸目标可能过小(<44px) — 移动端难以点击"
+  return 1
+}
+
+# Check 11: Handler validity — onclick/touch handlers reference existing functions
+check_handler_validity() {
+  local file="$1"
+  local missing=0
+  # Extract onclick="funcName(" patterns
+  local handlers; handlers=$(grep -oP 'onclick\s*=\s*"\K[^"(]+' "$file" 2>/dev/null | sed 's/(.*//' | sort -u)
+  for h in $handlers; do
+    [[ -z "$h" ]] && continue
+    # Check if function exists in script
+    if ! grep -qE "function\s+$h\b|$h\s*=\s*function|$h\s*=\s*\(|$h\s*:\s*function|window\.$h\s*=" "$file"; then
+      warn "onclick 处理器 '$h' 可能未定义 — 点击不会触发任何操作"
+      missing=$((missing + 1))
+    fi
+  done
+  [[ $missing -eq 0 ]] && { ok "所有事件处理器已定义"; return 0; }
+  err "${missing} 个事件处理器未定义 — 按钮点击无响应"
+  return 1
+}
+
+# Check 12: Core loop accessibility — ≤1 interaction to reach gameplay
+check_core_loop_accessibility() {
+  local file="$1"
+  # Must have a clear path from page load → game playing in ≤1 tap
+  local direct_start=0
+  # Pattern: autostart or immediate game
+  if grep -qiE '(window\.onload|DOMContentLoaded|document\.ready).*(init|start|game)' "$file"; then direct_start=1; fi
+  # Pattern: tutorial that doubles as start
+  if grep -qiE '(tutorial|guide|how.*play).*(start|begin|play|开始).*(click|tap|press)' "$file"; then direct_start=1; fi
+  # Pattern: single button → game
+  if grep -qiE '(start|begin|play).*(btn|button).*(click|tap).*(init|game|play)' "$file"; then direct_start=1; fi
+  # Anti-pattern: multi-step flow before gameplay
+  local steps=$(grep -c 'showOverlay\|showProvince\|showTutorial\|showMenu' "$file" 2>/dev/null || echo 0)
+  if [[ $direct_start -eq 1 && $steps -le 2 ]]; then
+    ok "核心流程可达 — ≤1次交互即可开始游戏"
+    return 0
+  elif [[ $direct_start -eq 0 ]]; then
+    warn "核心流程可能需要多次交互才能触达 — 建议减少进入游戏前点击次数"
+    return 1
+  fi
+  ok "核心流程基本可达"
+  return 0
+}
+
+# Check 13: Replayability — is there a clear path to play again?
+check_replayability() {
+  local file="$1"
+  local has_restart=0 has_play_again=0
+  grep -qiE '(restart|replay|play.*again|再.*一|重新|再来)' "$file" && has_restart=1
+  grep -qiE 'function\s+(restart|reset|replay|newGame)\b' "$file" && has_play_again=1
+  if [[ $has_restart -eq 1 && $has_play_again -eq 1 ]]; then
+    ok "复玩机制完整 — 有重新开始功能和按钮"
+    return 0
+  elif [[ $has_restart -eq 1 ]]; then
+    ok "有重新开始入口 — 建议添加独立的 reset/newGame 函数确保状态清理完整"
+    return 0
+  fi
+  warn "未检测到复玩机制 — 游戏结束后无法重新开始会降低留存"
+  return 1
+}
+
 # ── Run All Behavioral Tests ────────────────────────────────────────
 
 # run_all_tests <file> [spec_file]
@@ -502,9 +612,9 @@ run_all_tests() {
     echo "  ==== 通用行为测试套件 ===="
     echo ""
 
-    total=8
+    total=13
 
-    echo "  [1/8] 开始交互: 存在启动游戏的机制"
+    echo "  [1/13] 开始交互: 存在启动游戏的机制"
     if check_start_interaction "$file"; then
       passed=$((passed + 1))
     else
@@ -512,7 +622,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [2/8] 状态管理: 游戏状态追踪 (state/phase)"
+    echo "  [2/13] 状态管理: 游戏状态追踪 (state/phase)"
     if check_state_management "$file"; then
       passed=$((passed + 1))
     else
@@ -520,7 +630,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [3/8] 音频手势初始化: AudioContext由用户交互触发"
+    echo "  [3/13] 音频手势初始化: AudioContext由用户交互触发"
     if check_audio_gesture_init "$file"; then
       passed=$((passed + 1))
     else
@@ -528,7 +638,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [4/8] Canvas安全: getContext返回校验"
+    echo "  [4/13] Canvas安全: getContext返回校验"
     if check_canvas_safety "$file"; then
       passed=$((passed + 1))
     else
@@ -536,7 +646,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [5/8] 错误处理: try-catch异常保护"
+    echo "  [5/13] 错误处理: try-catch异常保护"
     if check_error_handling "$file"; then
       passed=$((passed + 1))
     else
@@ -544,7 +654,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [6/8] DOM安全: getElementById null检查"
+    echo "  [6/13] DOM安全: getElementById null检查"
     if check_dom_safety "$file"; then
       passed=$((passed + 1))
     else
@@ -552,7 +662,7 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [7/8] localStorage安全: try-catch保护"
+    echo "  [7/13] localStorage安全: try-catch保护"
     if check_localStorage_safe "$file"; then
       passed=$((passed + 1))
     else
@@ -560,12 +670,33 @@ run_all_tests() {
     fi
     echo ""
 
-    echo "  [8/8] 移动端适配: viewport meta标签"
+    echo "  [8/13] 移动端适配: viewport meta标签"
     if check_mobile_ready "$file"; then
       passed=$((passed + 1))
     else
       failed=$((failed + 1))
     fi
+    echo ""
+
+    # ── v2 Critical UX checks ──
+    echo "  [9/13] 流程阻断: 无遮罩阻断游戏启动"
+    if check_flow_blocking "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
+    echo ""
+
+    echo "  [10/13] 触摸目标: 交互元素≥44px"
+    if check_touch_targets "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
+    echo ""
+
+    echo "  [11/13] 处理器有效: onclick引用已定义函数"
+    if check_handler_validity "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
+    echo ""
+
+    echo "  [12/13] 核心可达: ≤1次交互开始游戏"
+    if check_core_loop_accessibility "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
+    echo ""
+
+    echo "  [13/13] 复玩机制: 游戏结束可重新开始"
+    if check_replayability "$file"; then passed=$((passed + 1)); else failed=$((failed + 1)); fi
     echo ""
   fi
 
