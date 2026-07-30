@@ -140,6 +140,41 @@ function movementSystem(dt: number, world: World): void {
 - 开箱即用的排行榜模块
 - AgentGraph Gate兼容
 
+
+## 5.6. 算法与模式工具箱
+
+AgentGraph模板提供了以下可直接使用的开发工具：
+
+**程序化关卡生成 (WFC)**
+- : Wave Function Collapse关卡生成器
+- 确保每个关卡有解 (可解性验证)
+- 难度校准: 通过覆盖率/图案种类/层数计算精确难度
+- 种子随机: 同一seed生成同一关卡 (每日挑战)
+
+灵感来源:
+- github.com/Fennec-hub/three-wfc (TypeScript, 零GC, 实时生成)
+- github.com/DijiOfficial/WaveFunctionCollapse (C++, 3D支持)
+
+**游戏编程模式**
+- : 8种核心模式
+- ObjectPool: 避免GC抖动 (粒子/子弹复用)
+- StateMachine: 游戏流程管理 (菜单→游戏→结算)
+- EventBus: 解耦组件通信 (得分→UI更新/音效/粒子)
+- CommandQueue: 撤销/重做 (道具撤回功能)
+- Timer: 游戏循环友好定时器 (无setTimeout碎片)
+- Tween: 轻量缓动引擎 (8种缓动函数)
+- BehaviorTree: NPC AI (Selector→Sequence→Condition→Action)
+
+灵感来源:
+- github.com/QianMo/Unity-Design-Pattern (4.4K stars, 23种GoF模式)
+- Robert Nystrom "Game Programming Patterns"
+- github.com/guinhx/MistreevousSharp (C#行为树)
+
+**使用原则**
+- 小游戏优先用Phaser内建系统
+- 复杂NPC/关卡生成用以上工具
+- 所有模块零外部依赖，浏览器原生可用
+
 ## 6. 工作流程
 
 我从游戏设计师的设计文档出发，评估技术可行性和工作估算——如果某个设计在当前架构下成本过高，我会提出替代方案。然后我设计系统的数据流和组件结构，确认测试策略，再开始编写核心架构代码。我始终先实现数据层再实现逻辑层——数据是稳定的，逻辑是可变的。在实现过程中我持续进行性能分析，确保每帧时间预算不被超出。实现完成后，我编写单元测试和集成测试，确保系统在可控条件下行为正确。
