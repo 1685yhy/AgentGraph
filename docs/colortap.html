@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>ColorTap — 颜色反应挑战</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#0a0a14;touch-action:manipulation}canvas{display:block;margin:0 auto}</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+
+<script>
+/* ═══════ ColorTap — PhaserJS + 排行榜 小游戏 ═══════ */
+// 目标用户: 22-35白领碎片时间 | 钩子: 反应速度测试 | 变现: 复活广告
+// 引擎: PhaserJS 3.60 | 排行榜: localStorage(可换Leancloud)
+
+// ── Leaderboard (local fallback, swap for Leancloud in production) ──
+const LB={
+  _key:'ct_lb',
+  submit(n,s,p){const d=JSON.parse(localStorage.getItem(this._key)||'[]');d.push({name:n,score:s,province:p||'',date:new Date().toISOString()});d.sort((a,b)=>b.score-a.score);localStorage.setItem(this._key,JSON.stringify(d.slice(0,50)));return d.findIndex(x=>x.score===s)+1},
+  getTop(n=10){return JSON.parse(localStorage.getItem(this._key)||'[]').slice(0,n)},
+  best(){const d=JSON.parse(localStorage.getItem(this._key)||'[]');return d.length?d[0].score:0}
+};
+
+// ── Ad Manager ──
+const AdMgr={
+  show(type){return new Promise(r=>{if(typeof wx!=='undefined'&&wx.createRewardedVideoAd){try{const a=wx.createRewardedVideoAd({adUnitId:'ad-'+type});a.onClose(res=>{if(res&&res.isEnded)r(true)});a.onError(()=>r(false));a.show().catch(()=>r(false))}catch(e){r(false)}}else{r(confirm('📺 观看广告继续？(上线后展示真实广告)'))}})},
+};
+
+// ── Game Config ──
+const W=390,H=700;
+const COLORS=[0xe74c3c,0x3498db,0x2ecc71,0xf39c12,0x9b59b6,0xe67e22,0x1abc9c,0xe91e63];
+const COLOR_NAMES=['红色','蓝色','绿色','橙色','紫色','黄色','青色','粉色'];
+
+let gameState='menu',score=0,combo=0,bestCombo=0,roundTime=0,targetColor=0;
+let playScene,scoreText,comboText,targetCircle,timerBar,colorBtns=[],particles=[];
+
+// ── Province ──
+const PROVINCES=['北京','上海','广东','浙江','江苏','四川','湖北','湖南','福建','山东','河南','河北','辽宁','陕西','重庆','其他'];
+let province=localStorage.getItem('ct_prov')||'';
+
+// ── Boot ──
+class BootScene extends Phaser.Scene{
+  constructor(){super('boot')}
+  create(){
+    this.cameras.main.setBackgroundColor(0x0a0a14);
+    // Title
+    this.add.text(W/2,120,'⚡ 颜色捕手',{fontFamily:'-apple-system,sans-serif',fontSize:'32px',fontWeight:'900',color:'#ffffff'}).setOrigin(0.5);
+    this.add.text(W/2,168,'测测你的反应速度',{fontFamily:'-apple-system,sans-serif',fontSize:'14px',color:'#6b6b7b'}).setOrigin(0.5);
+    // Best score
+    const best=LB.best();
+    if(best)this.add.text(W/2,198,'最高分: '+best,{fontFamily:'-apple-system,sans-serif',fontSize:'12px',color:'#f6c94d'}).setOrigin(0.5);
+    // Province selector
+    this.add.text(W/2,240,'选择省份加入战队',{fontFamily:'-apple-system,sans-serif',fontSize:'12px',color:'#6b6b7b'}).setOrigin(0.5);
+    let px=30,py=270;
+    PROVINCES.forEach((p,i)=>{
+      const btn=this.add.text(px,py,p,{fontFamily:'-apple-system,sans-serif',fontSize:'11px',color:p===province?'#000':'#8b8b9b',
+        backgroundColor:p===province?'#f6c94d':'#1a1a28',padding:{x:10,y:6},borderRadius:16}).setInteractive({useHandCursor:true});
+      btn.on('pointerdown',()=>{province=p;localStorage.setItem('ct_prov',p);this.scene.restart()});
+      px+=btn.width+6;if(px>W-40){px=30;py+=36}
+    });
+    // Start button
+    const startBg=this.add.graphics();startBg.fillStyle(0xf6c94d,1);startBg.fillRoundedRect(W/2-100,py+50,200,50,14);
+    const startBtn=this.add.text(W/2,py+75,'开始挑战',{fontFamily:'-apple-system,sans-serif',fontSize:'18px',fontWeight:'800',color:'#000'}).setOrigin(0.5).setInteractive({useHandCursor:true});
+    startBtn.on('pointerdown',()=>{this.scene.start('play')});
+    // Leaderboard preview
+    const top=LB.getTop(5);
+    if(top.length){
+      this.add.text(W/2,py+130,'🏆 排行榜',{fontFamily:'-apple-system,sans-serif',fontSize:'12px',color:'#6b6b7b'}).setOrigin(0.5);
+      top.forEach((e,i)=>{
+        this.add.text(W/2,py+152+i*20,(i+1)+'. '+(e.name||'匿名')+' — '+e.score+'分',{fontFamily:'-apple-system,sans-serif',fontSize:'11px',color:i===0?'#f6c94d':'#8b8b9b'}).setOrigin(0.5);
+      });
+    }
+  }
+}
+
+// ── Play ──
+class PlayScene extends Phaser.Scene{
+  constructor(){super('play')}
+  create(){
+    gameState='playing';score=0;combo=0;bestCombo=0;roundTime=0;
+    this.cameras.main.setBackgroundColor(0x0a0a14);
+
+    // Top bar
+    this.add.text(16,16,'⚡ ColorTap',{fontFamily:'-apple-system,sans-serif',fontSize:'13px',color:'#6b6b7b'});
+    scoreText=this.add.text(W-16,16,'0',{fontFamily:'-apple-system,sans-serif',fontSize:'24px',fontWeight:'900',color:'#f6c94d'}).setOrigin(1,0);
+    comboText=this.add.text(W-16,46,'',{fontFamily:'-apple-system,sans-serif',fontSize:'14px',color:'#58a6ff'}).setOrigin(1,0);
+    timerBar=this.add.graphics();
+
+    // Target color display
+    this.pickTarget();
+    targetCircle=this.add.graphics();
+    this.add.text(W/2,95,COLOR_NAMES[targetColor],{fontFamily:'-apple-system,sans-serif',fontSize:'22px',fontWeight:'800',color:'#fff'}).setOrigin(0.5);
+
+    // Color buttons (2 rows of 4)
+    colorBtns=[];
+    for(let i=0;i<8;i++){
+      const row=Math.floor(i/4),col=i%4;
+      const bx=55+col*75,by=140+row*130;
+      const g=this.add.graphics();
+      g.fillStyle(COLORS[i],1);g.fillCircle(bx,by,30);
+      g.lineStyle(2,0xffffff,0.2);g.strokeCircle(bx,by,30);
+      const hitZone=this.add.zone(bx,by,70,70).setInteractive({useHandCursor:true});
+      hitZone.on('pointerdown',()=>{this.onTap(i,bx,by)});
+      colorBtns.push({g,x:bx,y:by});
+    }
+
+    // Feedback
+    this.feedbackText=this.add.text(W/2,H/2,'',{fontFamily:'-apple-system,sans-serif',fontSize:'28px',fontWeight:'900'}).setOrigin(0.5).setAlpha(0);
+
+    // Timer (30s round)
+    this.roundTimer=this.time.addEvent({delay:30000,callback:()=>this.endRound(),loop:false});
+  }
+
+  pickTarget(){targetColor=Phaser.Math.Between(0,7)}
+
+  onTap(idx,bx,by){
+    if(gameState!=='playing')return;
+    const correct=idx===targetColor;
+    if(correct){
+      score+=10+combo*2;combo++;if(combo>bestCombo)bestCombo=combo;
+      this.flash(0x2ecc71);this.popText(bx,by-30,'+'+ (10+combo*2),'#3fb950');
+      if(combo%5===0){this.popText(W/2,H/2-40,'🔥 '+combo+'x','#f6c94d')}
+      this.pickTarget();this.updateTarget();
+      this.tweens.add({targets:colorBtns[idx].g,scaleX:1.3,scaleY:1.3,duration:100,yoyo:true});
+    }else{
+      gameState='lost';
+      this.flash(0xe74c3c);this.shake();
+      this.popText(W/2,H/2,'✗','#f85149');
+      this.time.delayedCall(600,()=>this.showResult());
+    }
+    scoreText.setText(score.toString());
+    comboText.setText(combo>1?combo+'x COMBO':'');
+  }
+
+  update(){if(gameState==='playing'){roundTime+=this.game.loop.delta;timerBar.clear();timerBar.fillStyle(0x303040,0.3);timerBar.fillRect(0,0,W,3);const pct=Math.min(1,roundTime/30000);timerBar.fillStyle(pct>0.7?0xf85149:pct>0.4?0xf6c94d:0x3fb950,0.8);timerBar.fillRect(0,0,W*pct,3)}}
+
+  updateTarget(){
+    this.children.getAll().filter(c=>c.type==='Text'&&c.text===COLOR_NAMES[targetColor]&&c.y===95)
+      .forEach(t=>t.setText(COLOR_NAMES[targetColor]));
+  }
+
+  flash(color){this.cameras.main.flash(150,color>>16&0xff,(color>>8)&0xff,color&0xff,true)}
+  shake(){this.cameras.main.shake(250,0.008)}
+  popText(x,y,txt,color){const t=this.add.text(x,y,txt,{fontFamily:'-apple-system,sans-serif',fontSize:'22px',fontWeight:'800',color}).setOrigin(0.5);this.tweens.add({targets:t,y:y-50,alpha:0,duration:800,ease:'Cubic.Out',onComplete:()=>t.destroy()})}
+
+  endRound(){if(gameState==='playing'){gameState='won';this.showResult()}}
+  showResult(){
+    const ov=this.add.graphics();ov.fillStyle(0x000000,0.85);ov.fillRect(0,0,W,H);
+    ov.setInteractive(new Phaser.Geom.Rectangle(0,0,W,H),Phaser.Geom.Rectangle.Contains);
+    const rank=LB.submit(province||'匿名',score,province);
+    const rt=Math.round(bestCombo);
+    this.add.text(W/2,180,(gameState==='won'?'⏰ 时间到！':'💥 点错了！'),{fontFamily:'-apple-system,sans-serif',fontSize:'22px',fontWeight:'800',color:'#fff'}).setOrigin(0.5);
+    this.add.text(W/2,220,score.toString(),{fontFamily:'-apple-system,sans-serif',fontSize:'56px',fontWeight:'900',color:'#f6c94d'}).setOrigin(0.5);
+    this.add.text(W/2,275,'最高连击: '+bestCombo+'x | 排名: #'+rank,{fontFamily:'-apple-system,sans-serif',fontSize:'13px',color:'#8b8b9b'}).setOrigin(0.5);
+    // Leaderboard
+    const top=LB.getTop(5);
+    this.add.text(W/2,310,'🏆 排行榜',{fontFamily:'-apple-system,sans-serif',fontSize:'13px',color:'#6b6b7b'}).setOrigin(0.5);
+    top.forEach((e,i)=>{
+      this.add.text(W/2,332+i*22,(i+1)+'. '+(e.name||'匿名')+' — '+e.score+'分',{fontFamily:'-apple-system,sans-serif',fontSize:'12px',color:i===0?'#f6c94d':'#8b8b9b'}).setOrigin(0.5);
+    });
+    // Buttons
+    this.addBtn(W/2,460,'再来一次','#f6c94d','#000',()=>this.scene.restart());
+    this.addBtn(W/2,510,'📺 看广告复活','#667eea','#fff',()=>{AdMgr.show('revive').then(ok=>{if(ok){score=Math.max(0,score-3);gameState='playing';this.scene.restart()}else this.scene.start('boot')})});
+    this.addBtn(W/2,560,'📤 分享成绩','rgba(255,255,255,0.08)','#8b8b9b',()=>{const t='⚡ 我的反应速度得分 '+score+', 排名 #'+rank+'! 你能超过我吗?';if(navigator.share)navigator.share({title:'ColorTap',text:t}).catch(()=>{});else navigator.clipboard.writeText(t).then(()=>alert('已复制！'))});
+  }
+  addBtn(x,y,label,bg,color,cb){const g=this.add.graphics();g.fillStyle(Phaser.Display.Color.HexStringToColor(bg).color,1);g.fillRoundedRect(x-110,y-22,220,44,12);const t=this.add.text(x,y,label,{fontFamily:'-apple-system,sans-serif',fontSize:'15px',fontWeight:'700',color}).setOrigin(0.5).setInteractive({useHandCursor:true});t.on('pointerdown',cb)}
+}
+
+// ── Launch ──
+const config={
+  type:Phaser.AUTO,width:W,height:H,parent:document.body,
+  backgroundColor:'#0a0a14',scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},
+  scene:[BootScene,PlayScene]
+};
+new Phaser.Game(config);
+</script>
+</body>
+</html>

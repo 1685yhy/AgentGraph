@@ -1,0 +1,25 @@
+{
+  "name": "wechat-game",
+  "description": "微信/抖音小游戏模板 — PhaserJS引擎 + Leancloud排行榜 + 广告SDK",
+  "version": "1.0.0",
+  "agentGraphVersion": ">=0.2.0",
+  "stack": {
+    "engine": "PhaserJS 3.x (CDN)",
+    "backend": "Leancloud (排行榜/用户数据)",
+    "ads": "微信/抖音广告SDK + Web降级",
+    "social": "微信开放数据域(好友排行)"
+  },
+  "files": {
+    "index.html": "游戏入口 + Phaser CDN加载",
+    "src/game.js": "Phaser配置 + 场景注册",
+    "src/scenes/": "游戏场景(Boot/Play/Result)",
+    "src/leaderboard.js": "Leancloud排行榜模块(CRUD+排名)",
+    "src/ad-manager.js": "广告管理器(微信/抖音/Web)"
+  },
+  "agents": {
+    "game-programmer": "使用PhaserJS 3.x编写游戏逻辑, 不要手写裸Canvas",
+    "backend-architect": "使用Leancloud JS SDK搭建排行榜和用户数据存储",
+    "game-ui-designer": "Phaser Scene中设计UI, 使用Phaser GameObjects",
+    "game-designer": "关卡数据用JSON定义, 由Phaser加载解析"
+  }
+}

@@ -444,6 +444,7 @@ case "$CMD" in
 	  execute)   execute_agent "$@";;
 	  complete)  complete_dispatch "${1:-}" "${2:-}";;
 	  chain)     chain_graph "$*";;
+	  init)      shift; init_template "$1" "$2";;
 	  task)      agent_task "$1" "$2";;
 	  agents)    agent_list;;
 	  build)     build_product "$@";;

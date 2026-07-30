@@ -1264,3 +1264,17 @@ cmd_memory() {
   echo ""
   agent_memory_load "$slug" 10 2>/dev/null
 }
+
+# ── Project Init ─────────────────────────────────────────────────────
+# guild init --template <name> <project-dir>
+init_template() {
+  local template="$1" dir="$2"
+  local template_dir="$REPO_ROOT/templates/$template"
+  [[ -d "$template_dir" ]] || { err "Unknown template: $template. Available: $(ls $REPO_ROOT/templates/)"; return 1; }
+  mkdir -p "$dir"
+  cp -r "$template_dir"/. "$dir/" 2>/dev/null || true
+  # Remove template.json from output
+  rm -f "$dir/template.json"
+  ok "Project initialized: $dir (template: $template)"
+  echo "  Next: cd $dir && python3 -m http.server 8080"
+}
