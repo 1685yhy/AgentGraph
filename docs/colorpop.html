@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>ColorPop — 方块消除陷阱</title>
+<style>
+:root{--bg:#0a0a14;--surface:#141420;--gold:#f6c94d;--accent:#58a6ff;--danger:#f85149;--r:12px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body{height:100%;display:flex;flex-direction:column;align-items:center;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;overflow:hidden}
+#hdr{width:100%;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#6b6b7b;z-index:10}
+#hdr .logo{font-size:16px;font-weight:800;color:#fff}
+#hdr .stats{display:flex;gap:14px}
+#hdr .stats b{color:var(--gold)}
+#wrap{flex:1;width:100%;display:flex;justify-content:center;align-items:center}
+canvas{display:block;touch-action:manipulation;border-radius:8px}
+#ftr{width:100%;max-width:400px;display:flex;gap:6px;padding:6px 10px 10px;justify-content:center}
+.fbtn{flex:1;max-width:80px;padding:6px;border-radius:10px;border:none;font-size:10px;font-weight:700;cursor:pointer;color:#fff;display:flex;flex-direction:column;align-items:center;gap:2px;transition:transform 0.15s}
+.fbtn:active{transform:scale(0.95)}.fbtn:disabled{opacity:0.3;pointer-events:none}
+.fbtn .i{font-size:18px}
+.fbtn.bomb{background:linear-gradient(135deg,#e74c3c,#c0392b)}
+.fbtn.shuffle{background:linear-gradient(135deg,#f39c12,#e67e22)}
+.fbtn.hint{background:linear-gradient(135deg,#2ecc71,#27ae60)}
+.fbtn.moves{background:linear-gradient(135deg,#667eea,#764ba2)}
+.ad-tag{font-size:8px;opacity:0.6}
+#overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;justify-content:center;align-items:center;z-index:100;backdrop-filter:blur(4px)}
+.ov{background:var(--surface);border-radius:var(--r);padding:24px;text-align:center;max-width:320px;width:90%;border:1px solid rgba(255,255,255,0.06);animation:popIn 0.3s ease-out}
+@keyframes popIn{from{transform:scale(0.9);opacity:0}to{transform:scale(1);opacity:1}}
+.ov h2{font-size:22px;font-weight:800;margin-bottom:4px}
+.ov .big{font-size:44px;font-weight:900;margin:8px 0}
+.ov .stat-row{display:flex;justify-content:center;gap:20px;margin:8px 0;font-size:12px;color:#6b6b7b}
+.ov .stat-row b{color:#fff;font-size:15px}
+.ov .btn{display:block;width:100%;padding:13px;margin:5px 0;border-radius:var(--r);border:none;font-size:14px;font-weight:700;cursor:pointer;color:#fff;transition:transform 0.15s}
+.ov .btn:active{transform:scale(0.96)}
+.btn.primary{background:var(--gold);color:#000}
+.btn.ad{background:linear-gradient(135deg,#667eea,#764ba2);font-size:12px}
+.btn.ghost{background:rgba(255,255,255,0.05);color:#6b6b7b;font-size:12px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="hdr">
+  <div class="logo">🟪 ColorPop</div>
+  <div class="stats">🎯L<b id="lv">1</b> | ⚡<b id="mv">15</b> | 🏆<b id="sc">0</b> | 📍<b id="prov">-</b></div>
+</div>
+<div id="wrap"><canvas id="gc"></canvas></div>
+<div id="ftr">
+  <button class="fbtn bomb" onclick="usePower('bomb')"><span class="i">💣</span>炸弹<span class="ad-tag">📺</span></button>
+  <button class="fbtn shuffle" onclick="usePower('shuffle')"><span class="i">🔀</span>洗牌<span class="ad-tag">📺</span></button>
+  <button class="fbtn hint" onclick="usePower('hint')"><span class="i">💡</span>提示<span class="ad-tag">📺</span></button>
+  <button class="fbtn moves" onclick="usePower('moves')"><span class="i">➕5</span>步数<span class="ad-tag">📺</span></button>
+</div>
+<div id="overlay" class="hidden"></div>
+
+<script>
+/* ═══════ ColorPop — 方块消除陷阱 ═══════
+ * 心理: L1极简→自信→L2地狱→挫败→广告→攀比→分享→传播 */
+
+const COLORS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e91e63'];
+const COLOR_NAMES = ['红','蓝','绿','橙','紫','青','黄','粉'];
+let grid=[],gridSize=5,movesLeft=15,maxMoves=15,score=0,level=1,gameState='init';
+let province='',bestScore=parseInt(localStorage.getItem('cp_best')||'0');
+let hintCell=null,selectedCell=null;
+
+// Audio
+let _ctx=null;
+function snd(f,d,t='sine',v=0.05){if(!_ctx)return;try{const o=_ctx.createOscillator(),g=_ctx.createGain();o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,_ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,_ctx.currentTime+d);o.connect(g);g.connect(_ctx.destination);o.start();o.stop(_ctx.currentTime+d)}catch(e){}}
+function sfxPop(n=0){snd(400+n*60,0.08,'sine',0.04)}
+function sfxCombo(){snd(523,0.1,'sine',0.05);setTimeout(()=>snd(659,0.1,'sine',0.05),60);setTimeout(()=>snd(784,0.15,'sine',0.05),120)}
+function sfxFail(){snd(80,0.4,'sawtooth',0.08)}
+function sfxWin(){snd(523,0.1,'sine',0.06);setTimeout(()=>snd(659,0.1,'sine',0.06),100);setTimeout(()=>snd(784,0.12,'sine',0.06),200);setTimeout(()=>snd(1047,0.2,'sine',0.06),300)}
+function ensureAudio(){if(!_ctx){try{_ctx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){_ctx=null}}if(_ctx&&_ctx.state==='suspended')try{_ctx.resume()}catch(e){}}
+
+// Safe storage
+function lsGet(k,f){try{const v=localStorage.getItem(k);return v!==null?v:f}catch(e){return f}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+// Canvas
+const canvas=document.getElementById('gc'),ctx=canvas.getContext('2d'),wrap=document.getElementById('wrap');
+let cw,ch,cellSize,ox,oy;
+function resize(){cw=Math.min(wrap.clientWidth-8,400);ch=cw;canvas.width=cw;canvas.height=ch;cellSize=cw/gridSize;ox=(cw-gridSize*cellSize)/2;oy=ox}
+window.addEventListener('resize',resize);
+
+// ── Grid Generation ──
+function generateGrid(lvl){
+  gridSize=lvl===1?5:8;
+  const colors=lvl===1?3:8;
+  grid=[];resize();
+
+  if(lvl===1){
+    // Level 1: easy — big color blocks, lots of adjacent same-colors
+    movesLeft=15;maxMoves=15;
+    for(let r=0;r<gridSize;r++){
+      grid[r]=[];
+      for(let c=0;c<gridSize;c++){
+        // Group colors in blocks of 2-3 for easy clearing
+        const blockR=Math.floor(r/2),blockC=Math.floor(c/2);
+        grid[r][c]=(blockR*3+blockC)%colors;
+      }
+    }
+  }else{
+    // Level 2: HELL — deliberately scattered, no adjacent same-colors
+    movesLeft=12;maxMoves=12;
+    // Use checkerboard + offset to ensure no adjacent same colors
+    for(let r=0;r<gridSize;r++){
+      grid[r]=[];
+      for(let c=0;c<gridSize;c++){
+        let color;
+        do{
+          color=Math.floor(Math.random()*colors);
+          // Check neighbors (ensure no same color adjacent)
+        }while(
+          (r>0&&grid[r-1][c]===color)||
+          (c>0&&grid[r][c-1]===color)||
+          (r>0&&c>0&&grid[r-1][c-1]===color)
+        );
+        grid[r][c]=color;
+      }
+    }
+  }
+  score=0;hintCell=null;selectedCell=null;
+  updateUI();
+}
+
+// ── Connected component flood fill ──
+function getConnected(r,c,targetColor){
+  const visited=new Set(),stack=[[r,c]];
+  while(stack.length){
+    const [cr,cc]=stack.pop(),key=cr+','+cc;
+    if(visited.has(key))continue;
+    if(cr<0||cr>=gridSize||cc<0||cc>=gridSize)continue;
+    if(grid[cr][cc]!==targetColor)continue;
+    visited.add(key);
+    stack.push([cr-1,cc],[cr+1,cc],[cr,cc-1],[cr,cc+1]);
+  }
+  // Return cells sorted for animation
+  return [...visited].map(k=>{const parts=k.split(',').map(Number);return{r:parts[0],c:parts[1]}});
+}
+
+// ── Find best move (hint) ──
+function findBestMove(){
+  let best=null,bestSize=0;
+  const visited=new Set();
+  for(let r=0;r<gridSize;r++){
+    for(let c=0;c<gridSize;c++){
+      if(grid[r][c]===-1)continue;
+      const cells=getConnected(r,c,grid[r][c]);
+      if(cells.length>bestSize&&cells.length>=2){
+        bestSize=cells.length;best={r,c,size:cells.length};
+      }
+    }
+  }
+  return best;
+}
+
+// ── Draw ──
+function draw(){
+  ctx.clearRect(0,0,cw,ch);
+  for(let r=0;r<gridSize;r++){
+    for(let c=0;c<gridSize;c++){
+      if(grid[r][c]===-1)continue;
+      const x=ox+c*cellSize+2,y=oy+r*cellSize+2,w=cellSize-4,h=cellSize-4;
+      ctx.fillStyle=COLORS[grid[r][c]];
+      ctx.beginPath();roundRect(ctx,x,y,w,h,6);ctx.fill();
+      // Highlight hint
+      if(hintCell&&hintCell.r===r&&hintCell.c===c){
+        ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.setLineDash([3,2]);
+        ctx.beginPath();roundRect(ctx,x-1,y-1,w+2,h+2,6);ctx.stroke();ctx.setLineDash([]);
+      }
+      // Selected cell glow
+      if(selectedCell&&selectedCell.r===r&&selectedCell.c===c){
+        ctx.shadowColor='#fff';ctx.shadowBlur=12;ctx.fill();ctx.shadowBlur=0;
+      }
+    }
+  }
+  // Danger indicator
+  if(movesLeft<=3&&level>=2){
+    ctx.fillStyle='rgba(255,80,80,0.1)';ctx.fillRect(0,0,cw,ch);
+    ctx.fillStyle='#f85149';ctx.font='bold 24px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText('⚠️ '+(movesLeft===0?'最后一步!':movesLeft+'步'),cw/2,ch/2);
+  }
+}
+function roundRect(c,x,y,w,h,r){c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.arcTo(x+w,y,x+w,y+r,r);c.lineTo(x+w,y+h-r);c.arcTo(x+w,y+h,x+w-r,y+h,r);c.lineTo(x+r,y+h);c.arcTo(x,y+h,x,y+r,r);c.lineTo(x,y+r);c.arcTo(x,y,x+r,y,r);c.closePath()}
+
+// ── Click Handler ──
+canvas.addEventListener('click',e=>{
+  if(gameState!=='playing')return;ensureAudio();
+  const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  const col=Math.floor((mx-ox)/cellSize),row=Math.floor((my-oy)/cellSize);
+  if(col<0||col>=gridSize||row<0||row>=gridSize)return;
+  if(grid[row][col]===-1)return;
+
+  const targetColor=grid[row][col];
+  const cells=getConnected(row,col,targetColor);
+  if(cells.length<2){sfxPop(0);return} // single cell — no effect
+
+  // Remove connected cells
+  for(const cell of cells)grid[cell.r][cell.c]=-1;
+  movesLeft--;score+=cells.length*(cells.length>=6?3:cells.length>=4?2:1);
+  hintCell=null;
+
+  if(cells.length>=5)sfxCombo();else sfxPop(cells.length);
+
+  // Apply gravity (columns collapse down)
+  for(let c=0;c<gridSize;c++){
+    let writeRow=gridSize-1;
+    for(let r=gridSize-1;r>=0;r--){
+      if(grid[r][c]!==-1){grid[writeRow][c]=grid[r][c];if(writeRow!==r)grid[r][c]=-1;writeRow--}
+    }
+  }
+
+  updateUI();draw();
+
+  // Check win/lose
+  const remaining=grid.flat().filter(v=>v!==-1).length;
+  if(remaining===0){gameState='won';sfxWin();if(score>bestScore){bestScore=score;lsSet('cp_best',bestScore)}setTimeout(showWin,500)}
+  else if(movesLeft<=0){gameState='lost';sfxFail();if(score>bestScore){bestScore=score;lsSet('cp_best',bestScore)}setTimeout(showLose,500)}
+});
+
+// ── Power Ups ──
+function usePower(type){
+  if(gameState!=='playing')return;
+  showAd().then(ok=>{if(!ok)return;
+    if(type==='bomb'){// Remove 3×3 area at center
+      const cr=Math.floor(gridSize/2),cc=Math.floor(gridSize/2);
+      for(let r=Math.max(0,cr-1);r<=Math.min(gridSize-1,cr+1);r++)
+        for(let c=Math.max(0,cc-1);c<=Math.min(gridSize-1,cc+1);c++)
+          if(grid[r][c]!==-1){score++;grid[r][c]=-1}
+    }else if(type==='shuffle'){// Redistribute remaining colors
+      const vals=grid.flat().filter(v=>v!==-1);
+      for(let i=vals.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[vals[i],vals[j]]=[vals[j],vals[i]]}
+      let idx=0;
+      for(let r=0;r<gridSize;r++)for(let c=0;c<gridSize;c++)if(grid[r][c]!==-1)grid[r][c]=vals[idx++];
+    }else if(type==='hint'){// Show best move
+      hintCell=findBestMove();
+    }else if(type==='moves'){movesLeft+=5;maxMoves+=5}
+    hintCell=null;updateUI();draw();
+  });
+}
+function showAd(){return new Promise(r=>{if(typeof wx!=='undefined'&&wx.createRewardedVideoAd){try{const a=wx.createRewardedVideoAd({adUnitId:'ad-unit'});a.onClose(res=>{r(res&&res.isEnded)});a.show().catch(()=>r(confirm('📺 看广告?')));return}catch(e){}}r(confirm('📺 看广告获取道具？(上线展示真实广告)'))})}
+
+// ── UI ──
+function updateUI(){document.getElementById('lv').textContent=level;document.getElementById('mv').textContent=movesLeft;document.getElementById('sc').textContent=score}
+
+// ── Overlays ──
+function showWin(){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov"><h2>🎉 通关！</h2><div class="big" style="color:var(--gold)">${score}</div>
+    <div class="stat-row"><div>清除<div><b>${gridSize*gridSize}</b>方块</div></div><div>剩余<div><b>${movesLeft}</b>步</div></div></div>
+    ${level===1?'<p style="color:var(--accent);font-size:13px">第二关可没那么简单...</p>':''}
+    <button class="btn primary" onclick="nextLevel()">${level===1?'▶️ 进入第二关':'🏆 再来一次'}</button>
+    <button class="btn ghost" onclick="shareCard()">📤 分享战绩炫耀</button></div>`;ov.classList.remove('hidden');
+}
+function showLose(){
+  const pct=Math.round(score/(gridSize*gridSize)*100);
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov"><h2>😤 步数用完了！</h2><div class="big" style="color:var(--danger)">${pct}%</div>
+    <p style="color:#6b6b7b;font-size:13px">清除了 ${score} 个方块</p>
+    ${level>=2&&pct<30?`<p style="color:var(--accent);font-size:12px">全国只有 <b>0.1%</b> 的人能通关第二关！</p>`:''}
+    <button class="btn ad" onclick="revive()">📺 看广告 — 复活 +5步</button>
+    <button class="btn primary" onclick="retry()">🔄 再试一次</button>
+    <button class="btn ghost" onclick="shareCard()">📤 分享求助好友</button></div>`;ov.classList.remove('hidden');
+}
+function revive(){showAd().then(ok=>{if(ok){movesLeft+=5;gameState='playing';hideOverlay();updateUI();draw()}})}
+function retry(){hideOverlay();generateGrid(level);gameState='playing';updateUI();draw()}
+function nextLevel(){hideOverlay();level++;generateGrid(level);gameState='playing';updateUI();draw()}
+function hideOverlay(){document.getElementById('overlay').classList.add('hidden')}
+function shareCard(){
+  const pct=Math.round(score/(gridSize*gridSize)*100);
+  const text=`🟪 ColorPop 我清除了${pct}%!\n你能超过我吗？来挑战！`;
+  if(navigator.share)navigator.share({title:'ColorPop',text}).catch(()=>{});
+  else{navigator.clipboard.writeText(text).then(()=>alert('已复制分享文字！'));hideOverlay()}
+}
+
+// ── Province ──
+const PROVINCES=['北京','上海','广东','浙江','江苏','四川','湖北','湖南','福建','山东','河南','河北','辽宁','陕西','重庆','其他'];
+function showStart(){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov"><h2>🟪 ColorPop</h2><p style="color:#6b6b7b;font-size:13px;margin:8px 0">点击同色方块消除<br>步数用完就输！</p><p style="color:var(--gold);font-size:11px">🔥 第一关超简单 · 💀 第二关地狱 · 🏆 省份排名</p><p style="color:#6b6b7b;font-size:10px">最高分: ${bestScore}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin:8px 0">${PROVINCES.map(p=>`<span style="padding:5px 10px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);font-size:11px;cursor:pointer;${p===province?'background:var(--gold);color:#000':'color:#6b6b7b'}" onclick="pickProv('${p}')">${p}</span>`).join('')}</div>
+    <button class="btn primary" onclick="startGame()">开始挑战</button></div>`;ov.classList.remove('hidden');
+}
+function pickProv(p){province=p;lsSet('cp_prov',p);document.getElementById('prov').textContent=p;showStart()}
+function startGame(){level=1;hideOverlay();generateGrid(1);gameState='playing';updateUI();draw()}
+
+// Init
+function init(){
+  province=lsGet('cp_prov','');document.getElementById('prov').textContent=province||'-';
+  resize();
+  if(!province)showStart();else{level=1;generateGrid(1);gameState='playing';updateUI();draw()}
+}
+init();
+</script>
+</body>
+</html>
