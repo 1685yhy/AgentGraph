@@ -4,7 +4,6 @@
   "description": "AI-native product delivery platform. 40 agents, 9 product types, 17 quality gates.",
   "ai_entry_point": "Run 'guild' with no arguments or 'guild help --json' for full system schema.",
   "ai_mode": "Set AG_AI_MODE=1 or use --json flag on any command for structured output.",
-
   "quick_start_for_ai": {
     "discover": "guild help --json",
     "plan": "guild plan --json '<task description>'",
@@ -14,20 +13,55 @@
     "run_quality_gate": "guild gate --handoff <id> --json",
     "check_health": "guild doctor --json"
   },
-
   "commands": {
     "plan": {
       "description": "AI task analysis → agent selection → graph generation",
       "usage": "guild plan [--json] '<task description>'",
-      "input": { "task": "string (natural language)" },
-      "output_json": { "type": "string", "agents": ["string"], "template": "string", "gates": "string", "modules": ["string"] },
+      "input": {
+        "task": "string (natural language)"
+      },
+      "output_json": {
+        "type": "string",
+        "agents": [
+          "string"
+        ],
+        "template": "string",
+        "gates": "string",
+        "modules": [
+          "string"
+        ]
+      },
       "example": "guild plan --json '做一个供应商后台管理系统'"
     },
     "capability": {
       "description": "Show product type capabilities (agents, modules, gates)",
       "usage": "guild capability <type> [--json]",
-      "output_json": { "type": "string", "label": "string", "agents": ["string"], "modules": ["string"], "gates": "string", "template": "string", "metrics": ["string"] },
-      "types": ["wechat-game","miniapp","web-app","dashboard","api-service","landing-page","corp-site","admin-system","mobile-app"]
+      "output_json": {
+        "type": "string",
+        "label": "string",
+        "agents": [
+          "string"
+        ],
+        "modules": [
+          "string"
+        ],
+        "gates": "string",
+        "template": "string",
+        "metrics": [
+          "string"
+        ]
+      },
+      "types": [
+        "wechat-game",
+        "miniapp",
+        "web-app",
+        "dashboard",
+        "api-service",
+        "landing-page",
+        "corp-site",
+        "admin-system",
+        "mobile-app"
+      ]
     },
     "capabilities": {
       "description": "List all 9 product types with capabilities",
@@ -36,12 +70,29 @@
     "init": {
       "description": "Initialize project from template",
       "usage": "guild init --template <name> <directory>",
-      "templates": ["wechat-game","miniapp","web-app","dashboard","api-service","landing-page","corp-site","admin-system","mobile-app"]
+      "templates": [
+        "wechat-game",
+        "miniapp",
+        "web-app",
+        "dashboard",
+        "api-service",
+        "landing-page",
+        "corp-site",
+        "admin-system",
+        "mobile-app"
+      ]
     },
     "dispatch": {
       "description": "Dispatch agent with full context (identity + memory + task)",
       "usage": "guild dispatch <agent-slug> '<task>' [--json]",
-      "output_json": { "agent": "string", "task": "string", "dispatch_id": "string", "memory_context": ["string"] }
+      "output_json": {
+        "agent": "string",
+        "task": "string",
+        "dispatch_id": "string",
+        "memory_context": [
+          "string"
+        ]
+      }
     },
     "execute": {
       "description": "Full agent execution (dispatch + track + complete)",
@@ -54,7 +105,18 @@
     "chain": {
       "description": "Generate full agent execution chain for a task",
       "usage": "guild chain '<task>' [--json]",
-      "output_json": { "task": "string", "type": "string", "agents": [{"order": "number", "slug": "string", "name": "string", "dispatch_command": "string"}] }
+      "output_json": {
+        "task": "string",
+        "type": "string",
+        "agents": [
+          {
+            "order": "number",
+            "slug": "string",
+            "name": "string",
+            "dispatch_command": "string"
+          }
+        ]
+      }
     },
     "gate": {
       "description": "Run quality gates on a handoff",
@@ -66,12 +128,32 @@
         "4": "playability — UX checks (tutorial, audio, mobile)",
         "5": "agent-standards — agent success criteria met"
       },
-      "output_json": { "handoff_id": "number", "passed": "number", "failed": "number", "total": "number", "results": [{"gate": "string", "status": "pass|fail", "details": "string"}] }
+      "output_json": {
+        "handoff_id": "number",
+        "passed": "number",
+        "failed": "number",
+        "total": "number",
+        "results": [
+          {
+            "gate": "string",
+            "status": "pass|fail",
+            "details": "string"
+          }
+        ]
+      }
     },
     "fix": {
       "description": "Auto-fix common gate failures",
       "usage": "guild fix --file <path> [--all] [--dry-run] [--list]",
-      "strategies": ["state-management","audio-gesture","viewport-meta","localStorage-try-catch","replayability","canvas-safety","province-blocking"]
+      "strategies": [
+        "state-management",
+        "audio-gesture",
+        "viewport-meta",
+        "localStorage-try-catch",
+        "replayability",
+        "canvas-safety",
+        "province-blocking"
+      ]
     },
     "doctor": {
       "description": "System health check (7 checks)",
@@ -126,21 +208,66 @@
       "usage": "guild cleanup [--stale]"
     }
   },
-
   "agents": {
-    "product": ["product-manager","ux-researcher","data-analyst","tech-writer"],
-    "design": ["ui-designer","brand-guardian","interaction-designer","creative-director"],
-    "engineering": ["frontend-engineer","backend-architect","database-specialist","devops-engineer","mobile-developer","ai-engineer","code-reviewer"],
-    "testing": ["qa-engineer","performance-tester","accessibility-auditor"],
-    "security": ["security-engineer"],
-    "marketing": ["growth-hacker","content-creator","seo-specialist","social-media-strategist"],
-    "game-development": ["game-designer","game-programmer","technical-artist","game-ui-designer","game-audio-engineer","monetization-designer","game-qa-engineer","game-producer"],
-    "project-management": ["project-manager"],
-    "sales": ["sales-engineer","deal-strategist"],
-    "support": ["customer-support"],
-    "finance": ["financial-analyst"]
+    "product": [
+      "product-manager",
+      "ux-researcher",
+      "data-analyst",
+      "tech-writer"
+    ],
+    "design": [
+      "ui-designer",
+      "brand-guardian",
+      "interaction-designer",
+      "creative-director"
+    ],
+    "engineering": [
+      "frontend-engineer",
+      "backend-architect",
+      "database-specialist",
+      "devops-engineer",
+      "mobile-developer",
+      "ai-engineer",
+      "code-reviewer"
+    ],
+    "testing": [
+      "qa-engineer",
+      "performance-tester",
+      "accessibility-auditor"
+    ],
+    "security": [
+      "security-engineer"
+    ],
+    "marketing": [
+      "growth-hacker",
+      "content-creator",
+      "seo-specialist",
+      "social-media-strategist"
+    ],
+    "game-development": [
+      "game-designer",
+      "game-programmer",
+      "technical-artist",
+      "game-ui-designer",
+      "game-audio-engineer",
+      "monetization-designer",
+      "game-qa-engineer",
+      "game-producer"
+    ],
+    "project-management": [
+      "project-manager"
+    ],
+    "sales": [
+      "sales-engineer",
+      "deal-strategist"
+    ],
+    "support": [
+      "customer-support"
+    ],
+    "finance": [
+      "financial-analyst"
+    ]
   },
-
   "gates": {
     "1_completeness": "所有必需交付物已提供",
     "2_syntax": "所有文件语法验证通过",
@@ -148,27 +275,83 @@
     "4_playability": "可玩性检查(教程/音效/UX流程/移动端)",
     "5_agent_standards": "Agent成功标准逐条验证"
   },
-
   "ai_workflow_example": {
     "task": "做一个供应商后台管理系统",
     "steps": [
-      {"command": "guild plan --json '...'", "purpose": "AI分析任务→选型→构图"},
-      {"command": "guild capability admin-system --json", "purpose": "查看该类型的Agent/模块/Gate"},
-      {"command": "guild init --template admin-system ./project", "purpose": "初始化项目脚手架"},
-      {"command": "guild chain '...' --json", "purpose": "生成完整Agent执行链"},
-      {"command": "guild dispatch product-manager '写PRD'", "purpose": "派发第一个Agent"},
-      {"command": "guild complete <id> 'PRD完成: 10个用户故事'", "purpose": "标记Agent完成"},
-      {"command": "guild gate --handoff <id> --json", "purpose": "质量门禁验证"},
-      {"command": "guild fix --file <path> --all", "purpose": "自动修复Gate失败项"}
+      {
+        "command": "guild plan --json '...'",
+        "purpose": "AI分析任务→选型→构图"
+      },
+      {
+        "command": "guild capability admin-system --json",
+        "purpose": "查看该类型的Agent/模块/Gate"
+      },
+      {
+        "command": "guild init --template admin-system ./project",
+        "purpose": "初始化项目脚手架"
+      },
+      {
+        "command": "guild chain '...' --json",
+        "purpose": "生成完整Agent执行链"
+      },
+      {
+        "command": "guild dispatch product-manager '写PRD'",
+        "purpose": "派发第一个Agent"
+      },
+      {
+        "command": "guild complete <id> 'PRD完成: 10个用户故事'",
+        "purpose": "标记Agent完成"
+      },
+      {
+        "command": "guild gate --handoff <id> --json",
+        "purpose": "质量门禁验证"
+      },
+      {
+        "command": "guild fix --file <path> --all",
+        "purpose": "自动修复Gate失败项"
+      }
     ]
   },
-
   "error_handling": {
     "pattern": "All errors follow: { error: 'message', fix: 'suggestion', help: 'guild help <command>' }",
     "common_errors": {
-      "unknown_agent": {"fix": "Run 'guild agents' to see all 40 available agents"},
-      "unknown_template": {"fix": "Run 'guild templates' to see available templates"},
-      "gate_failed": {"fix": "Run 'guild fix --file <path> --all' to auto-fix, or check specific failures with 'guild gate --handoff <id> --json'"}
+      "unknown_agent": {
+        "fix": "Run 'guild agents' to see all 40 available agents"
+      },
+      "unknown_template": {
+        "fix": "Run 'guild templates' to see available templates"
+      },
+      "gate_failed": {
+        "fix": "Run 'guild fix --file <path> --all' to auto-fix, or check specific failures with 'guild gate --handoff <id> --json'"
+      }
+    }
+  },
+  "mcp_integration": {
+    "description": "AgentGraph exposes ALL capabilities as MCP tools. AI hosts call functions directly, no bash parsing.",
+    "registration": {
+      "claude_code": "Add to .mcp.json: mcpServers.agentgraph = node scripts/mcp-server.js",
+      "openclaw": "Register as MCP server: node scripts/mcp-server.js",
+      "hermes": "Register as MCP server: node scripts/mcp-server.js",
+      "generic": "node scripts/mcp-server.js --http 3000"
+    },
+    "tools_count": 14
+  },
+  "cross_platform": {
+    "claude_code": {
+      "mcp": true,
+      "bash": true
+    },
+    "openclaw": {
+      "mcp": true,
+      "bash": true,
+      "http": true
+    },
+    "hermes": {
+      "mcp": true,
+      "bash": true
+    },
+    "standalone": {
+      "bash": true
     }
   }
 }

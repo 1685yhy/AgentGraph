@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "agentgraph": {
+      "command": "node",
+      "args": ["scripts/mcp-server.js"],
+      "description": "AgentGraph — AI-native product delivery platform. 40 agents, 9 product types, 17 quality gates. Use for: task planning, agent dispatch, quality verification, project initialization."
+    }
+  }
+}
