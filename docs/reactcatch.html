@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>闪速捕手 — 测测你的反应速度</title>
+<style>
+:root{
+  --bg:#0a0a0f; --surface:#14141f; --text:#f0f0f5; --muted:#6b6b7b; --gold:#f6c94d;
+  --r:12px; --ease:cubic-bezier(0.16,1,0.3,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body{height:100%;display:flex;flex-direction:column;align-items:center;background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  color:var(--text);user-select:none;-webkit-user-select:none;overflow:hidden}
+/* Header */
+#hdr{width:100%;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;color:var(--muted);z-index:10}
+#hdr .logo{font-size:16px;font-weight:800;color:var(--text);letter-spacing:-0.5px}
+#hdr .stats{display:flex;gap:14px}
+#hdr .stats b{color:var(--gold)}
+/* Target color indicator */
+#target{width:100%;padding:14px 16px 6px;text-align:center;z-index:10}
+#target .label{font-size:12px;color:var(--muted);margin-bottom:4px}
+#target .color-name{font-size:28px;font-weight:900;letter-spacing:-1px}
+#target .emoji{font-size:36px}
+/* Canvas */
+#wrap{flex:1;width:100%;position:relative;display:flex;justify-content:center;align-items:center;overflow:hidden}
+canvas{display:block;touch-action:manipulation}
+/* Feedback flash */
+#flash{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;opacity:0;transition:opacity 0.15s}
+#flash.good{background:rgba(46,204,113,0.2);opacity:1}
+#flash.bad{background:rgba(231,76,60,0.3);opacity:1;animation:shake 0.4s ease-out}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+/* Reaction time popup */
+.rt-pop{position:absolute;color:var(--gold);font-size:13px;font-weight:700;pointer-events:none;animation:floatUp 1s ease-out forwards}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-50px)}}
+/* Overlay */
+#overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);
+  display:flex;justify-content:center;align-items:center;z-index:100;backdrop-filter:blur(4px)}
+.ov{background:var(--surface);border-radius:var(--r);padding:28px 22px;text-align:center;max-width:320px;
+  width:90%;border:1px solid rgba(255,255,255,0.06);animation:popIn 0.35s var(--ease)}
+@keyframes popIn{from{transform:scale(0.9);opacity:0}to{transform:scale(1);opacity:1}}
+.ov h2{font-size:24px;font-weight:800;margin-bottom:4px;letter-spacing:-0.5px}
+.ov .big{font-size:48px;font-weight:900;margin:8px 0;line-height:1}
+.ov .stat-row{display:flex;justify-content:center;gap:20px;margin:10px 0;font-size:13px;color:var(--muted)}
+.ov .stat-row b{color:var(--text);font-size:16px}
+.ov .btn{display:block;width:100%;padding:14px;margin:6px 0;border-radius:var(--r);border:none;
+  font-size:15px;font-weight:700;cursor:pointer;color:#fff;transition:transform 0.15s}
+.ov .btn:active{transform:scale(0.96)}
+.btn.primary{background:var(--gold);color:#000}
+.btn.ad{background:linear-gradient(135deg,#667eea,#764ba2);font-size:13px}
+.btn.ghost{background:rgba(255,255,255,0.05);color:var(--muted);font-size:13px}
+.hidden{display:none!important}
+/* Speed indicator */
+#speed-bar{width:100%;max-width:400px;height:3px;background:rgba(255,255,255,0.06);margin:0 auto;border-radius:2px;overflow:hidden}
+#speed-bar .fill{height:100%;background:linear-gradient(90deg,#3fb950,#f6c94d,#f85149);transition:width 0.3s;border-radius:2px}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div class="logo">⚡ 闪速捕手</div>
+  <div class="stats">🎯<b id="sc">0</b> | ⏱<b id="rt">-</b>ms | 📍<b id="prov-label">-</b></div>
+</div>
+
+<div id="target">
+  <div class="label">点击所有</div>
+  <div class="color-name" id="color-label"></div>
+</div>
+
+<div id="speed-bar"><div class="fill" id="fill" style="width:0%"></div></div>
+
+<div id="wrap">
+  <canvas id="gc"></canvas>
+  <div id="flash"></div>
+</div>
+
+<div id="overlay" class="hidden"></div>
+
+<script>
+/* ═══════════ 闪速捕手 — 反应速度测试 ═══════════ */
+
+// ── Product: Target 22-35 office workers, 碎片时间, 5s/round ──
+const COLORS=[
+  {name:'红色',emoji:'🔴',hex:'#e74c3c',css:'#ff4444'},
+  {name:'蓝色',emoji:'🔵',hex:'#3498db',css:'#4488ff'},
+  {name:'绿色',emoji:'🟢',hex:'#2ecc71',css:'#44dd66'},
+  {name:'黄色',emoji:'🟡',hex:'#f1c40f',css:'#ffdd44'},
+  {name:'紫色',emoji:'🟣',hex:'#9b59b6',css:'#bb66dd'},
+  {name:'橙色',emoji:'🟠',hex:'#e67e22',css:'#ff8844'},
+];
+const INITIAL_SPEED=80,MAX_SPEED=260,SPEED_STEP=8,SHAPES_PER_WAVE=4;
+const MIN_CORRECT=2; // minimum correct shapes in each wave
+
+let gameState='init',score=0,totalTaps=0,correctTaps=0;
+let targetColor=null,shapes=[],speed=INITIAL_SPEED,waveTimer=0;
+let lastTapTime=0,reactionTimes=[];
+let province='',bestScore=parseInt(lsGet('rc_best','0'));
+let streak=parseInt(lsGet('rc_streak','0'));
+
+// Safe storage
+function lsGet(k,f){try{const v=localStorage.getItem(k);return v!==null?v:f}catch(e){return f}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+// Daily streak
+(function(){const t=new Date().toISOString().slice(0,10),l=lsGet('rc_date','');if(l!==t){const y=new Date(Date.now()-864e5).toISOString().slice(0,10);streak=(l===y)?streak+1:1;lsSet('rc_date',t);lsSet('rc_streak',streak)}})()
+
+// Audio
+let _ctx=null;
+function snd(f,d,t='sine',v=0.05){if(!_ctx)return;try{const o=_ctx.createOscillator(),g=_ctx.createGain();o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,_ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,_ctx.currentTime+d);o.connect(g);g.connect(_ctx.destination);o.start();o.stop(_ctx.currentTime+d)}catch(e){}}
+function sfxTap(){snd(600,0.06,'sine',0.04)}
+function sfxRight(){snd(880,0.08,'sine',0.05);setTimeout(()=>snd(1100,0.1,'sine',0.05),60)}
+function sfxWrong(){snd(100,0.3,'sawtooth',0.08)}
+function sfxLvlUp(){snd(523,0.1,'sine',0.06);setTimeout(()=>snd(784,0.15,'sine',0.06),100)}
+function ensureAudio(){if(!_ctx){try{_ctx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){_ctx=null}}if(_ctx&&_ctx.state==='suspended')try{_ctx.resume()}catch(e){}}
+
+// Canvas
+const canvas=document.getElementById('gc'),ctx=canvas.getContext('2d'),wrap=document.getElementById('wrap');
+let cw,ch;
+function resize(){cw=Math.min(wrap.clientWidth-8,400);ch=wrap.clientHeight-8;canvas.width=cw;canvas.height=ch}
+window.addEventListener('resize',resize);
+
+// ── Shapes ──
+const SHAPE_TYPES=['circle','square','triangle'];
+function randomShape(y,speed){
+  const colorIdx=Math.floor(Math.random()*COLORS.length);
+  const type=SHAPE_TYPES[Math.floor(Math.random()*SHAPE_TYPES.length)];
+  const r=22+Math.random()*14,x=40+Math.random()*(cw-80);
+  return{color:colorIdx,type,x,y,r,vx:(Math.random()-0.5)*1.5,vy:speed*(0.8+Math.random()*0.4),tapped:false};
+}
+
+function spawnWave(){
+  shapes=[];
+  // Ensure at least MIN_CORRECT are target color
+  const correctPositions=new Set();
+  while(correctPositions.size<MIN_CORRECT)correctPositions.add(Math.floor(Math.random()*SHAPES_PER_WAVE));
+  for(let i=0;i<SHAPES_PER_WAVE;i++){
+    const s=randomShape(-40-i*30,speed);
+    if(correctPositions.has(i))s.color=targetColor;
+    else{let c=targetColor;while(c===targetColor)c=Math.floor(Math.random()*COLORS.length);s.color=c}
+    shapes.push(s);
+  }
+}
+
+function pickTarget(){targetColor=Math.floor(Math.random()*COLORS.length);document.getElementById('color-label').textContent=COLORS[targetColor].name}
+
+// ── Draw ──
+function drawShape(s){
+  const c=COLORS[s.color];
+  ctx.fillStyle=c.css+(s.tapped?'80':'ff');ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=2;
+  ctx.beginPath();
+  switch(s.type){
+    case'circle':ctx.arc(s.x,s.y,s.r,0,Math.PI*2);break;
+    case'square':ctx.rect(s.x-s.r,s.y-s.r,s.r*2,s.r*2);break;
+    case'triangle':ctx.moveTo(s.x,s.y-s.r);ctx.lineTo(s.x+s.r,s.y+s.r);ctx.lineTo(s.x-s.r,s.y+s.r);ctx.closePath();break;
+  }
+  ctx.fill();ctx.stroke();
+  // Label
+  ctx.fillStyle='#fff';ctx.font='bold 14px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(c.emoji,s.x,s.y);
+}
+
+function draw(){
+  ctx.clearRect(0,0,cw,ch);
+  for(const s of shapes)drawShape(s);
+  // Danger zone indicator
+  if(speed>200){ctx.strokeStyle='rgba(255,80,80,0.3)';ctx.lineWidth=1;ctx.setLineDash([8,4]);
+    ctx.beginPath();ctx.moveTo(0,ch-5);ctx.lineTo(cw,ch-5);ctx.stroke();ctx.setLineDash([])}
+}
+
+// ── Game loop ──
+let lastTime=performance.now(),_dt=0;
+function gameLoop(now){
+  _dt=(now-lastTime)/1000;if(_dt>0.1)_dt=0.1;lastTime=now;
+  if(gameState==='playing')update(_dt);
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function update(dt){
+  // Move shapes down
+  for(const s of shapes){s.y+=s.vy*dt;s.x+=s.vx*dt;if(s.x<s.r||s.x>cw-s.r)s.vx*=-1}
+  // Remove shapes that fall off screen
+  const off=shapes.filter(s=>s.y>ch+60&&!s.tapped);
+  for(const s of off){
+    if(s.color===targetColor&&!s.tapped){endGame('miss');return}
+  }
+  shapes=shapes.filter(s=>s.y<=ch+60);
+  // Spawn new wave when all shapes gone
+  if(shapes.length===0){
+    waveTimer+=dt;
+    if(waveTimer>0.3){spawnWave();waveTimer=0}
+  }
+  // Increase speed
+  speed=Math.min(MAX_SPEED,INITIAL_SPEED+score*SPEED_STEP);
+  document.getElementById('fill').style.width=(speed-INITIAL_SPEED)/(MAX_SPEED-INITIAL_SPEED)*100+'%';
+}
+
+// ── Input ──
+canvas.addEventListener('click',e=>{
+  if(gameState!=='playing')return;
+  ensureAudio();
+  const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  totalTaps++;
+  let hit=false;
+  for(const s of shapes){
+    if(s.tapped)continue;
+    const dx=mx-s.x,dy=my-s.y;
+    if(Math.sqrt(dx*dx+dy*dy)<s.r+6){ // +6px touch tolerance
+      s.tapped=true;hit=true;
+      if(s.color===targetColor){
+        correctTaps++;score++;
+        sfxRight();
+        const rt=Date.now()-lastTapTime;if(lastTapTime>0)reactionTimes.push(rt);
+        lastTapTime=Date.now();
+        showRT(mx,my-20,rt);
+        document.getElementById('rt').textContent=Math.round(avgRT())+'ms';
+      }else{
+        endGame('wrong');return;
+      }
+      break;
+    }
+  }
+  if(!hit){sfxTap();/* missed tap — no penalty, just feedback */}
+  updateUI();
+  // Level up every 15 points
+  if(score>0&&score%15===0&&score<100){sfxLvlUp();pickTarget();document.getElementById('flash').className='good';setTimeout(()=>document.getElementById('flash').className='',200)}
+});
+
+canvas.addEventListener('touchstart',e=>{e.preventDefault()}); // prevent scroll
+
+function avgRT(){if(!reactionTimes.length)return 0;return reactionTimes.reduce((a,b)=>a+b,0)/reactionTimes.length}
+function percentile(rt){return Math.max(1,Math.round(100-Math.pow(rt/100,1.5)*100))} // simple model
+function showRT(x,y,rt){const el=document.createElement('div');el.className='rt-pop';el.textContent=rt+'ms';el.style.left=x+'px';el.style.top=y+'px';wrap.appendChild(el);setTimeout(()=>el.remove(),1000)}
+
+function endGame(reason){
+  gameState='lost';
+  if(reason==='wrong'){sfxWrong();document.getElementById('flash').className='bad';setTimeout(()=>document.getElementById('flash').className='',400)}
+  else sfxWrong();
+  if(score>bestScore){bestScore=score;lsSet('rc_best',bestScore)}
+  updateUI();
+  setTimeout(showResult,500);
+}
+
+// ── Result screen ──
+function showResult(){
+  const rt=Math.round(avgRT()),pct=percentile(rt);
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov">
+    <h2>${score>bestScore-1?'🎉 新纪录！':'⚡ 成绩单'}</h2>
+    <div class="big" style="color:var(--gold)">${score}</div>
+    <div class="stat-row"><div>反应速度<div><b>${rt||'-'}</b>ms</div></div><div>击败<div><b>${pct}%</b>的人</div></div><div>正确率<div><b>${totalTaps?Math.round(correctTaps/totalTaps*100):0}%</b></div></div></div>
+    ${score<5?`<p style="color:var(--muted);font-size:13px;margin:8px 0">💡 提示: 只点${COLORS[targetColor]?.name||''}的！</p>`:''}
+    <button class="btn primary" onclick="retry()">🔄 再来一次</button>
+    <button class="btn ad" onclick="revive()">📺 看广告 — 继续挑战</button>
+    <button class="btn ghost" onclick="shareCard()">📤 分享成绩炫耀</button>
+  </div>`;
+  ov.classList.remove('hidden');
+}
+
+function retry(){resetGame();hideOverlay();startRound()}
+function revive(){showAd().then(()=>{score=Math.max(0,score-2);gameState='playing';hideOverlay();spawnWave();updateUI()})}
+function shareCard(){
+  const rt=Math.round(avgRT()),pct=percentile(rt);
+  const text=`⚡ 我的反应速度 ${rt}ms，击败了 ${pct}% 的人！\n你能超过我吗？`;
+  if(navigator.share)navigator.share({title:'闪速捕手',text}).catch(()=>{});
+  else{prompt('复制分享:',text)}
+}
+function hideOverlay(){document.getElementById('overlay').classList.add('hidden')}
+function showAd(){return new Promise(r=>{if(typeof wx!=='undefined'&&wx.createRewardedVideoAd){try{const a=wx.createRewardedVideoAd({adUnitId:'adunit-revive'});a.onClose(res=>{if(res.isEnded)r()});a.show().catch(()=>{if(confirm('📺 看广告继续？'))r()});return}catch(e){}}if(confirm('📺 观看广告以继续挑战？'))r()})}
+
+// ── Game flow ──
+function resetGame(){score=0;totalTaps=0;correctTaps=0;speed=INITIAL_SPEED;reactionTimes=[];lastTapTime=0;waveTimer=0;shapes=[]}
+function startRound(){gameState='playing';pickTarget();spawnWave();updateUI();document.getElementById('fill').style.width='0%'}
+function updateUI(){document.getElementById('sc').textContent=score;document.getElementById('prov-label').textContent=province||'-'}
+
+// ── Province ──
+const PROVINCES=['北京','上海','广东','浙江','江苏','四川','湖北','湖南','福建','山东','河南','河北','辽宁','陕西','重庆','其他'];
+function showStart(){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov"><h2>⚡ 闪速捕手</h2>
+    <p style="color:var(--muted);font-size:14px;margin:8px 0">测测你的反应速度有多快<br>点击下落的正确颜色，错了就输！</p>
+    <p style="color:var(--muted);font-size:12px">最高分: ${bestScore} | 🔥连续 ${streak} 天</p>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin:10px 0">${PROVINCES.map(p=>`<span style="padding:6px 10px;border-radius:16px;border:1px solid rgba(255,255,255,0.15);font-size:11px;cursor:pointer;${p===province?'background:var(--gold);color:#000;border-color:var(--gold)':'color:var(--muted)'}" onclick="pickProv('${p}')">${p}</span>`).join('')}</div>
+    <button class="btn primary" onclick="startGame()">开始挑战</button></div>`;
+  ov.classList.remove('hidden');
+}
+function pickProv(p){province=p;lsSet('rc_prov',p);showStart()}
+function startGame(){resetGame();hideOverlay();startRound()}
+
+// Init
+function init(){
+  resize();province=lsGet('rc_prov','');updateUI();
+  if(!province)showStart();else startGame();
+  requestAnimationFrame(gameLoop);
+}
+init();
+</script>
+</body>
+</html>
