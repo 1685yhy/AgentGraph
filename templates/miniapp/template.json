@@ -1,0 +1,20 @@
+{
+  "name": "miniapp",
+  "description": "微信小程序模板 — 原生WXML+WXSS或Taro跨端",
+  "stack": {
+    "framework": "原生微信小程序 / Taro 3.x (React/Vue)",
+    "backend": "微信云开发 / Leancloud / 自建API",
+    "ui": "WeUI / Vant Weapp",
+    "payment": "wx.requestPayment"
+  },
+  "agents": ["product-manager","ux-researcher","ui-designer","mobile-developer","frontend-engineer","backend-architect","qa-engineer"],
+  "gates": "1 2 3 4",
+  "files": {
+    "app.json": "小程序配置(页面路由/窗口/tabBar)",
+    "pages/index/": "首页(登录+核心入口)",
+    "utils/auth.js": "微信登录(code2session+JWT)",
+    "utils/request.js": "网络请求封装(自动token+重试)",
+    "utils/payment.js": "微信支付封装",
+    "cloud/": "云函数(可选)"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "api-service",
+  "description": "后端API服务模板 — FastAPI/Express+数据库+认证+文档",
+  "stack": {
+    "framework": "FastAPI (Python) / Express (Node.js)",
+    "database": "PostgreSQL / MySQL + Prisma/SQLAlchemy",
+    "cache": "Redis",
+    "auth": "JWT + OAuth2.0 + API Key",
+    "docs": "OpenAPI 3.0 (Swagger)",
+    "testing": "Pytest / Jest + Supertest",
+    "deploy": "Docker + Kubernetes"
+  },
+  "agents": ["backend-architect","database-specialist","security-engineer","devops-engineer","qa-engineer"],
+  "gates": "1 2 3",
+  "features": ["RESTful API","认证授权JWT","请求限流","日志系统","健康检查","Swagger文档","数据迁移","单元测试","Docker部署"],
+  "files": {
+    "src/": "应用代码",
+    "src/api/": "路由+控制器",
+    "src/models/": "数据模型",
+    "src/middleware/": "中间件(auth/logging/rate-limit/cors)",
+    "src/services/": "业务逻辑层",
+    "tests/": "测试",
+    "Dockerfile": "容器化",
+    "docker-compose.yml": "服务编排"
+  }
+}

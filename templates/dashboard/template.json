@@ -1,0 +1,21 @@
+{
+  "name": "dashboard",
+  "description": "数据看板模板 — React+Chart.js/D3+实时数据+导出",
+  "stack": {
+    "frontend": "React 18 + TypeScript + Tailwind + Recharts/D3",
+    "backend": "FastAPI + SQLAlchemy + Redis(cache)",
+    "database": "PostgreSQL (分析查询优化)",
+    "realtime": "WebSocket / SSE",
+    "export": "Excel/PDF导出"
+  },
+  "agents": ["product-manager","data-analyst","ui-designer","frontend-engineer","backend-architect","database-specialist","qa-engineer"],
+  "gates": "1 2 3 4",
+  "features": ["图表卡片","数据筛选","实时刷新","导出","权限控制","暗色模式"],
+  "files": {
+    "src/components/charts/": "图表组件(折线/柱状/饼图/热力)",
+    "src/components/filters/": "筛选器组件(日期/下拉/搜索)",
+    "src/hooks/useData.ts": "数据获取Hook(缓存+轮询)",
+    "src/utils/export.ts": "导出工具(Excel/PDF/CSV)",
+    "backend/api/analytics.py": "分析API(聚合查询+缓存)"
+  }
+}

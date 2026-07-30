@@ -1,0 +1,20 @@
+{
+  "name": "web-app",
+  "description": "React全栈应用模板 — TypeScript+Tailwind+FastAPI+PostgreSQL",
+  "stack": {
+    "frontend": "React 18 + TypeScript + Tailwind CSS + React Router",
+    "backend": "FastAPI (Python 3.12) / Express (Node.js)",
+    "database": "PostgreSQL / MySQL + Prisma ORM",
+    "auth": "JWT + OAuth2.0",
+    "deploy": "Docker + Nginx / Vercel"
+  },
+  "agents": ["product-manager","ux-researcher","ui-designer","frontend-engineer","backend-architect","database-specialist","qa-engineer","security-engineer","devops-engineer"],
+  "gates": "1 2 3 4",
+  "files": {
+    "frontend/": "React应用 (Vite + TypeScript + Tailwind)",
+    "backend/": "FastAPI服务 (路由+中间件+数据库)",
+    "shared/": "共享类型定义",
+    "docker-compose.yml": "开发环境(Django+PostgreSQL+Redis)",
+    ".env.example": "环境变量模板"
+  }
+}

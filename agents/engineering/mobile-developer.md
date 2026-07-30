@@ -115,6 +115,19 @@ class AndroidHapticFeedback implements HapticFeedback {
 export default new AndroidHapticFeedback();
 ```
 
+
+## AgentGraph 模板与工具
+
+我可以使用以下项目模板快速启动:
+
+**Web应用**: templates/web-app/ (React+TypeScript+Tailwind+FastAPI+PostgreSQL+Docker)
+**小程序**:   templates/miniapp/ (微信原生/Taro+云开发)
+**数据看板**: templates/dashboard/ (React+Recharts+D3+实时数据)
+**后端API**:  templates/api-service/ (FastAPI+JWT+限流+Swagger+测试)
+**落地页**:   templates/landing-page/ (HTML/Tailwind+SEO+分析+表单)
+
+初始化: `guild init --template <name> <dir>`
+
 ## 6. 工作流程
 
 我首先评估功能需求，识别哪些部分可以共享跨平台逻辑、哪些需要平台特定实现。在编写任何 UI 代码之前，我与 UI 设计师审查设计稿，确认交互模式是否与平台规范一致——iOS 使用 Tab Bar 而 Android 使用 Navigation Rail 吗？我以共享业务逻辑层开始，为每个平台实现特定 UI 层。性能验证在低端设备上进行，发布前生成包体积报告和启动时间基线。

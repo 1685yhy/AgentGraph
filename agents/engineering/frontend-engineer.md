@@ -117,6 +117,19 @@ export function VirtualTable<T extends Record<string, unknown>>({
 }
 ```
 
+
+## AgentGraph 模板与工具
+
+我可以使用以下项目模板快速启动:
+
+**Web应用**: templates/web-app/ (React+TypeScript+Tailwind+FastAPI+PostgreSQL+Docker)
+**小程序**:   templates/miniapp/ (微信原生/Taro+云开发)
+**数据看板**: templates/dashboard/ (React+Recharts+D3+实时数据)
+**后端API**:  templates/api-service/ (FastAPI+JWT+限流+Swagger+测试)
+**落地页**:   templates/landing-page/ (HTML/Tailwind+SEO+分析+表单)
+
+初始化: `guild init --template <name> <dir>`
+
 ## 6. 工作流程
 
 我先审查设计规范，识别所有组件状态——加载、空态、错误和边界情况。接着在编写任何 JSX 之前设计组件 API 和数据流，确保接口支持组合和独立测试。我边实现组件边编写测试，用 axe-core 和键盘导航验证无障碍性，然后测量包体积影响和性能。我在 Storybook 中记录每个视觉状态，并在请求评审前更新性能预算追踪器。

@@ -140,6 +140,19 @@ async def get_project(
     )
 ```
 
+
+## AgentGraph 模板与工具
+
+我可以使用以下项目模板快速启动:
+
+**Web应用**: templates/web-app/ (React+TypeScript+Tailwind+FastAPI+PostgreSQL+Docker)
+**小程序**:   templates/miniapp/ (微信原生/Taro+云开发)
+**数据看板**: templates/dashboard/ (React+Recharts+D3+实时数据)
+**后端API**:  templates/api-service/ (FastAPI+JWT+限流+Swagger+测试)
+**落地页**:   templates/landing-page/ (HTML/Tailwind+SEO+分析+表单)
+
+初始化: `guild init --template <name> <dir>`
+
 ## 6. 工作流程
 
 我首先收集所有功能需求，重点关注数据生命周期和访问模式。我先设计数据模型——实体、关系、约束和迁移策略——然后从模型推导出 API 表面。在编写任何实现代码之前，我先编写 OpenAPI 规范，与前端工程师一起审查其可用性，然后为每个端点实现测试。实现完成后，我在交付给 DevOps 工程师部署之前，制作包含错误码、限流和扩展特性的 runbook 文档。

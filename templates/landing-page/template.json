@@ -1,0 +1,21 @@
+{
+  "name": "landing-page",
+  "description": "落地页/官网模板 — HTML/Tailwind+SEO+分析+表单",
+  "stack": {
+    "framework": "HTML/CSS/JS / Next.js Static / Astro",
+    "styling": "Tailwind CSS",
+    "seo": "OpenGraph + Twitter Card + Schema.org",
+    "analytics": "Google Analytics / 百度统计",
+    "forms": "表单收集(Webhook/邮件)",
+    "hosting": "GitHub Pages / Vercel / 腾讯云COS"
+  },
+  "agents": ["product-manager","ui-designer","frontend-engineer","growth-hacker","content-creator","seo-specialist"],
+  "gates": "1 2 3 4",
+  "files": {
+    "index.html": "首页(Hero+特性+CTA+页脚)",
+    "assets/": "图片/字体/图标",
+    "js/analytics.js": "统计分析",
+    "js/form.js": "表单提交+验证",
+    "css/style.css": "Tailwind或自定义样式"
+  }
+}
