@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>PixelBead — 拼豆大师</title>
+<style>
+:root{--bg:#1a1a24;--board:#2a2a38;--gold:#f6c94d;--accent:#58a6ff;--pink:#ff6b9d;--r:12px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body{height:100%;display:flex;flex-direction:column;align-items:center;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;overflow:hidden}
+#hdr{width:100%;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#6b6b7b;z-index:10}
+#hdr .logo{font-size:17px;font-weight:800;color:var(--pink)}
+#hdr .stats{display:flex;gap:14px}
+#hdr .stats b{color:var(--gold)}
+#wrap{flex:1;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+#board-wrap{position:relative}
+canvas{display:block;touch-action:manipulation;border-radius:8px}
+#bead-preview{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--board);border-radius:20px}
+#bead-preview .bead{width:36px;height:36px;border-radius:50%;border:3px solid rgba(255,255,255,0.2);animation:beadBounce 0.6s ease-in-out infinite}
+@keyframes beadBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+#bead-preview .label{font-size:12px;color:#6b6b7b}
+#hint-text{font-size:12px;color:#6b6b7b;text-align:center;min-height:18px}
+#overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;justify-content:center;align-items:center;z-index:100;backdrop-filter:blur(4px)}
+.ov{background:#1e1e2e;border-radius:var(--r);padding:24px;text-align:center;max-width:330px;width:90%;border:1px solid rgba(255,255,255,0.06);animation:popIn 0.3s ease-out}
+@keyframes popIn{from{transform:scale(0.9);opacity:0}to{transform:scale(1);opacity:1}}
+.ov h2{font-size:22px;font-weight:800;margin-bottom:4px}
+.ov .preview{width:120px;height:120px;margin:12px auto;image-rendering:pixelated}
+.ov .stat-row{display:flex;justify-content:center;gap:20px;margin:8px 0;font-size:12px;color:#6b6b7b}
+.ov .stat-row b{color:#fff;font-size:15px}
+.ov .btn{display:block;width:100%;padding:13px;margin:5px 0;border-radius:var(--r);border:none;font-size:14px;font-weight:700;cursor:pointer;color:#fff;transition:transform 0.15s}
+.ov .btn:active{transform:scale(0.96)}
+.btn.primary{background:var(--gold);color:#000}
+.btn.ad{background:linear-gradient(135deg,#667eea,#764ba2);font-size:12px}
+.btn.ghost{background:rgba(255,255,255,0.05);color:#6b6b7b;font-size:12px}
+.hidden{display:none!important}
+#pattern-select{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}
+.pattern-card{width:70px;padding:6px;border-radius:10px;border:2px solid rgba(255,255,255,0.08);cursor:pointer;text-align:center;transition:all 0.2s;background:var(--board)}
+.pattern-card:hover{border-color:var(--accent)}
+.pattern-card.selected{border-color:var(--gold);background:rgba(246,201,77,0.1)}
+.pattern-card .thumb{width:48px;height:48px;margin:0 auto 4px;image-rendering:pixelated}
+.pattern-card .name{font-size:10px;color:#6b6b7b}
+.pattern-card .diff{font-size:9px;color:var(--gold)}
+.pattern-card.locked{opacity:0.3;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="hdr">
+  <div class="logo">📌 PixelBead 拼豆大师</div>
+  <div class="stats">❤️<b id="lives">3</b> | 🎯<b id="placed">0</b>/<b id="total">0</b> | ⏱<b id="timer">0</b>s | 🏆<b id="coll">0</b></div>
+</div>
+<div id="wrap">
+  <div id="bead-preview">
+    <div class="bead" id="bead"></div>
+    <span class="label" id="bead-label"></span>
+  </div>
+  <div id="board-wrap"><canvas id="gc"></canvas></div>
+  <div id="hint-text">👆 点击棋盘上正确的位置放置珠子</div>
+</div>
+<div id="overlay" class="hidden"></div>
+
+<script>
+/* ═══════ PixelBead 拼豆大师 ═══════
+ * 创意来源: 线下拼豆热潮(淘宝搜索+500%) + 像素艺术 + 收集系统
+ * 非消消乐/非排序/非消除 — 全新玩法 */
+
+const PATTERNS=[
+  {name:'爱心',emoji:'❤️',size:8,colors:['#ff4444','#ffffff'],grid:['........','..xx..xx.','.xxxxxx.','xxxxxxxx','xxxxxxxx','.xxxxxx.','..xxxx..','...xx...'],diff:1,bg:'#1a1a24'},
+  {name:'星星',emoji:'⭐',size:8,colors:['#ffaa00','#ffffff'],grid:['...xx...','..xxxx..','.x.xx.x.','xx....xx','xxxxxx..','.xxxxx.','..xxx..','.xx.xx.'],diff:1,bg:'#1a1a24'},
+  {name:'猫咪',emoji:'🐱',size:10,colors:['#ff8844','#ffffff','#222222','#ffaaaa'],grid:['....xx....','..x.xx.x..','.x......x.','x..x..x..x','x........x','x..x..x..x','.xx....xx.','..x.xx.x..','...xxxx...','....xx....'],diff:2,bg:'#1a1a24'},
+  {name:'花花',emoji:'🌸',size:10,colors:['#ff6b9d','#ffcc00','#ffffff','#88cc44'],grid:['....xx....','..x.xx.x..','.x......x.','x..xxxx..x','x...xx...x','x..xxxx..x','.x......x.','..x.xx.x..','...x..x...','....xx....'],diff:2,bg:'#1a1a24'},
+  {name:'狐狸',emoji:'🦊',size:12,colors:['#ff6622','#ffffff','#222222','#ffcc88'],grid:['....xxxx....','...x....x...','..x..xx..x..','.x..x..x..x.','x..x....x..x','x.........x','x..xxxxx..x','.x..x.x..x.','..x..x..x..','...x....x...','....xxxx....','............'],diff:3,bg:'#1a1a24'},
+  {name:'城堡',emoji:'🏰',size:14,colors:['#8899aa','#445566','#ffcc00','#ffffff','#88bbee'],grid:['......xx......','.....xxxx.....','....x....x....','...x..xx..x...','..x..x..x..x..','.x..x....x..x.','x..x......x..x','x..xxxxxxxx..x','x..x......x..x','.xx........xx.','..x..xxxx..x..','..x..x..x..x..','..x..x..x..x..','..xx......xx..'],diff:4,bg:'#1a1a24'}
+];
+
+let gameState='init',currentPattern=null,lives=3,placed=0,totalNeeded=0,timer=0,timerInterval=null;
+let board=[],beadQueue=[],currentBead=null,collection=[],selectedPatternIdx=0;
+let gridSize=10,cellSize=0,ox=0,oy=0;
+
+// Audio
+let _ctx=null;
+function snd(f,d,t='sine',v=0.05){if(!_ctx)return;try{const o=_ctx.createOscillator(),g=_ctx.createGain();o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,_ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,_ctx.currentTime+d);o.connect(g);g.connect(_ctx.destination);o.start();o.stop(_ctx.currentTime+d)}catch(e){}}
+function sfxPlace(){snd(600,0.06,'sine',0.04)}
+function sfxWrong(){snd(120,0.2,'sawtooth',0.06)}
+function sfxComplete(){snd(523,0.1,'sine',0.06);setTimeout(()=>snd(659,0.1,'sine',0.06),80);setTimeout(()=>snd(784,0.12,'sine',0.06),160);setTimeout(()=>snd(1047,0.2,'sine',0.06),240)}
+function ensureAudio(){if(!_ctx){try{_ctx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){_ctx=null}}if(_ctx&&_ctx.state==='suspended')try{_ctx.resume()}catch(e){}}
+
+// LocalStorage
+function lsGet(k,f){try{const v=localStorage.getItem(k);return v!==null?v:f}catch(e){return f}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+// Canvas
+const canvas=document.getElementById('gc'),ctx=canvas.getContext('2d'),wrap=document.getElementById('board-wrap');
+let cw,ch;
+function setupCanvas(){cw=Math.min(wrap.clientWidth-16,360);ch=cw;canvas.width=cw;canvas.height=ch;gridSize=currentPattern.size;cellSize=cw/gridSize;ox=0;oy=0}
+window.addEventListener('resize',()=>{if(currentPattern)setupCanvas()});
+
+// ── Pattern loading ──
+function loadPattern(idx){
+  currentPattern=PATTERNS[idx];selectedPatternIdx=idx;
+  setupCanvas();
+  board=[];beadQueue=[];placed=0;lives=3;
+  // Parse grid: '.' = empty, letters = color index
+  const colorMap={};
+  let nextColorIdx=0;
+  for(let r=0;r<gridSize;r++){
+    board[r]=[];
+    for(let c=0;c<gridSize;c++){
+      const ch=currentPattern.grid[r][c];
+      if(ch==='.'||ch===' '){board[r][c]=null;continue}
+      if(!(ch in colorMap))colorMap[ch]=nextColorIdx++;
+      board[r][c]=colorMap[ch];
+      beadQueue.push({r,c,color:colorMap[ch]});
+    }
+  }
+  totalNeeded=beadQueue.length;
+  // Shuffle bead order (player gets random bead each time)
+  for(let i=beadQueue.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[beadQueue[i],beadQueue[j]]=[beadQueue[j],beadQueue[i]]}
+  nextBead();
+  // Timer count up
+  timer=0;if(timerInterval)clearInterval(timerInterval);
+  timerInterval=setInterval(()=>{timer++;document.getElementById('timer').textContent=timer},1000);
+  updateUI();
+}
+
+function nextBead(){
+  if(beadQueue.length===0){currentBead=null;document.getElementById('bead').style.background='transparent';document.getElementById('bead-label').textContent='完成!';return}
+  currentBead=beadQueue.shift();
+  const col=currentPattern.colors[currentBead.color];
+  document.getElementById('bead').style.background=col;
+  document.getElementById('bead-label').textContent='点击正确位置';
+}
+
+// ── Draw ──
+function draw(){
+  ctx.clearRect(0,0,cw,ch);
+  // Background board
+  ctx.fillStyle=currentPattern.bg;
+  ctx.fillRect(0,0,cw,ch);
+  // Grid lines
+  ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=0.5;
+  for(let i=0;i<=gridSize;i++){ctx.beginPath();ctx.moveTo(i*cellSize,0);ctx.lineTo(i*cellSize,ch);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*cellSize);ctx.lineTo(cw,i*cellSize);ctx.stroke()}
+  // Placed beads
+  for(let r=0;r<gridSize;r++){
+    for(let c=0;c<gridSize;c++){
+      if(board[r][c]===null)continue;
+      const col=currentPattern.colors[board[r][c]];
+      const x=c*cellSize+cellSize/2,y=r*cellSize+cellSize/2,radius=cellSize*0.38;
+      // Shadow
+      ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.arc(x+1,y+1,radius,0,Math.PI*2);ctx.fill();
+      // Bead
+      const grad=ctx.createRadialGradient(x-1,y-2,0,x,y,radius);
+      grad.addColorStop(0,lighten(col,40));grad.addColorStop(0.6,col);grad.addColorStop(1,darken(col,30));
+      ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=1;ctx.stroke();
+      // Highlight
+      ctx.fillStyle='rgba(255,255,255,0.3)';ctx.beginPath();ctx.arc(x-2,y-2,radius*0.3,0,Math.PI*2);ctx.fill();
+    }
+  }
+  // Target positions (subtle dots showing where beads need to go)
+  if(gameState==='playing'){
+    for(const b of beadQueue){
+      if(board[b.r][b.c]!==null)continue;
+      const x=b.c*cellSize+cellSize/2,y=b.r*cellSize+cellSize/2;
+      ctx.fillStyle='rgba(255,255,255,0.08)';ctx.beginPath();ctx.arc(x,y,cellSize*0.25,0,Math.PI*2);ctx.fill();
+    }
+    // Highlight current bead target hint (faint glow on ALL positions where current bead can go)
+    if(currentBead){
+      for(const b of beadQueue){
+        if(board[b.r][b.c]!==null)continue;
+        if(b.color===currentBead.color)continue; // only show positions for this bead color
+      }
+      // Find ALL valid positions for current bead color
+      for(const b of [currentBead,...beadQueue]){
+        if(board[b.r][b.c]!==null)continue;
+        if(b.color!==currentBead.color)continue;
+        const x=b.c*cellSize+cellSize/2,y=b.r*cellSize+cellSize/2;
+        ctx.strokeStyle='rgba(255,255,255,0.25)';ctx.lineWidth=1.5;ctx.setLineDash([2,3]);
+        ctx.beginPath();ctx.arc(x,y,cellSize*0.35,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+      }
+    }
+  }
+}
+
+function lighten(hex,pct){const n=parseInt(hex.slice(1),16);const r=Math.min(255,(n>>16)+pct),g=Math.min(255,((n>>8)&0xff)+pct),b=Math.min(255,(n&0xff)+pct);return `rgb(${r},${g},${b})`}
+function darken(hex,pct){const n=parseInt(hex.slice(1),16);const r=Math.max(0,(n>>16)-pct),g=Math.max(0,((n>>8)&0xff)-pct),b=Math.max(0,(n&0xff)-pct);return `rgb(${r},${g},${b})`}
+
+// ── Click ──
+canvas.addEventListener('click',e=>{
+  if(gameState!=='playing'||!currentBead)return;ensureAudio();
+  const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  const col=Math.floor(mx/cellSize),row=Math.floor(my/cellSize);
+  if(col<0||col>=gridSize||row<0||row>=gridSize)return;
+  if(board[row][col]!==null)return; // already placed
+  if(currentPattern.grid[row][col]==='.')return; // not a bead position
+
+  // Check if this position needs the current bead's color
+  const expectedColor=currentBead.color;
+  if(board[row][col]===null&&currentPattern.grid[row][col]!=='.'){
+    // Verify color match by checking the pattern
+    const ch=currentPattern.grid[row][col];
+    // Map char to color index
+    let charColorIdx=-1;
+    const seen={};
+    let nid=0;
+    for(let rr=0;rr<gridSize;rr++){
+      for(let cc=0;cc<gridSize;cc++){
+        const cch=currentPattern.grid[rr][cc];
+        if(cch==='.')continue;
+        if(!(cch in seen))seen[cch]=nid++;
+        if(rr===row&&cc===col)charColorIdx=seen[cch];
+      }
+    }
+    if(charColorIdx===expectedColor){
+      board[row][col]=expectedColor;placed++;sfxPlace();
+      updateUI();draw();
+      if(beadQueue.length===0){// Check if ALL done
+        const allDone=board.flat().filter((v,i)=>{const r=Math.floor(i/gridSize),c=i%gridSize;return currentPattern.grid[r][c]!=='.'&&v===null}).length===0;
+        if(allDone||placed>=totalNeeded)completePattern();
+        else nextBead();
+      }else nextBead();
+    }else{
+      lives--;sfxWrong();updateUI();draw();
+      document.getElementById('hint-text').textContent='❌ 位置不对！再试一次';
+      setTimeout(()=>document.getElementById('hint-text').textContent='👆 点击正确位置',1000);
+      if(lives<=0)endGame();
+    }
+  }else{
+    // Not a valid position (pattern has '.' here)
+    lives--;sfxWrong();updateUI();draw();
+    if(lives<=0)endGame();
+  }
+});
+
+function completePattern(){
+  gameState='won';sfxComplete();if(timerInterval)clearInterval(timerInterval);
+  collection.push(currentPattern.name);
+  lsSet('pb_collection',JSON.stringify(collection));
+  updateUI();
+  setTimeout(showWin,500);
+}
+function endGame(){
+  gameState='lost';sfxWrong();if(timerInterval)clearInterval(timerInterval);
+  updateUI();setTimeout(showLose,400);
+}
+
+// ── UI ──
+function updateUI(){
+  document.getElementById('lives').textContent='❤️'.repeat(lives)+'🖤'.repeat(Math.max(0,3-lives));
+  document.getElementById('placed').textContent=placed;
+  document.getElementById('total').textContent=totalNeeded;
+  document.getElementById('coll').textContent=collection.length;
+}
+
+// ── Overlays ──
+function showWin(){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov"><h2>🎨 拼豆完成！</h2>
+    <canvas id="prev-canvas" class="preview" width="120" height="120"></canvas>
+    <p style="color:var(--gold);font-size:18px;font-weight:800">${currentPattern.emoji} ${currentPattern.name}</p>
+    <div class="stat-row"><div>用时<div><b>${timer}</b>s</div></div><div>收集<div><b>${collection.length}</b>个</div></div></div>
+    <button class="btn primary" onclick="nextPattern()">▶️ 下一个图案</button>
+    <button class="btn ad" onclick="shareAd()">📺 看广告解锁稀有图案</button>
+    <button class="btn ghost" onclick="shareCard()">📤 分享我的作品</button></div>`;ov.classList.remove('hidden');
+  // Draw preview
+  setTimeout(()=>{const pc=document.getElementById('prev-canvas');if(pc){const pctx=pc.getContext('2d');const ps=120/currentPattern.size;for(let r=0;r<currentPattern.size;r++)for(let c=0;c<currentPattern.size;c++){if(board[r][c]===null)continue;pctx.fillStyle=currentPattern.colors[board[r][c]];pctx.fillRect(c*ps,r*ps,ps,ps)}}},100);
+}
+function showLose(){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov"><h2>💔 生命用完了</h2><p style="color:#6b6b7b">完成了 ${placed}/${totalNeeded} 个珠子</p>
+    <button class="btn ad" onclick="revive()">📺 看广告 — 复活 +3❤️</button>
+    <button class="btn primary" onclick="retry()">🔄 重试</button></div>`;ov.classList.remove('hidden');
+}
+function revive(){showAd().then(ok=>{if(ok){lives=3;gameState='playing';hideOverlay();updateUI();draw();timerInterval=setInterval(()=>{timer++;document.getElementById('timer').textContent=timer},1000)}})}
+function retry(){hideOverlay();loadPattern(selectedPatternIdx);gameState='playing';updateUI();draw()}
+function nextPattern(){hideOverlay();const next=(selectedPatternIdx+1)%PATTERNS.length;loadPattern(next);gameState='playing';updateUI();draw()}
+function hideOverlay(){document.getElementById('overlay').classList.add('hidden')}
+function shareCard(){
+  const text=`📌 我在PixelBead完成了「${currentPattern.emoji}${currentPattern.name}」拼豆!\n用时${timer}秒, 收集了${collection.length}个图案!\n来挑战？`;
+  if(navigator.share)navigator.share({title:'PixelBead拼豆大师',text}).catch(()=>{});
+  else{navigator.clipboard.writeText(text).then(()=>alert('已复制！'));hideOverlay()}
+}
+function shareAd(){showAd().then(ok=>{if(ok){alert('🎉 解锁新图案！(上线后真实解锁)');hideOverlay()}})}
+function showAd(){return new Promise(r=>{if(typeof wx!=='undefined'&&wx.createRewardedVideoAd){try{const a=wx.createRewardedVideoAd({adUnitId:'ad-unit'});a.onClose(res=>r(res&&res.isEnded));a.show().catch(()=>r(confirm('📺 看广告?')));return}catch(e){}}r(confirm('📺 看广告获取奖励？(上线展示真实广告)'))})}
+
+// ── Pattern select ──
+function showSelect(){
+  collection=JSON.parse(lsGet('pb_collection','[]'));
+  let cards='';PATTERNS.forEach((p,i)=>{
+    const locked=i>=3&&collection.length<3;
+    cards+=`<div class="pattern-card${i===selectedPatternIdx?' selected':''}${locked?' locked':''}" onclick="${locked?'':'selectPattern('+i+')'}">
+      <div class="thumb" style="background:${p.bg}"></div>
+      <div class="name">${p.emoji} ${p.name}</div>
+      <div class="diff">${'⭐'.repeat(p.diff)}</div></div>`;
+  });
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`<div class="ov"><h2>📌 选择图案</h2><p style="color:#6b6b7b;font-size:12px">完成3个图案后解锁更多!</p>
+    <div id="pattern-select">${cards}</div><p style="color:#6b6b7b;font-size:10px">已收集: ${collection.length}个</p>
+    <button class="btn primary" onclick="selectPattern(${selectedPatternIdx});startGame()">开始拼豆</button></div>`;ov.classList.remove('hidden');
+}
+function selectPattern(i){selectedPatternIdx=i;showSelect()}
+
+function startGame(){
+  loadPattern(selectedPatternIdx);gameState='playing';hideOverlay();updateUI();draw();
+}
+
+// Init
+function init(){
+  collection=JSON.parse(lsGet('pb_collection','[]'));
+  document.getElementById('coll').textContent=collection.length;
+  loadPattern(0);gameState='init';
+  setupCanvas();draw();
+  setTimeout(showSelect,300);
+}
+init();
+</script>
+</body>
+</html>
