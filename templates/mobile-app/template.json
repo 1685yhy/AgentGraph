@@ -1,0 +1,36 @@
+{
+  "name": "mobile-app",
+  "capability": {
+    "label": "移动App (iOS/Android)",
+    "template": "mobile-app",
+    "description": "React Native/Expo跨平台移动应用",
+    "agents": [
+      "product-manager",
+      "ux-researcher",
+      "ui-designer",
+      "mobile-developer",
+      "frontend-engineer",
+      "backend-architect",
+      "qa-engineer",
+      "security-engineer"
+    ],
+    "modules": [
+      "auth-biometric",
+      "push-notification",
+      "offline-storage",
+      "deep-link",
+      "camera-qr",
+      "location",
+      "iap",
+      "analytics"
+    ],
+    "gates": "1 2 3 4",
+    "metrics": [
+      "dau",
+      "crash_rate",
+      "load_time",
+      "store_rating",
+      "retention_d7"
+    ]
+  }
+}

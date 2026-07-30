@@ -1278,3 +1278,45 @@ init_template() {
   ok "Project initialized: $dir (template: $template)"
   echo "  Next: cd $dir && python3 -m http.server 8080"
 }
+
+# ── Global Capability System ─────────────────────────────────────────
+CAPABILITIES_FILE="$REPO_ROOT/capabilities.json"
+
+capability_list() {
+  node -e "
+    const reg = JSON.parse(require('fs').readFileSync('$CAPABILITIES_FILE','utf8'));
+    console.log('╔══════════════════════════════════════╗');
+    console.log('║  AgentGraph 全局能力 — 9种产品类型  ║');
+    console.log('╚══════════════════════════════════════╝');
+    for (const [key, t] of Object.entries(reg.product_types)) {
+      console.log('');
+      console.log('  ' + t.label + ' (' + key + ')');
+      console.log('    ' + t.description);
+      console.log('    模板:' + t.template + ' | Agent:' + t.agents.length + '个 | Gate:' + t.gates + ' | 模块:' + (t.modules||[]).length + '个');
+    }
+  " 2>/dev/null
+}
+
+capability_show() {
+  local type="$1"
+  [[ -z "$type" ]] && { capability_list; return; }
+  node -e "
+    const reg = JSON.parse(require('fs').readFileSync('$CAPABILITIES_FILE','utf8'));
+    const t = reg.product_types['$type'];
+    if (!t) { console.log('Unknown: $type. Use: guild capabilities 查看全部'); process.exit(1); }
+    console.log('╔══════════════════════════════════════╗');
+    console.log('║  ' + t.label + ' (' + t.template + ')');
+    console.log('╚══════════════════════════════════════╝');
+    console.log('');
+    console.log('描述: ' + t.description);
+    console.log('');
+    console.log('👥 Agent (' + t.agents.length + '个):');
+    t.agents.forEach(a => console.log('    - ' + a));
+    console.log('');
+    console.log('📦 模块 (' + (t.modules||[]).length + '个):');
+    (t.modules||[]).forEach(m => console.log('    - ' + m));
+    console.log('');
+    console.log('🚪 Gate: ' + t.gates);
+    console.log('📊 指标: ' + (t.metrics||[]).join(', '));
+  " 2>/dev/null
+}

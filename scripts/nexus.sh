@@ -447,6 +447,9 @@ case "$CMD" in
 	  init)      shift; init_template "$1" "$2";;
 	  task)      agent_task "$1" "$2";;
 	  agents)    agent_list;;
+	  capabilities) capability_list;;
+	  capability)  capability_show "$1";;
+	  templates)   ls -d "$REPO_ROOT"/templates/*/ | while read d; do basename "$d"; done;;
 	  build)     build_product "$@";;
 	  memory)    cmd_memory "$@";;
   --help|-h|help)

@@ -1,0 +1,33 @@
+{
+  "name": "corp-site",
+  "capability": {
+    "label": "企业官网",
+    "template": "corp-site",
+    "description": "多页面企业官网, 品牌展示+新闻+联系",
+    "agents": [
+      "product-manager",
+      "brand-guardian",
+      "ui-designer",
+      "creative-director",
+      "frontend-engineer",
+      "content-creator",
+      "seo-specialist"
+    ],
+    "modules": [
+      "seo",
+      "i18n",
+      "analytics",
+      "cms",
+      "contact-form",
+      "news-feed"
+    ],
+    "gates": "1 2 3 4",
+    "metrics": [
+      "traffic",
+      "bounce_rate",
+      "lead_gen",
+      "brand_impression",
+      "page_speed"
+    ]
+  }
+}

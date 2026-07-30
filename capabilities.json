@@ -1,0 +1,152 @@
+{
+  "_description": "AgentGraph Global Capability Registry — 全局能力注册表. 所有模板/Agent/模块/Gate的统一映射.",
+  "_version": "3.0.0",
+
+  "product_types": {
+    "wechat-game": {
+      "label": "微信/抖音小游戏",
+      "template": "wechat-game",
+      "description": "2D休闲小游戏, PhaserJS引擎, 完整社交+变现",
+      "agents": ["game-designer","game-programmer","technical-artist","game-ui-designer","game-audio-engineer","monetization-designer","game-qa-engineer","game-producer"],
+      "modules": ["game-patterns","wfc-solver","audio-manager","save-system","tutorial","perf-monitor","remote-config","analytics","iap","i18n","leaderboard","ad-manager","ui-kit","vfx","ab-test","social"],
+      "gates": "1 2 3 4 5",
+      "metrics": ["dau","session_length","ad_impressions","retention_d1","retention_d7","share_rate"]
+    },
+    "miniapp": {
+      "label": "微信小程序",
+      "template": "miniapp",
+      "description": "微信原生/Taro跨端小程序, 云开发后端",
+      "agents": ["product-manager","ux-researcher","ui-designer","mobile-developer","frontend-engineer","backend-architect","qa-engineer"],
+      "modules": ["auth-wechat","payment-wechat","cloud-storage","request-wrapper"],
+      "gates": "1 2 3 4",
+      "metrics": ["mau","conversion_rate","page_views","load_time","crash_rate"]
+    },
+    "web-app": {
+      "label": "React全栈Web应用",
+      "template": "web-app",
+      "description": "React+TypeScript+Tailwind+FastAPI+PostgreSQL全栈应用",
+      "agents": ["product-manager","ux-researcher","ui-designer","frontend-engineer","backend-architect","database-specialist","qa-engineer","security-engineer","devops-engineer"],
+      "modules": ["auth-jwt","payment","notification","file-upload","search","export"],
+      "gates": "1 2 3 4",
+      "metrics": ["page_load","api_latency","error_rate","conversion","seo_score"]
+    },
+    "dashboard": {
+      "label": "数据看板/BI",
+      "template": "dashboard",
+      "description": "React+Recharts/D3数据分析看板, 实时监控",
+      "agents": ["product-manager","data-analyst","ui-designer","frontend-engineer","backend-architect","database-specialist","qa-engineer"],
+      "modules": ["charts","filters","realtime","export-excel","export-pdf","dark-mode"],
+      "gates": "1 2 3 4",
+      "metrics": ["load_time","data_freshness","query_performance","user_satisfaction"]
+    },
+    "api-service": {
+      "label": "后端API服务",
+      "template": "api-service",
+      "description": "FastAPI/Express RESTful API, JWT认证, Swagger文档",
+      "agents": ["backend-architect","database-specialist","security-engineer","devops-engineer","qa-engineer"],
+      "modules": ["auth-jwt","rate-limit","logging","cors","health-check","swagger","migrations","testing"],
+      "gates": "1 2 3",
+      "metrics": ["uptime","p99_latency","error_rate","rps","test_coverage"]
+    },
+    "landing-page": {
+      "label": "落地页/营销站",
+      "template": "landing-page",
+      "description": "HTML/Tailwind营销落地页, SEO优化",
+      "agents": ["product-manager","ui-designer","frontend-engineer","growth-hacker","content-creator","seo-specialist"],
+      "modules": ["seo","analytics","form-capture","responsive","a-b-test"],
+      "gates": "1 2 3 4",
+      "metrics": ["bounce_rate","conversion_rate","load_time","seo_score","traffic"]
+    },
+    "corp-site": {
+      "label": "企业官网",
+      "template": "corp-site",
+      "description": "多页面企业官网, 品牌展示+新闻+联系",
+      "agents": ["product-manager","brand-guardian","ui-designer","creative-director","frontend-engineer","content-creator","seo-specialist"],
+      "modules": ["seo","i18n","analytics","cms","contact-form","news-feed"],
+      "gates": "1 2 3 4",
+      "metrics": ["traffic","bounce_rate","lead_gen","brand_impression","page_speed"]
+    },
+    "admin-system": {
+      "label": "后台管理系统",
+      "template": "admin-system",
+      "description": "企业内部管理系统, CRUD+权限+审批流",
+      "agents": ["product-manager","ux-researcher","ui-designer","frontend-engineer","backend-architect","database-specialist","security-engineer","qa-engineer","devops-engineer"],
+      "modules": ["auth-rbac","crud-generator","audit-log","approval-flow","data-export","permission-matrix"],
+      "gates": "1 2 3 4",
+      "metrics": ["task_completion","error_rate","load_time","user_satisfaction","audit_compliance"]
+    },
+    "mobile-app": {
+      "label": "移动App (iOS/Android)",
+      "template": "mobile-app",
+      "description": "React Native/Expo跨平台移动应用",
+      "agents": ["product-manager","ux-researcher","ui-designer","mobile-developer","frontend-engineer","backend-architect","qa-engineer","security-engineer"],
+      "modules": ["auth-biometric","push-notification","offline-storage","deep-link","camera-qr","location","iap","analytics"],
+      "gates": "1 2 3 4",
+      "metrics": ["dau","crash_rate","load_time","store_rating","retention_d7"]
+    }
+  },
+
+  "agents": {
+    "product-manager":       {"division":"product","delivers":["PRD","用户故事","验收条件"],"product_types":["miniapp","web-app","dashboard","landing-page","corp-site","admin-system","mobile-app"]},
+    "ux-researcher":         {"division":"product","delivers":["用户研究","行为分析"],"product_types":["miniapp","web-app","dashboard","admin-system","mobile-app"]},
+    "data-analyst":          {"division":"product","delivers":["数据分析","指标定义"],"product_types":["dashboard","web-app"]},
+    "tech-writer":           {"division":"product","delivers":["技术文档","API文档"],"product_types":["api-service","web-app"]},
+    "ui-designer":           {"division":"design","delivers":["设计系统","UI规范"],"product_types":["miniapp","web-app","dashboard","landing-page","corp-site","admin-system","mobile-app"]},
+    "brand-guardian":        {"division":"design","delivers":["品牌指南"],"product_types":["corp-site","landing-page"]},
+    "interaction-designer":  {"division":"design","delivers":["交互规范","动效设计"],"product_types":["mobile-app","web-app","miniapp"]},
+    "creative-director":     {"division":"design","delivers":["视觉审核"],"product_types":["corp-site","landing-page","mobile-app"]},
+    "frontend-engineer":     {"division":"engineering","delivers":["React组件","TypeScript类型"],"product_types":["web-app","dashboard","landing-page","corp-site","admin-system","miniapp"]},
+    "backend-architect":     {"division":"engineering","delivers":["API设计","数据库模式"],"product_types":["api-service","web-app","dashboard","admin-system","miniapp","mobile-app"]},
+    "mobile-developer":      {"division":"engineering","delivers":["小程序/App代码"],"product_types":["miniapp","mobile-app"]},
+    "database-specialist":   {"division":"engineering","delivers":["数据模型","查询优化"],"product_types":["api-service","web-app","dashboard","admin-system"]},
+    "devops-engineer":       {"division":"engineering","delivers":["CI/CD","Docker"],"product_types":["api-service","web-app","admin-system","mobile-app"]},
+    "ai-engineer":           {"division":"engineering","delivers":["AI模型集成"],"product_types":["web-app","dashboard","mobile-app"]},
+    "code-reviewer":         {"division":"engineering","delivers":["代码审查报告"],"product_types":["*"]},
+    "qa-engineer":           {"division":"testing","delivers":["测试报告","自动化测试"],"product_types":["miniapp","web-app","dashboard","api-service","admin-system","mobile-app"]},
+    "performance-tester":    {"division":"testing","delivers":["性能报告"],"product_types":["web-app","dashboard","api-service","mobile-app"]},
+    "accessibility-auditor": {"division":"testing","delivers":["无障碍审计"],"product_types":["web-app","dashboard","landing-page","corp-site","miniapp"]},
+    "security-engineer":     {"division":"security","delivers":["安全审计","威胁模型"],"product_types":["api-service","web-app","admin-system","mobile-app"]},
+    "growth-hacker":         {"division":"marketing","delivers":["增长策略"],"product_types":["landing-page","miniapp","mobile-app"]},
+    "content-creator":       {"division":"marketing","delivers":["内容创作"],"product_types":["landing-page","corp-site"]},
+    "seo-specialist":        {"division":"marketing","delivers":["SEO优化"],"product_types":["landing-page","corp-site","web-app"]},
+    "social-media-strategist":{"division":"marketing","delivers":["社媒策略"],"product_types":["landing-page","miniapp","wechat-game"]},
+    "project-manager":       {"division":"project-management","delivers":["项目时间线","风险登记"],"product_types":["*"]},
+    "game-designer":         {"division":"game-development","delivers":["GDD","核心循环"],"product_types":["wechat-game"]},
+    "game-programmer":       {"division":"game-development","delivers":["游戏代码","性能优化"],"product_types":["wechat-game"]},
+    "technical-artist":      {"division":"game-development","delivers":["视觉资产","Shader"],"product_types":["wechat-game"]},
+    "game-ui-designer":      {"division":"game-development","delivers":["游戏UI"],"product_types":["wechat-game"]},
+    "game-audio-engineer":   {"division":"game-development","delivers":["音效","BGM"],"product_types":["wechat-game"]},
+    "monetization-designer": {"division":"game-development","delivers":["变现方案"],"product_types":["wechat-game"]},
+    "game-qa-engineer":      {"division":"game-development","delivers":["游戏测试"],"product_types":["wechat-game"]},
+    "game-producer":         {"division":"game-development","delivers":["发布管理"],"product_types":["wechat-game"]}
+  },
+
+  "modules": {
+    "game-patterns":    {"description":"8种游戏编程模式","templates":["wechat-game"]},
+    "wfc-solver":       {"description":"WFC关卡生成+可解性验证","templates":["wechat-game"]},
+    "audio-manager":    {"description":"音效池管理","templates":["wechat-game","mobile-app"]},
+    "save-system":      {"description":"云端存档","templates":["wechat-game","mobile-app","web-app"]},
+    "tutorial":         {"description":"新手引导","templates":["wechat-game","mobile-app","web-app"]},
+    "perf-monitor":     {"description":"性能监控","templates":["wechat-game","web-app","dashboard","mobile-app"]},
+    "remote-config":    {"description":"远程配置","templates":["wechat-game","web-app","mobile-app"]},
+    "analytics":        {"description":"数据埋点","templates":["wechat-game","web-app","dashboard","landing-page","miniapp","mobile-app"]},
+    "iap":              {"description":"内购IAP","templates":["wechat-game","miniapp","mobile-app"]},
+    "i18n":             {"description":"多语言","templates":["wechat-game","web-app","dashboard","landing-page","corp-site","mobile-app"]},
+    "leaderboard":      {"description":"排行榜","templates":["wechat-game"]},
+    "ad-manager":       {"description":"广告管理","templates":["wechat-game"]},
+    "ui-kit":           {"description":"UI组件库","templates":["wechat-game","web-app","dashboard","landing-page","corp-site","admin-system","mobile-app"]},
+    "vfx":              {"description":"视觉特效","templates":["wechat-game","mobile-app"]},
+    "ab-test":          {"description":"A/B测试","templates":["wechat-game","web-app","landing-page","mobile-app"]},
+    "social":           {"description":"社交挑战","templates":["wechat-game"]},
+    "auth-jwt":         {"description":"JWT认证","templates":["web-app","api-service","admin-system"]},
+    "auth-wechat":      {"description":"微信登录","templates":["miniapp"]},
+    "auth-biometric":   {"description":"生物识别","templates":["mobile-app"]},
+    "auth-rbac":        {"description":"RBAC权限","templates":["admin-system"]},
+    "payment-wechat":   {"description":"微信支付","templates":["miniapp"]},
+    "push-notification":{"description":"推送通知","templates":["mobile-app","miniapp"]},
+    "offline-storage":  {"description":"离线存储","templates":["mobile-app"]},
+    "seo":              {"description":"SEO优化","templates":["landing-page","corp-site"]},
+    "crud-generator":   {"description":"CRUD生成器","templates":["admin-system"]},
+    "audit-log":        {"description":"审计日志","templates":["admin-system"]}
+  }
+}

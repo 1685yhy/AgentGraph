@@ -1,0 +1,35 @@
+{
+  "name": "admin-system",
+  "capability": {
+    "label": "后台管理系统",
+    "template": "admin-system",
+    "description": "企业内部管理系统, CRUD+权限+审批流",
+    "agents": [
+      "product-manager",
+      "ux-researcher",
+      "ui-designer",
+      "frontend-engineer",
+      "backend-architect",
+      "database-specialist",
+      "security-engineer",
+      "qa-engineer",
+      "devops-engineer"
+    ],
+    "modules": [
+      "auth-rbac",
+      "crud-generator",
+      "audit-log",
+      "approval-flow",
+      "data-export",
+      "permission-matrix"
+    ],
+    "gates": "1 2 3 4",
+    "metrics": [
+      "task_completion",
+      "error_rate",
+      "load_time",
+      "user_satisfaction",
+      "audit_compliance"
+    ]
+  }
+}
