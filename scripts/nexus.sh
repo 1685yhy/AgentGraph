@@ -450,10 +450,11 @@ case "$CMD" in
 	  capabilities) capability_list;;
 	  capability)  capability_show "$1";;
 	  templates)   ls -d "$REPO_ROOT"/templates/*/ | while read d; do basename "$d"; done;;
+	  help)      ai_help "${1:-}";;
 	  build)     build_product "$@";;
 	  memory)    cmd_memory "$@";;
-  --help|-h|help)
+  --help|-h|help|--json)
     sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
     ;;
-  *) die "Unknown command: $CMD. Valid: graph, handoff, check, status, accept, verify, feedback, changelog, cleanup, list, run, decide, context, inbox, read, resolve, gate, fix, plan, build, prompt, task, dispatch, execute, complete, chain, agents, memory, self-test, test, test-runtime, ci-test, doctor";;
+	  *) ai_json_err "Unknown command: $CMD" "Run guild help --json for all commands";;
 esac

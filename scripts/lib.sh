@@ -1320,3 +1320,42 @@ capability_show() {
     console.log('📊 指标: ' + (t.metrics||[]).join(', '));
   " 2>/dev/null
 }
+
+# ── AI-Friendly Output Layer ─────────────────────────────────────────
+AI_MANIFEST="$REPO_ROOT/ai-manifest.json"
+
+# Check if AI mode is active
+ai_mode() {
+  [[ "${AG_AI_MODE:-}" == "1" || "${1:-}" == "--json" ]]
+}
+
+# Output JSON (AI mode) or human text
+ai_output() {
+  local json="$1" human="$2"
+  if ai_mode; then echo "$json"; else echo "$human"; fi
+}
+
+# Standardized JSON response
+ai_json_ok() {
+  node -e "console.log(JSON.stringify({success:true,data:$1},null,2))" 2>/dev/null
+}
+ai_json_err() {
+  local msg="$1" fix="$2"
+  node -e "console.log(JSON.stringify({success:false,error:'$msg',fix:'$fix'},null,2))" 2>/dev/null
+}
+
+# AI help — the key to AI-friendliness
+ai_help() {
+  local topic="${1:-}"
+  if [[ "$topic" == "--json" || -z "$topic" ]]; then
+    cat "$AI_MANIFEST"
+    return
+  fi
+  # Show specific command help
+  node -e "
+    const m = JSON.parse(require('fs').readFileSync('$AI_MANIFEST','utf8'));
+    const cmd = m.commands['$topic'];
+    if (!cmd) { console.log(JSON.stringify({error:'Unknown command: $topic', hint:'Run guild help --json for all commands'},null,2)); return; }
+    console.log(JSON.stringify({command:'$topic',...cmd},null,2));
+  " 2>/dev/null
+}
