@@ -33,6 +33,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 . "$SCRIPT_DIR/test-runner.sh"
 
 # shellcheck source=graph-generator.sh
+. "$SCRIPT_DIR/research-engine.sh"
 . "$SCRIPT_DIR/graph-generator.sh"
 
 CONTRACTS="$REPO_ROOT/contracts/guild-contracts.yml"
@@ -438,6 +439,10 @@ case "$CMD" in
   self-test) bash "$SCRIPT_DIR/self-test.sh" "$@";;
   ci-test)   bash "$SCRIPT_DIR/ci-test.sh";;
   doctor)    cmd_doctor "$@";;
+	  research)  cmd_research "$*";;
+	  ideate)    cmd_ideate "$*";;
+	  validate)  cmd_validate_concept "$*";;
+	  preflight) cmd_preflight "$*";;
 	  plan)      generate_graph "$@";;
 	  prompt)    agent_prompt_with_memory "${1:-}";;
 	  dispatch)  dispatch_agent_with_memory "$1" "$2";;
