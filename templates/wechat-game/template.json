@@ -1,25 +1,34 @@
 {
   "name": "wechat-game",
-  "description": "微信/抖音小游戏模板 — PhaserJS引擎 + Leancloud排行榜 + 广告SDK",
-  "version": "1.0.0",
-  "agentGraphVersion": ">=0.2.0",
+  "version": "2.0.0",
+  "description": "微信/抖音小游戏完整模板 — 15个模块覆盖游戏开发全生命周期",
   "stack": {
-    "engine": "PhaserJS 3.x (CDN)",
-    "backend": "Leancloud (排行榜/用户数据)",
-    "ads": "微信/抖音广告SDK + Web降级",
-    "social": "微信开放数据域(好友排行)"
+    "engine": "PhaserJS 3.60",
+    "backend": "Leancloud + NestJS+MongoDB(生产)",
+    "ads": "微信/抖音/Web三端统一",
+    "social": "微信开放数据域+好友排行",
+    "payment": "微信支付/Apple/Google IAP"
   },
-  "files": {
-    "index.html": "游戏入口 + Phaser CDN加载",
-    "src/game.js": "Phaser配置 + 场景注册",
-    "src/scenes/": "游戏场景(Boot/Play/Result)",
-    "src/leaderboard.js": "Leancloud排行榜模块(CRUD+排名)",
-    "src/ad-manager.js": "广告管理器(微信/抖音/Web)"
+  "modules": {
+    "game-patterns.js": "8种游戏编程模式(ObjectPool/StateMachine/EventBus/Command/BehaviorTree等)",
+    "wfc-solver.js": "Wave Function Collapse关卡生成+可解性验证+难度校准",
+    "leaderboard.js": "排行榜(Leancloud云端+localStorage降级)",
+    "ad-manager.js": "广告管理器(微信/抖音/Web三端统一API)",
+    "audio-manager.js": "音效池管理器(防爆音/BGM/空间音频)",
+    "save-system.js": "存档系统(云端+本地+冲突解决+自动存档)",
+    "tutorial.js": "新手引导框架(分步引导/高亮/跳过/进度)",
+    "perf-monitor.js": "性能监控(FPS/内存/JANK/加载时间/开发HUD)",
+    "remote-config.js": "远程配置(不发布调参/Feature Flag/难度调整)",
+    "analytics.js": "数据埋点(事件追踪/漏斗分析/会话管理/隐私)",
+    "iap.js": "内购IAP(微信支付/Apple/Google)",
+    "i18n.js": "多语言(中英默认/复数/替换/语言检测)"
   },
-  "agents": {
-    "game-programmer": "使用PhaserJS 3.x编写游戏逻辑, 不要手写裸Canvas",
-    "backend-architect": "使用Leancloud JS SDK搭建排行榜和用户数据存储",
-    "game-ui-designer": "Phaser Scene中设计UI, 使用Phaser GameObjects",
-    "game-designer": "关卡数据用JSON定义, 由Phaser加载解析"
+  "agentGraph": {
+    "gates": "17项质量门禁",
+    "plan": "LLM驱动任务→Graph自动生成",
+    "dispatch": "Agent派发+记忆+上下游依赖",
+    "fix": "7种自动修复策略",
+    "doctor": "7项系统健康检查",
+    "runtime": "浏览器实测(6项)"
   }
 }
