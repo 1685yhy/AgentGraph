@@ -422,6 +422,17 @@ generate_graph() {
     task="$*"
   fi
 
+  # JSON mode: AI frameworks consume structured output
+  local json_mode=false
+  if [[ "${AG_AI_MODE:-}" == "1" ]] || [[ "${1:-}" == "--json" ]] || [[ "${2:-}" == "--json" ]]; then
+    json_mode=true
+  fi
+  # Drop a leading --json flag so the task description is parsed correctly
+  if [[ "${1:-}" == "--json" ]]; then
+    shift
+    task="$*"
+  fi
+
   [[ -z "$task" ]] && { err "Usage: guild plan \"<task description>\""; return 1; }
 
   echo "╔══════════════════════════════════════════╗"
@@ -468,11 +479,138 @@ generate_graph() {
 
   echo "  🚪 Gate 选择: $gates"
 
+  # ── Build structured execution plan ──────────────────────────────
+  local agent_count; agent_count=$(echo "$agents" | wc -w)
+  local confidence="1.0"
+  local cscore; cscore=$(classify_score "$task" "$type")
+  if [[ $cscore -gt 0 ]]; then
+    confidence=$(node -e "console.log(Math.min(1.0, $cscore / 5).toFixed(2))" 2>/dev/null || echo "0.5")
+  fi
+
+  echo ""
+  echo "╔══════════════════════════════════════════╗"
+  echo "║  📋 执行计划                             ║"
+  echo "╚══════════════════════════════════════════╝"
+  echo ""
+
+  # Summary
+  local summary; summary=$(echo "$task" | cut -c1-80)
+  echo "  📝 项目: $summary"
+  echo "  🏷️  类型: $type_label"
+  echo ""
+
+  # Team
+  echo "  👥 团队 (${agent_count}人):"
+  for a in $agents; do
+    local aname aemoji
+    aname=$(agent_frontmatter "$a" "name" 2>/dev/null || echo "$a")
+    aemoji=$(agent_frontmatter "$a" "emoji" 2>/dev/null || echo "")
+    echo "      $aemoji $aname ($a)"
+  done
+  echo ""
+
+  # Milestones from graph node ordering
+  echo "  🗺️  关键里程碑:"
+  local milestone_num=1
+  for a in $agents; do
+    local mname; mname=$(agent_frontmatter "$a" "name" 2>/dev/null || echo "$a")
+    case "$a" in
+      product-manager|game-designer) echo "      [$milestone_num] 需求定义完成 — $mname"; milestone_num=$((milestone_num + 1));;
+      ui-designer|ux-researcher|brand-guardian|creative-director) echo "      [$milestone_num] 设计完成 — $mname"; milestone_num=$((milestone_num + 1));;
+      frontend-engineer|backend-architect|mobile-developer|unity-developer|unreal-developer|game-programmer) echo "      [$milestone_num] 开发完成 — $mname"; milestone_num=$((milestone_num + 1));;
+      qa-engineer|game-qa-engineer|performance-tester) echo "      [$milestone_num] 测试通过 — $mname"; milestone_num=$((milestone_num + 1));;
+      security-engineer) echo "      [$milestone_num] 安全审查通过 — $mname"; milestone_num=$((milestone_num + 1));;
+      game-producer|creative-director) echo "      [$milestone_num] 最终审核交付 — $mname"; milestone_num=$((milestone_num + 1));;
+    esac
+  done
+  echo ""
+
+  # Gates
+  echo "  🚦 质量门禁: $gates"
+  echo ""
+
+  # Risks (type-specific)
+  echo "  ⚠️  关键风险:"
+  local risks_json="[]"
+  case "$type" in
+    miniapp)
+      risks_json='["微信审核政策风险 — 避免敏感内容"]'
+      echo "      - 微信审核政策风险 — 避免敏感内容";;
+    wechat-game|unity-game|unreal-game)
+      risks_json='["游戏可玩性风险 — 核心循环需充分测试","性能风险 — 目标设备帧率需达标"]'
+      echo "      - 游戏可玩性风险 — 核心循环需充分测试"
+      echo "      - 性能风险 — 目标设备帧率需达标";;
+    admin-system)
+      risks_json='["RBAC权限设计复杂度 — 提前梳理角色矩阵","审批流逻辑 — 需与业务方逐条确认"]'
+      echo "      - RBAC权限设计复杂度 — 提前梳理角色矩阵"
+      echo "      - 审批流逻辑 — 需与业务方逐条确认";;
+    mobile-app)
+      risks_json='["应用商店审核 — iOS/Android 各有规范","多设备兼容 — 屏幕尺寸和系统版本覆盖"]'
+      echo "      - 应用商店审核 — iOS/Android 各有规范"
+      echo "      - 多设备兼容 — 屏幕尺寸和系统版本覆盖";;
+    research-report|strategy-consulting)
+      risks_json='["数据来源可靠性 — 标注所有数据出处","建议可行性 — 需结合客户实际资源评估"]'
+      echo "      - 数据来源可靠性 — 标注所有数据出处"
+      echo "      - 建议可行性 — 需结合客户实际资源评估";;
+    brand-identity|visual-design)
+      risks_json='["品牌调性对齐 — 需提前确认品牌基因","交付格式 — 确认甲方需要的源文件格式"]'
+      echo "      - 品牌调性对齐 — 需提前确认品牌基因"
+      echo "      - 交付格式 — 确认甲方需要的源文件格式";;
+    ai-ml-project)
+      risks_json='["数据质量 — GIGO: 垃圾进垃圾出","模型部署成本 — GPU资源预估"]'
+      echo "      - 数据质量 — GIGO: 垃圾进垃圾出"
+      echo "      - 模型部署成本 — GPU资源预估";;
+    infra-project)
+      risks_json='["生产环境差异 — dev/staging/prod 一致性","密钥管理 — 敏感信息不能进代码仓库"]'
+      echo "      - 生产环境差异 — dev/staging/prod 一致性"
+      echo "      - 密钥管理 — 敏感信息不能进代码仓库";;
+    *) echo "      - 需求范围蔓延 — 确认MVP边界";;
+  esac
+  echo ""
+
+  # Next step
+  echo "  ▶️  下一步: guild init --template $type ./my-project"
+
+  # JSON output for AI consumption
+  if $json_mode; then
+    # Build JSON plan for AI consumption
+    local agents_json; agents_json=$(for a in $agents; do
+      local an; an=$(agent_frontmatter "$a" "name" 2>/dev/null || echo "$a")
+      echo "{\"slug\":\"$a\",\"name\":\"$an\"}"
+    done | node -e "const lines=require('fs').readFileSync('/dev/stdin','utf8').trim().split('\n').filter(Boolean);console.log(JSON.stringify(lines.map(l=>JSON.parse(l))))" 2>/dev/null || echo "[]")
+
+    node -e "
+      const plan = {
+        summary: '$summary',
+        product_type: '$type',
+        label: '$type_label',
+        confidence: $confidence,
+        team: { lead: '${agents%% *}', members: $agents_json },
+        flow: { graph: 'feature-dev' },
+        gates: '$gates',
+        risks: $(node -e "console.log(JSON.stringify(require('fs').readFileSync('/dev/stdin','utf8').trim()))" <<< "$risks_json" 2>/dev/null || echo '[]')
+      };
+      console.log(JSON.stringify(plan, null, 2));
+    "
+    return 0
+  fi
+
   # Step 6: Assemble graph
   local graph_yaml; graph_yaml=$(assemble_graph "$task" "$type" "$agents" "$deps")
 
   echo ""
   echo "$graph_yaml"
+
+  # Interactive confirmation
+  if [[ "${AG_AI_MODE:-}" != "1" ]]; then
+    echo ""
+    read -p "  确认启动? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      echo "  已取消。"
+      return 0
+    fi
+  fi
 
   # Save to temp file for execution
   local graph_file; graph_file=$(mktemp /tmp/guild-auto-XXXXXX.yml)
