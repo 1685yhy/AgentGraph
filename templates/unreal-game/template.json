@@ -1,0 +1,37 @@
+{
+  "name": "unreal-game",
+  "label": "Unreal游戏",
+  "description": "Unreal Engine 5项目",
+  "version": "0.1.0",
+  "init_command": "guild init --template unreal-game <project-dir>",
+  "capabilities": {
+    "agents": [
+      "game-designer",
+      "unreal-developer",
+      "technical-artist",
+      "game-ui-designer",
+      "game-audio-engineer",
+      "game-qa-engineer",
+      "game-producer"
+    ],
+    "modules": [
+      "game-patterns",
+      "save-system",
+      "tutorial",
+      "perf-monitor",
+      "analytics",
+      "ui-kit",
+      "vfx",
+      "ab-test"
+    ],
+    "gates": "1 2 3 4 5",
+    "metrics": [
+      "dau",
+      "session_length",
+      "retention_d1",
+      "retention_d7",
+      "fps",
+      "crash_rate"
+    ]
+  }
+}

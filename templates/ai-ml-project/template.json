@@ -1,0 +1,28 @@
+{
+  "name": "ai-ml-project",
+  "label": "AI/ML项目",
+  "description": "RAG系统、模型训练、AI集成",
+  "version": "0.1.0",
+  "init_command": "guild init --template ai-ml-project <project-dir>",
+  "capabilities": {
+    "agents": [
+      "ai-engineer",
+      "backend-architect",
+      "data-analyst",
+      "qa-engineer",
+      "devops-engineer"
+    ],
+    "modules": [
+      "analytics",
+      "perf-monitor",
+      "logging"
+    ],
+    "gates": "1 2 3",
+    "metrics": [
+      "accuracy",
+      "latency",
+      "throughput",
+      "model_size"
+    ]
+  }
+}

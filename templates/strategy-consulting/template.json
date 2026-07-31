@@ -1,0 +1,26 @@
+{
+  "name": "strategy-consulting",
+  "label": "策略咨询",
+  "description": "产品策略、GTM策略、商业策划",
+  "version": "0.1.0",
+  "init_command": "guild init --template strategy-consulting <project-dir>",
+  "capabilities": {
+    "agents": [
+      "product-manager",
+      "ux-researcher",
+      "data-analyst",
+      "growth-hacker",
+      "financial-analyst",
+      "content-creator"
+    ],
+    "modules": [
+      "analytics"
+    ],
+    "gates": "1 2",
+    "metrics": [
+      "strategy_clarity",
+      "market_evidence",
+      "feasibility_score"
+    ]
+  }
+}

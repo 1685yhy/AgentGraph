@@ -1,0 +1,40 @@
+{
+  "name": "unity-game",
+  "label": "Unity游戏",
+  "description": "Unity 3D/2D游戏项目",
+  "version": "0.1.0",
+  "init_command": "guild init --template unity-game <project-dir>",
+  "capabilities": {
+    "agents": [
+      "game-designer",
+      "unity-developer",
+      "technical-artist",
+      "game-ui-designer",
+      "game-audio-engineer",
+      "game-qa-engineer",
+      "game-producer",
+      "monetization-designer"
+    ],
+    "modules": [
+      "game-patterns",
+      "save-system",
+      "tutorial",
+      "perf-monitor",
+      "analytics",
+      "iap",
+      "ui-kit",
+      "vfx",
+      "ab-test",
+      "social"
+    ],
+    "gates": "1 2 3 4 5",
+    "metrics": [
+      "dau",
+      "session_length",
+      "retention_d1",
+      "retention_d7",
+      "fps",
+      "crash_rate"
+    ]
+  }
+}

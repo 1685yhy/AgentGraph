@@ -1,0 +1,26 @@
+{
+  "name": "content-project",
+  "label": "内容项目",
+  "description": "技术文档、营销文案、白皮书",
+  "version": "0.1.0",
+  "init_command": "guild init --template content-project <project-dir>",
+  "capabilities": {
+    "agents": [
+      "tech-writer",
+      "content-creator",
+      "product-manager",
+      "seo-specialist"
+    ],
+    "modules": [
+      "seo",
+      "analytics",
+      "i18n"
+    ],
+    "gates": "1 2",
+    "metrics": [
+      "content_quality",
+      "seo_score",
+      "readability"
+    ]
+  }
+}

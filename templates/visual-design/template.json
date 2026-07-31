@@ -1,0 +1,24 @@
+{
+  "name": "visual-design",
+  "label": "视觉设计",
+  "description": "海报、印刷品、营销物料",
+  "version": "0.1.0",
+  "init_command": "guild init --template visual-design <project-dir>",
+  "capabilities": {
+    "agents": [
+      "creative-director",
+      "ui-designer",
+      "brand-guardian",
+      "content-creator"
+    ],
+    "modules": [
+      "ui-kit"
+    ],
+    "gates": "1 2 4",
+    "metrics": [
+      "visual_quality",
+      "brand_alignment",
+      "production_readiness"
+    ]
+  }
+}

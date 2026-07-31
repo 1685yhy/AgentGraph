@@ -1,0 +1,25 @@
+{
+  "name": "brand-identity",
+  "label": "品牌设计",
+  "description": "品牌VI、视觉系统、品牌手册",
+  "version": "0.1.0",
+  "init_command": "guild init --template brand-identity <project-dir>",
+  "capabilities": {
+    "agents": [
+      "brand-guardian",
+      "creative-director",
+      "ui-designer",
+      "content-creator"
+    ],
+    "modules": [
+      "ui-kit",
+      "i18n"
+    ],
+    "gates": "1 2 4",
+    "metrics": [
+      "brand_consistency",
+      "visual_quality",
+      "guideline_completeness"
+    ]
+  }
+}
