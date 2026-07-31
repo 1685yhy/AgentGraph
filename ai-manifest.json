@@ -100,15 +100,24 @@
       "description": "Initialize project from template",
       "usage": "guild init --template <name> <directory>",
       "templates": [
-        "wechat-game",
-        "miniapp",
-        "web-app",
-        "dashboard",
-        "api-service",
-        "landing-page",
-        "corp-site",
         "admin-system",
-        "mobile-app"
+        "ai-ml-project",
+        "api-service",
+        "brand-identity",
+        "content-project",
+        "corp-site",
+        "dashboard",
+        "infra-project",
+        "landing-page",
+        "miniapp",
+        "mobile-app",
+        "research-report",
+        "strategy-consulting",
+        "unity-game",
+        "unreal-game",
+        "visual-design",
+        "web-app",
+        "wechat-game"
       ]
     },
     "dispatch": {

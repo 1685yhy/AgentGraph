@@ -170,6 +170,8 @@ AgentGraph 内置 40 个 AI Agent，分布在 11 个部门：
 |------|------|------|
 | `guild classify` | 自然语言 → 产品类型 + 置信度（18种类型） | `guild classify --json '做一个供应商后台管理系统'` |
 | `guild plan` | 生成完整执行计划（类型+团队+流程+里程碑+风险） | `guild plan --json '帮我做塔罗小程序'` |
+| `guild templates` | 列出 18 个可用项目模板（文档型 + 工程型） | `guild templates` |
+| `guild init` | 从模板初始化项目（自动配置 Agent 团队） | `guild init --template admin-system ./my-project` |
 | `guild handoff` | 创建交接（Agent A → Agent B） | `guild handoff --from pm --to backend --path ./prd/` |
 | `guild check` | 检查交接完整性 | `guild check --handoff 1` |
 | `guild status` | 查看所有交接状态 | `guild status` |
