@@ -608,6 +608,7 @@ generate_graph() {
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
       echo "  已取消。"
+      rm -f /tmp/guild-last-graph.txt
       return 0
     fi
   fi
