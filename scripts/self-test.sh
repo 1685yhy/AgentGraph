@@ -682,6 +682,50 @@ test_plan_output() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════
+# Test 11: template completeness
+# ═══════════════════════════════════════════════════════════════════════
+test_template_completeness() {
+  echo ""
+  echo "── Test 11: template completeness ──"
+
+  local tmpl_dir="$REPO_ROOT/templates"
+  local all_ok=true
+
+  # All 18 templates must have template.json + README.md + AGENT_FLOW.md
+  for tmpl in "$tmpl_dir"/*/; do
+    local name; name=$(basename "$tmpl")
+    local template_json="$tmpl/template.json"
+    local readme="$tmpl/README.md"
+    local agent_flow="$tmpl/AGENT_FLOW.md"
+
+    if [[ ! -f "$template_json" ]]; then
+      fail "template $name: missing template.json"
+      all_ok=false
+    fi
+    if [[ ! -f "$readme" ]]; then
+      fail "template $name: missing README.md"
+      all_ok=false
+    fi
+    if [[ ! -f "$agent_flow" ]]; then
+      fail "template $name: missing AGENT_FLOW.md"
+      all_ok=false
+    fi
+
+    # Verify template.json is valid JSON
+    if [[ -f "$template_json" ]]; then
+      node -e "JSON.parse(require('fs').readFileSync('$template_json','utf8'))" 2>/dev/null || {
+        fail "template $name: template.json is invalid JSON"
+        all_ok=false
+      }
+    fi
+  done
+
+  if $all_ok; then
+    pass "template completeness: all 18 templates have template.json + README.md + AGENT_FLOW.md"
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
 # Run all tests
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -701,6 +745,7 @@ test_contract_validity || true
 test_handoff_integrity || true
 test_classify_accuracy || true
 test_plan_output || true
+test_template_completeness || true
 
 # ── Summary ──────────────────────────────────────────────────────────
 echo ""
