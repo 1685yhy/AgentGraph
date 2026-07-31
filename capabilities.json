@@ -83,32 +83,113 @@
       "modules": ["auth-biometric","push-notification","offline-storage","deep-link","camera-qr","location","iap","analytics"],
       "gates": "1 2 3 4",
       "metrics": ["dau","crash_rate","load_time","store_rating","retention_d7"]
+    },
+    "research-report": {
+      "label": "研究报告",
+      "template": "research-report",
+      "description": "用户调研、竞品分析、市场研究报告",
+      "agents": ["product-manager","ux-researcher","data-analyst","tech-writer"],
+      "modules": ["analytics"],
+      "gates": "1 2",
+      "metrics": ["report_completeness","insight_quality","recommendation_actionability"]
+    },
+    "strategy-consulting": {
+      "label": "策略咨询",
+      "template": "strategy-consulting",
+      "description": "产品策略、GTM策略、商业策划书",
+      "agents": ["product-manager","ux-researcher","data-analyst","growth-hacker","financial-analyst","content-creator"],
+      "modules": ["analytics"],
+      "gates": "1 2",
+      "metrics": ["strategy_clarity","market_evidence","feasibility_score"]
+    },
+    "brand-identity": {
+      "label": "品牌设计",
+      "template": "brand-identity",
+      "description": "品牌VI、视觉系统、品牌手册",
+      "agents": ["brand-guardian","creative-director","ui-designer","content-creator"],
+      "modules": ["ui-kit","i18n"],
+      "gates": "1 2 4",
+      "metrics": ["brand_consistency","visual_quality","guideline_completeness"]
+    },
+    "visual-design": {
+      "label": "视觉设计",
+      "template": "visual-design",
+      "description": "海报、印刷品、营销视觉物料",
+      "agents": ["creative-director","ui-designer","brand-guardian","content-creator"],
+      "modules": ["ui-kit"],
+      "gates": "1 2 4",
+      "metrics": ["visual_quality","brand_alignment","production_readiness"]
+    },
+    "content-project": {
+      "label": "内容项目",
+      "template": "content-project",
+      "description": "技术文档、营销文案、白皮书",
+      "agents": ["tech-writer","content-creator","product-manager","seo-specialist"],
+      "modules": ["seo","analytics","i18n"],
+      "gates": "1 2",
+      "metrics": ["content_quality","seo_score","readability"]
+    },
+    "unity-game": {
+      "label": "Unity游戏",
+      "template": "unity-game",
+      "description": "Unity 3D/2D游戏，C#开发",
+      "agents": ["game-designer","unity-developer","technical-artist","game-ui-designer","game-audio-engineer","game-qa-engineer","game-producer","monetization-designer"],
+      "modules": ["game-patterns","save-system","tutorial","perf-monitor","analytics","iap","ui-kit","vfx","ab-test","social"],
+      "gates": "1 2 3 4 5",
+      "metrics": ["dau","session_length","retention_d1","retention_d7","fps","crash_rate"]
+    },
+    "unreal-game": {
+      "label": "Unreal游戏",
+      "template": "unreal-game",
+      "description": "Unreal Engine 5项目，C++/蓝图",
+      "agents": ["game-designer","unreal-developer","technical-artist","game-ui-designer","game-audio-engineer","game-qa-engineer","game-producer"],
+      "modules": ["game-patterns","save-system","tutorial","perf-monitor","analytics","ui-kit","vfx","ab-test"],
+      "gates": "1 2 3 4 5",
+      "metrics": ["dau","session_length","retention_d1","retention_d7","fps","crash_rate"]
+    },
+    "infra-project": {
+      "label": "基础设施",
+      "template": "infra-project",
+      "description": "CI/CD、云架构、DevOps基础设施",
+      "agents": ["devops-engineer","backend-architect","security-engineer","qa-engineer"],
+      "modules": ["auth-jwt","rate-limit","logging","health-check"],
+      "gates": "1 2 3",
+      "metrics": ["uptime","deploy_frequency","mttr","p99_latency"]
+    },
+    "ai-ml-project": {
+      "label": "AI/ML项目",
+      "template": "ai-ml-project",
+      "description": "RAG系统、模型训练、AI集成",
+      "agents": ["ai-engineer","backend-architect","data-analyst","qa-engineer","devops-engineer"],
+      "modules": ["analytics","perf-monitor","logging"],
+      "gates": "1 2 3",
+      "metrics": ["accuracy","latency","throughput","model_size"]
     }
   },
 
   "agents": {
     "product-manager":       {"division":"product","delivers":["PRD","用户故事","验收条件"],"product_types":["miniapp","web-app","dashboard","landing-page","corp-site","admin-system","mobile-app"]},
-    "ux-researcher":         {"division":"product","delivers":["用户研究","行为分析"],"product_types":["miniapp","web-app","dashboard","admin-system","mobile-app"]},
-    "data-analyst":          {"division":"product","delivers":["数据分析","指标定义"],"product_types":["dashboard","web-app"]},
-    "tech-writer":           {"division":"product","delivers":["技术文档","API文档"],"product_types":["api-service","web-app"]},
-    "ui-designer":           {"division":"design","delivers":["设计系统","UI规范"],"product_types":["miniapp","web-app","dashboard","landing-page","corp-site","admin-system","mobile-app"]},
-    "brand-guardian":        {"division":"design","delivers":["品牌指南"],"product_types":["corp-site","landing-page"]},
+    "ux-researcher":         {"division":"product","delivers":["用户研究","行为分析"],"product_types":["miniapp","web-app","dashboard","admin-system","mobile-app","research-report","strategy-consulting"]},
+    "data-analyst":          {"division":"product","delivers":["数据分析","指标定义"],"product_types":["dashboard","web-app","research-report","strategy-consulting","ai-ml-project"]},
+    "tech-writer":           {"division":"product","delivers":["技术文档","API文档"],"product_types":["api-service","web-app","research-report","content-project"]},
+    "ui-designer":           {"division":"design","delivers":["设计系统","UI规范"],"product_types":["miniapp","web-app","dashboard","landing-page","corp-site","admin-system","mobile-app","brand-identity","visual-design"]},
+    "brand-guardian":        {"division":"design","delivers":["品牌指南"],"product_types":["corp-site","landing-page","brand-identity","visual-design"]},
     "interaction-designer":  {"division":"design","delivers":["交互规范","动效设计"],"product_types":["mobile-app","web-app","miniapp"]},
-    "creative-director":     {"division":"design","delivers":["视觉审核"],"product_types":["corp-site","landing-page","mobile-app"]},
+    "creative-director":     {"division":"design","delivers":["视觉审核"],"product_types":["corp-site","landing-page","mobile-app","brand-identity","visual-design"]},
     "frontend-engineer":     {"division":"engineering","delivers":["React组件","TypeScript类型"],"product_types":["web-app","dashboard","landing-page","corp-site","admin-system","miniapp"]},
     "backend-architect":     {"division":"engineering","delivers":["API设计","数据库模式"],"product_types":["api-service","web-app","dashboard","admin-system","miniapp","mobile-app"]},
     "mobile-developer":      {"division":"engineering","delivers":["小程序/App代码"],"product_types":["miniapp","mobile-app"]},
     "database-specialist":   {"division":"engineering","delivers":["数据模型","查询优化"],"product_types":["api-service","web-app","dashboard","admin-system"]},
-    "devops-engineer":       {"division":"engineering","delivers":["CI/CD","Docker"],"product_types":["api-service","web-app","admin-system","mobile-app"]},
-    "ai-engineer":           {"division":"engineering","delivers":["AI模型集成"],"product_types":["web-app","dashboard","mobile-app"]},
+    "devops-engineer":       {"division":"engineering","delivers":["CI/CD","Docker"],"product_types":["api-service","web-app","admin-system","mobile-app","infra-project","ai-ml-project"]},
+    "ai-engineer":           {"division":"engineering","delivers":["AI模型集成"],"product_types":["web-app","dashboard","mobile-app","ai-ml-project"]},
     "code-reviewer":         {"division":"engineering","delivers":["代码审查报告"],"product_types":["*"]},
     "qa-engineer":           {"division":"testing","delivers":["测试报告","自动化测试"],"product_types":["miniapp","web-app","dashboard","api-service","admin-system","mobile-app"]},
     "performance-tester":    {"division":"testing","delivers":["性能报告"],"product_types":["web-app","dashboard","api-service","mobile-app"]},
     "accessibility-auditor": {"division":"testing","delivers":["无障碍审计"],"product_types":["web-app","dashboard","landing-page","corp-site","miniapp"]},
     "security-engineer":     {"division":"security","delivers":["安全审计","威胁模型"],"product_types":["api-service","web-app","admin-system","mobile-app"]},
-    "growth-hacker":         {"division":"marketing","delivers":["增长策略"],"product_types":["landing-page","miniapp","mobile-app"]},
-    "content-creator":       {"division":"marketing","delivers":["内容创作"],"product_types":["landing-page","corp-site"]},
-    "seo-specialist":        {"division":"marketing","delivers":["SEO优化"],"product_types":["landing-page","corp-site","web-app"]},
+    "growth-hacker":         {"division":"marketing","delivers":["增长策略"],"product_types":["landing-page","miniapp","mobile-app","strategy-consulting"]},
+    "content-creator":       {"division":"marketing","delivers":["内容创作"],"product_types":["landing-page","corp-site","strategy-consulting","brand-identity","visual-design","content-project"]},
+    "seo-specialist":        {"division":"marketing","delivers":["SEO优化"],"product_types":["landing-page","corp-site","web-app","content-project"]},
     "social-media-strategist":{"division":"marketing","delivers":["社媒策略"],"product_types":["landing-page","miniapp","wechat-game"]},
     "project-manager":       {"division":"project-management","delivers":["项目时间线","风险登记"],"product_types":["*"]},
     "game-designer":         {"division":"game-development","delivers":["GDD","核心循环"],"product_types":["wechat-game"]},
@@ -116,9 +197,12 @@
     "technical-artist":      {"division":"game-development","delivers":["视觉资产","Shader"],"product_types":["wechat-game"]},
     "game-ui-designer":      {"division":"game-development","delivers":["游戏UI"],"product_types":["wechat-game"]},
     "game-audio-engineer":   {"division":"game-development","delivers":["音效","BGM"],"product_types":["wechat-game"]},
-    "monetization-designer": {"division":"game-development","delivers":["变现方案"],"product_types":["wechat-game"]},
+    "monetization-designer": {"division":"game-development","delivers":["变现方案"],"product_types":["wechat-game","unity-game"]},
     "game-qa-engineer":      {"division":"game-development","delivers":["游戏测试"],"product_types":["wechat-game"]},
-    "game-producer":         {"division":"game-development","delivers":["发布管理"],"product_types":["wechat-game"]}
+    "game-producer":         {"division":"game-development","delivers":["发布管理"],"product_types":["wechat-game"]},
+    "unity-developer":       {"division":"game-development","delivers":["Unity代码","性能优化"],"product_types":["unity-game"]},
+    "unreal-developer":      {"division":"game-development","delivers":["Unreal代码","性能优化"],"product_types":["unreal-game"]},
+    "financial-analyst":     {"division":"finance","delivers":["财务建模","单位经济分析"],"product_types":["strategy-consulting"]}
   },
 
   "modules": {
