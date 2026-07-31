@@ -1,0 +1,21 @@
+# AgentGraph Infrastructure Template
+# Agent: devops-engineer
+# Consumes: service architecture from backend-architect
+# Produces: docker-image
+# Handoff_to: qa-engineer
+
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --production
+COPY . .
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+USER node
+CMD ["node", "dist/main.js"]

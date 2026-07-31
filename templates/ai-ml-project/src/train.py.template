@@ -1,0 +1,33 @@
+"""
+AgentGraph AI/ML Template — train.py
+Agent: ai-engineer
+Consumes: labeled data from data/ directory
+Produces: trained-model
+Handoff_to: backend-architect
+"""
+import argparse
+import json
+import os
+from pathlib import Path
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="configs/model-config.yaml")
+    parser.add_argument("--data-dir", default="data/")
+    parser.add_argument("--output-dir", default="models/")
+    args = parser.parse_args()
+
+    # TODO: AgentGraph AI engineer — implement training logic here
+    # 1. Load config
+    # 2. Load and preprocess data
+    # 3. Initialize model
+    # 4. Train with validation
+    # 5. Save model + metrics
+
+    print("[AgentGraph] Training pipeline initialized.")
+    print(f"  Config: {args.config}")
+    print(f"  Data: {args.data_dir}")
+    print(f"  Output: {args.output_dir}")
+
+if __name__ == "__main__":
+    main()

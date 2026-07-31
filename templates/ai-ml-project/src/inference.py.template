@@ -1,0 +1,21 @@
+"""
+AgentGraph AI/ML Template — inference.py
+Agent: backend-architect
+Consumes: trained model from models/
+Produces: inference-api
+Handoff_to: qa-engineer
+"""
+from pathlib import Path
+
+def load_model(model_path: str):
+    """Load trained model from disk."""
+    # TODO: Implement model loading
+    pass
+
+def predict(model, input_data):
+    """Run inference on input."""
+    # TODO: Implement inference
+    pass
+
+if __name__ == "__main__":
+    print("[AgentGraph] Inference service ready.")
