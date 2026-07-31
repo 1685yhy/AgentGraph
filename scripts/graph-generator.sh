@@ -60,6 +60,48 @@ TYPE_AGENTS["doc"]="product-manager tech-writer creative-director"
 # marketing: 营销/增长
 TYPE_AGENTS["marketing"]="product-manager growth-hacker content-creator data-analyst"
 
+# research-report: 研究报告
+TYPE_AGENTS["research-report"]="product-manager ux-researcher data-analyst tech-writer"
+
+# strategy-consulting: 策略咨询
+TYPE_AGENTS["strategy-consulting"]="product-manager ux-researcher data-analyst growth-hacker financial-analyst content-creator"
+
+# brand-identity: 品牌设计
+TYPE_AGENTS["brand-identity"]="brand-guardian creative-director ui-designer content-creator"
+
+# visual-design: 视觉设计
+TYPE_AGENTS["visual-design"]="creative-director ui-designer brand-guardian content-creator"
+
+# content-project: 内容项目
+TYPE_AGENTS["content-project"]="product-manager tech-writer content-creator seo-specialist"
+
+# unity-game: Unity 3D/2D 游戏
+TYPE_AGENTS["unity-game"]="game-designer unity-developer technical-artist game-ui-designer game-audio-engineer monetization-designer game-qa-engineer game-producer"
+
+# unreal-game: Unreal Engine 5 项目
+TYPE_AGENTS["unreal-game"]="game-designer unreal-developer technical-artist game-ui-designer game-audio-engineer game-qa-engineer game-producer"
+
+# infra-project: DevOps/基础设施
+TYPE_AGENTS["infra-project"]="devops-engineer backend-architect security-engineer qa-engineer"
+
+# ai-ml-project: AI/ML 项目
+TYPE_AGENTS["ai-ml-project"]="ai-engineer backend-architect data-analyst qa-engineer devops-engineer"
+
+# wechat-game: 微信/抖音小游戏（复用 game 链）
+TYPE_AGENTS["wechat-game"]="game-designer game-programmer technical-artist game-ui-designer game-audio-engineer game-qa-engineer game-producer"
+
+# api-service: 后端API/服务（原 api）
+TYPE_AGENTS["api-service"]="product-manager backend-architect database-specialist qa-engineer security-engineer"
+
+# mobile-app: 移动应用（原 mobile）
+TYPE_AGENTS["mobile-app"]="product-manager ui-designer mobile-developer backend-architect qa-engineer"
+
+# admin-system: 后台管理系统
+TYPE_AGENTS["admin-system"]="product-manager ui-designer frontend-engineer backend-architect database-specialist qa-engineer security-engineer"
+
+# corp-site: 企业官网（复用 landing-page 链）
+TYPE_AGENTS["corp-site"]="product-manager ui-designer frontend-engineer qa-engineer"
+
 # ── Keyword → product type mapping ────────────────────────────────────
 # ── AI-powered task analysis ──────────────────────────────────────────
 # In Claude Code / OpenClaw: the host LLM (Claude) is the intelligence.
@@ -79,16 +121,24 @@ classify_task_fallback() {
   local task="$1"
   local best="" best_score=0
   for pair in \
-    "web-app:页面 网站 后台 管理 注册 登录 表单 看板 报表 供应商 门户 控制台 账号 权限" \
-    "landing-page:落地页 官网 landing 主页 首页 品牌页" \
-    "api:API 接口 后端服务 restful graphql 微服务" \
-    "miniapp:小程序 微信 wechat 抖音" \
-    "mobile:APP 安卓 iOS 移动端 手机" \
-    "dashboard:看板 报表 图表 数据可视化 统计 监控 大屏" \
-    "full-stack:全栈 前后端 完整系统" \
-    "game:游戏 关卡 角色 道具 战斗 技能 副本 消除 三消" \
-    "doc:文档 方案 计划 报告 PRD spec" \
-    "marketing:营销 增长 推广 广告 社媒 SEO 获客 转化"; do
+    "research-report:调研 用户研究 竞品 访谈 可用性测试 焦点小组 问卷 市场研究 行业分析" \
+    "strategy-consulting:策略 GTM 商业模式 商业计划 产品战略 定价策略 路线图 进入市场 商业策划" \
+    "brand-identity:品牌 VI Logo 视觉识别 品牌手册 品牌指南 品牌设计 标志" \
+    "visual-design:海报 印刷 物料 宣传册 展板 包装 视觉设计 平面设计" \
+    "content-project:写文档 文案 白皮书 技术文档 用户手册 博客 内容 写作 编辑" \
+    "unity-game:Unity unity C# 3D游戏 2D游戏 unity3d" \
+    "unreal-game:Unreal UE5 UE4 蓝图 虚幻引擎 虚幻" \
+    "infra-project:Docker K8s Kubernetes CI/CD DevOps 运维 部署 云架构 Terraform" \
+    "ai-ml-project:机器学习 深度学习 模型训练 训练 分类 LLM RAG 大模型 NLP 神经网络 AI模型" \
+    "wechat-game:小游戏 微信小游戏 抖音小游戏 H5游戏 休闲游戏 消除 合成 三消" \
+    "web-app:页面 网站 管理 注册 登录 表单 报表 供应商 门户 控制台 账号" \
+    "landing-page:落地页 landing 主页 首页 品牌页" \
+    "api-service:API 接口 后端服务 restful graphql 微服务" \
+    "miniapp:小程序 微信 抖音小程序 小程序开发" \
+    "mobile-app:APP 安卓 iOS 移动端 手机应用 Flutter React Native" \
+    "dashboard:看板 报表 图表 数据可视化 统计 监控 大屏 BI" \
+    "admin-system:后台 后台管理 管理系统 CRUD 权限管理 审批流 后台系统" \
+    "corp-site:官网 企业官网 公司网站 企业站 品牌官网"; do
     local type="${pair%%:*}"
     local kws="${pair#*:}"
     local score=0
@@ -165,7 +215,7 @@ select_agents() {
 
   # Add accessibility-auditor for UI types
   case "$type" in
-    web-app|landing-page|miniapp|dashboard|mobile|full-stack)
+    web-app|landing-page|miniapp|dashboard|mobile-app|full-stack|admin-system|corp-site|brand-identity|visual-design)
       [[ "$agents" != *accessibility-auditor* ]] && agents="$agents accessibility-auditor";;
   esac
 
@@ -343,17 +393,17 @@ select_gates() {
   local gates="1 2"  # completeness + syntax always
 
   case "$type" in
-    web-app|landing-page|miniapp|mobile|full-stack)
+    web-app|landing-page|miniapp|mobile-app|full-stack|admin-system|corp-site)
       gates="$gates 3 4"  # behavior + playability
       ;;
-    api)
+    api-service|infra-project|ai-ml-project)
       gates="$gates 3"    # behavior only
       ;;
-    game)
+    wechat-game|unity-game|unreal-game)
       gates="$gates 3 4 5" # behavior + playability + agent-standards
       ;;
-    doc)
-      gates="1 2"          # completeness + syntax only
+    research-report|strategy-consulting|brand-identity|visual-design|content-project)
+      gates="1 2"          # completeness + syntax only (no behavior testing for docs)
       ;;
   esac
 
