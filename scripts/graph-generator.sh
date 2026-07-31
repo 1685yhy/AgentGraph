@@ -510,6 +510,116 @@ build_product() {
   ok "✅ Build 完成: $task"
 }
 
+# ── Classify command ──────────────────────────────────────────────────
+# Standalone classification + confidence scoring
+# Usage: guild classify "task description"
+#        guild classify --json "task description"
+classify_score() {
+  local task="$1" type="$2"
+  local score=0
+  # Count keyword matches for this type against the task
+  local kws=""
+  case "$type" in
+    research-report) kws="调研 用户研究 竞品 访谈 可用性测试 焦点小组 问卷 市场研究 行业分析";;
+    strategy-consulting) kws="策略 GTM 商业模式 商业计划 产品战略 定价策略 路线图 进入市场";;
+    brand-identity) kws="品牌 VI Logo 视觉识别 品牌手册 品牌指南 标志";;
+    visual-design) kws="海报 印刷 物料 宣传册 展板 包装 视觉设计 平面设计";;
+    content-project) kws="写文档 文案 白皮书 技术文档 用户手册 博客 内容 写作";;
+    unity-game) kws="Unity unity C# 3D游戏 2D游戏 unity3d";;
+    unreal-game) kws="Unreal UE5 UE4 蓝图 虚幻引擎";;
+    infra-project) kws="Docker K8s Kubernetes CI/CD DevOps 运维 部署 云架构 Terraform";;
+    ai-ml-project) kws="机器学习 深度学习 模型训练 训练 分类 LLM RAG 大模型 NLP 神经网络";;
+    wechat-game) kws="小游戏 微信小游戏 抖音小游戏 H5游戏 休闲游戏 消除 三消";;
+    web-app) kws="页面 网站 注册 登录 表单 门户 控制台";;
+    landing-page) kws="落地页 landing 主页 首页 品牌页";;
+    api-service) kws="API 接口 后端服务 restful graphql 微服务";;
+    miniapp) kws="小程序 微信小程序 抖音小程序";;
+    mobile-app) kws="APP 安卓 iOS 移动端 手机应用 Flutter React Native";;
+    dashboard) kws="看板 报表 图表 数据可视化 统计 监控 大屏 BI";;
+    admin-system) kws="供应商 后台 后台管理 管理系统 CRUD 权限管理 审批流 后台系统";;
+    corp-site) kws="官网 企业官网 公司网站 企业站 品牌官网";;
+  esac
+  for kw in $kws; do
+    echo "$task" | grep -qi "$kw" && score=$((score + 1))
+  done
+  echo $score
+}
+
+cmd_classify() {
+  local task="$1"
+  [[ -z "$task" ]] && { err "Usage: guild classify \"<task description>\""; return 1; }
+
+  local best_type="" best_score=0 best_label=""
+  local -a scores=()
+
+  # Score all 18 types
+  for type in research-report strategy-consulting brand-identity visual-design content-project \
+              unity-game unreal-game infra-project ai-ml-project \
+              wechat-game web-app landing-page api-service miniapp mobile-app dashboard admin-system corp-site; do
+    local s; s=$(classify_score "$task" "$type")
+    scores+=("$type:$s")
+    if [[ $s -gt $best_score ]]; then
+      best_score=$s
+      best_type="$type"
+    fi
+  done
+
+  # Get type metadata from capabilities.json
+  local label
+  label=$(node -e "const c=JSON.parse(require('fs').readFileSync('$REPO_ROOT/capabilities.json','utf8'));console.log((c.product_types['$best_type']||{}).label||'$best_type')" 2>/dev/null || echo "$best_type")
+
+  # Collect alternatives (types with score > 0, sorted)
+  local alternatives="[]"
+  if command -v node &>/dev/null; then
+    alternatives=$(printf '%s\n' "${scores[@]}" | sort -t: -k2 -rn | while IFS=: read -r t s; do
+      [[ "$t" == "$best_type" ]] && continue
+      [[ "$s" -eq 0 ]] && continue
+      local tl; tl=$(node -e "const c=JSON.parse(require('fs').readFileSync('$REPO_ROOT/capabilities.json','utf8'));console.log((c.product_types['$t']||{}).label||'$t')" 2>/dev/null || echo "$t")
+      echo "{\"type\":\"$t\",\"label\":\"$tl\",\"score\":$s}"
+    done | node -e "const lines=require('fs').readFileSync('/dev/stdin','utf8').trim().split('\n').filter(Boolean).slice(0,3);console.log(JSON.stringify(lines.map(l=>JSON.parse(l))))" 2>/dev/null || echo "[]")
+  fi
+
+  # Get template and gates from capabilities
+  local template gates
+  template=$(node -e "const c=JSON.parse(require('fs').readFileSync('$REPO_ROOT/capabilities.json','utf8'));console.log((c.product_types['$best_type']||{}).template||'$best_type')" 2>/dev/null || echo "$best_type")
+  gates=$(node -e "const c=JSON.parse(require('fs').readFileSync('$REPO_ROOT/capabilities.json','utf8'));console.log((c.product_types['$best_type']||{}).gates||'1 2')" 2>/dev/null || echo "1 2")
+
+  # Calculate confidence: best_score / max_possible (capped at 1.0)
+  local confidence="0.0"
+  if [[ $best_score -gt 0 ]]; then
+    confidence=$(node -e "console.log(Math.min(1.0, $best_score / 5).toFixed(2))" 2>/dev/null || echo "0.5")
+  fi
+
+  # Low confidence → ask user instead of guessing
+  if [[ "$(echo "$confidence < 0.5" | bc -l 2>/dev/null || echo 0)" == "1" ]] || [[ "$best_score" -eq 0 ]]; then
+    if [[ "${AG_AI_MODE:-}" == "1" ]] || [[ "${1:-}" == "--json"* ]]; then
+      # JSON mode: return low-confidence flag
+      node -e "console.log(JSON.stringify({type:'$best_type',label:'$label',confidence:$confidence,alternatives:$alternatives,template:'$template',gates:'$gates',low_confidence:true,message:'请提供更多细节以准确分类'}))"
+    else
+      echo "🤔 需求描述不够明确，无法确定项目类型。"
+      echo ""
+      if [[ "$(echo "$alternatives" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));console.log(a.length)" 2>/dev/null || echo 0)" != "0" ]]; then
+        echo "可能的类型："
+        echo "$alternatives" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));a.forEach(x=>console.log('  - '+x.label+' ('+x.type+')'))" 2>/dev/null
+      fi
+      echo ""
+      echo "能多说一点吗？比如目标用户是谁、在什么场景下使用？"
+    fi
+    return 0
+  fi
+
+  # Output classification result
+  if [[ "${AG_AI_MODE:-}" == "1" ]] || [[ "${1:-}" == "--json"* ]]; then
+    node -e "console.log(JSON.stringify({type:'$best_type',label:'$label',confidence:$confidence,alternatives:$alternatives,template:'$template',gates:'$gates'},null,2))"
+  else
+    echo "📋 $label ($best_type)"
+    echo "   置信度: $confidence"
+    if [[ "$alternatives" != "[]" ]]; then
+      echo "   备选: $(echo "$alternatives" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));console.log(a.map(x=>x.label).join(', '))" 2>/dev/null)"
+    fi
+  fi
+}
+
 # ── CLI entry ──────────────────────────────────────────────────────────
 if [[ "${1:-}" == "--generate" ]]; then
   shift

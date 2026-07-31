@@ -378,6 +378,8 @@ if [[ $# -eq 0 ]]; then
   echo ""
   echo "Commands:"
   echo "  guild graph     — 图引擎 (run/status/show/list)"
+  echo "  guild classify  — 识别需求类型 (自然语言 → 产品类型 + 置信度)"
+  echo "  guild plan     — 生成完整执行计划 (类型 + 团队 + 流程 + 里程碑 + 风险)"
   echo "  guild handoff   — 创建交接 (Agent A → Agent B)"
   echo "  guild check     — 检查交接完整性"
   echo "  guild status    — 查看所有交接状态"
@@ -454,6 +456,7 @@ case "$CMD" in
 	  agents)    agent_list;;
 	  capabilities) capability_list;;
 	  capability)  capability_show "$1";;
+  classify)  cmd_classify "$*";;
 	  templates)   ls -d "$REPO_ROOT"/templates/*/ | while read d; do basename "$d"; done;;
 	  help)      ai_help "${1:-}";;
 	  build)     build_product "$@";;
