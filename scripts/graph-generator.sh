@@ -426,6 +426,8 @@ generate_graph() {
   local json_mode=false
   if [[ "${AG_AI_MODE:-}" == "1" ]] || [[ "${1:-}" == "--json" ]] || [[ "${2:-}" == "--json" ]]; then
     json_mode=true
+    # Redirect human-readable output to stderr so stdout is pure JSON
+    exec 3>&1 1>&2
   fi
   # Drop a leading --json flag so the task description is parsed correctly
   if [[ "${1:-}" == "--json" ]]; then
@@ -573,6 +575,9 @@ generate_graph() {
 
   # JSON output for AI consumption
   if $json_mode; then
+    # Restore stdout so JSON goes to the original fd 1
+    exec 1>&3 3>&-
+
     # Build JSON plan for AI consumption
     local agents_json; agents_json=$(for a in $agents; do
       local an; an=$(agent_frontmatter "$a" "name" 2>/dev/null || echo "$a")
@@ -588,7 +593,7 @@ generate_graph() {
         team: { lead: '${agents%% *}', members: $agents_json },
         flow: { graph: 'feature-dev' },
         gates: '$gates',
-        risks: $(node -e "console.log(JSON.stringify(require('fs').readFileSync('/dev/stdin','utf8').trim()))" <<< "$risks_json" 2>/dev/null || echo '[]')
+        risks: $(node -e "console.log(JSON.stringify(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8').trim())))" <<< "$risks_json" 2>/dev/null || echo '[]')
       };
       console.log(JSON.stringify(plan, null, 2));
     "
