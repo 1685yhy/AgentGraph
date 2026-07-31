@@ -11,11 +11,14 @@
 # Returns: the field value (string/number), or default
 json_get() {
   local file="$1" field="$2" default="${3:-}"
-  # Use node if available (fast path)
+  # Use node if available (fast path).
+  # Guarded with `|| val=""` so a corrupt/unreadable file (node exits 1)
+  # never aborts the caller under `set -e` — it falls through to the
+  # pure-bash fallback instead.
   if command -v node &>/dev/null; then
-    local val
-    val=$(node -e "const d=JSON.parse(require('fs').readFileSync('$file','utf8'));console.log(d['$field']===undefined?'$default':String(d['$field']))" 2>/dev/null)
-    if [[ $? -eq 0 && -n "$val" ]]; then
+    local val=""
+    val=$(node -e "const d=JSON.parse(require('fs').readFileSync('$file','utf8'));console.log(d['$field']===undefined?'$default':String(d['$field']))" 2>/dev/null) || val=""
+    if [[ -n "$val" ]]; then
       echo "$val"
       return
     fi

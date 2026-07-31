@@ -16,15 +16,23 @@ cmd_status() {
   echo "当前交接状态:"
   echo ""
 
+  # Guard: missing or empty handoffs dir — never crash, always exit 0
+  if [[ ! -d "$HANDOFFS_DIR" ]] || [[ -z "$(ls -A "$HANDOFFS_DIR" 2>/dev/null)" ]]; then
+    echo "No handoffs found."
+    return 0
+  fi
+
   local count=0
   for f in "$HANDOFFS_DIR"/*.json; do
     [[ -f "$f" ]] || continue
+    # Per-file tolerance: a corrupt/unreadable JSON file must not abort
+    # the whole listing — each read is independent and failures are skipped.
     local id from to status timestamp
-    id=$(json_get "$f" "id")
-    from=$(json_get "$f" "from")
-    to=$(json_get "$f" "to")
-    status=$(json_get "$f" "status")
-    timestamp=$(json_get "$f" "timestamp")
+    id=$(json_get "$f" "id" "" 2>/dev/null || echo "")
+    from=$(json_get "$f" "from" "" 2>/dev/null || echo "")
+    to=$(json_get "$f" "to" "" 2>/dev/null || echo "")
+    status=$(json_get "$f" "status" "" 2>/dev/null || echo "")
+    timestamp=$(json_get "$f" "timestamp" "" 2>/dev/null || echo "")
     timestamp="${timestamp:0:19}"
 
     [[ -n "$id" ]] || continue
@@ -55,9 +63,9 @@ cmd_status() {
   for f in "$HANDOFFS_DIR"/*.json; do
     [[ -f "$f" ]] || continue
     local sid sstatus sts
-    sid=$(json_get "$f" "id")
-    sstatus=$(json_get "$f" "status")
-    sts=$(json_get "$f" "timestamp")
+    sid=$(json_get "$f" "id" "" 2>/dev/null || echo "")
+    sstatus=$(json_get "$f" "status" "" 2>/dev/null || echo "")
+    sts=$(json_get "$f" "timestamp" "" 2>/dev/null || echo "")
     sts="${sts:0:19}"
     [[ -n "$sid" ]] || continue
     [[ "$sstatus" == "incomplete" || "$sstatus" == "needs_fix" ]] || continue

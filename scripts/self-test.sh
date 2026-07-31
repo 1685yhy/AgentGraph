@@ -595,6 +595,93 @@ try {
 }
 
 # ═══════════════════════════════════════════════════════════════════════
+# Test 9: classify accuracy
+# ═══════════════════════════════════════════════════════════════════════
+test_classify_accuracy() {
+  echo ""
+  echo "── Test 9: classify accuracy ──"
+
+  local -a cases=(
+    "做一个用户调研报告:research-report"
+    "写一份GTM策略:strategy-consulting"
+    "设计品牌Logo:brand-identity"
+    "做活动海报:visual-design"
+    "写产品白皮书:content-project"
+    "用Unity做3D游戏:unity-game"
+    "用Unreal做开放世界:unreal-game"
+    "搭建CI/CD流水线:infra-project"
+    "训练文本分类模型:ai-ml-project"
+    "微信小游戏:wechat-game"
+    "后台管理系统:admin-system"
+    "公司官网:corp-site"
+    "数据看板:dashboard"
+    "微信小程序:miniapp"
+    "移动App:mobile-app"
+    "React网站:web-app"
+    "API后端:api-service"
+    "营销落地页:landing-page"
+  )
+
+  local passed=0 failed=0
+  for c in "${cases[@]}"; do
+    local input="${c%%:*}" expected="${c##*:}"
+    # Capture full output first: piping classify straight into head -1 can
+    # SIGPIPE it (rc 141 under pipefail) while it writes remaining lines.
+    local out
+    out=$(timeout 10 "$GUILD" classify "$input" 2>/dev/null)
+    # Parse the slug from the classification line "📋 <label> (<type>)".
+    # The type slug is always the LAST parenthesized group on the first line
+    # (labels may themselves contain parens, e.g. "移动App (iOS/Android)").
+    local result; result=$(echo "$out" | head -1 | grep -oP '\(\K[^)]+' | tail -1 || echo "unknown")
+    if [[ -z "$result" ]]; then
+      # Try parsing the text output differently
+      result=$(echo "$out" | head -1 | grep -oP '\b(research-report|strategy-consulting|brand-identity|visual-design|content-project|unity-game|unreal-game|infra-project|ai-ml-project|wechat-game|admin-system|corp-site|dashboard|miniapp|mobile-app|web-app|api-service|landing-page)\b' | head -1 || echo "unknown")
+    fi
+    if [[ "$result" == "$expected" ]]; then
+      passed=$((passed + 1))
+    else
+      fail "classify '$input': expected $expected, got $result"
+      failed=$((failed + 1))
+    fi
+  done
+
+  if [[ $failed -eq 0 ]]; then
+    pass "classify: $passed/$passed types correctly identified"
+  else
+    echo "  $passed passed, $failed failed"
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
+# Test 10: plan output structure
+# ═══════════════════════════════════════════════════════════════════════
+test_plan_output() {
+  echo ""
+  echo "── Test 10: plan output structure ──"
+
+  # </dev/null: plan's interactive confirmation must not block on a TTY stdin
+  local plan_output
+  plan_output=$(timeout 30 "$GUILD" plan "做一个测试后台管理系统" </dev/null 2>/dev/null) || {
+    fail "plan: command failed or timed out"
+    return
+  }
+
+  local checks=0 failures=0
+
+  # Check key sections exist in plan output
+  echo "$plan_output" | grep -qi '团队' && checks=$((checks + 1)) || failures=$((failures + 1))
+  echo "$plan_output" | grep -qi '门禁' && checks=$((checks + 1)) || failures=$((failures + 1))
+  echo "$plan_output" | grep -qi '风险' && checks=$((checks + 1)) || failures=$((failures + 1))
+  echo "$plan_output" | grep -qi 'guild init' && checks=$((checks + 1)) || failures=$((failures + 1))
+
+  if [[ $failures -eq 0 ]]; then
+    pass "plan: output contains team, gates, risks, and next_step ($checks sections verified)"
+  else
+    fail "plan: output missing $failures/4 expected sections"
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════
 # Run all tests
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -612,6 +699,8 @@ test_graph_engine || true
 test_cli_smoke || true
 test_contract_validity || true
 test_handoff_integrity || true
+test_classify_accuracy || true
+test_plan_output || true
 
 # ── Summary ──────────────────────────────────────────────────────────
 echo ""

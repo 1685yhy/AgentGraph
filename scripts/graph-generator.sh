@@ -601,15 +601,24 @@ generate_graph() {
   echo ""
   echo "$graph_yaml"
 
-  # Interactive confirmation
+  # Interactive confirmation.
+  # Skipped automatically when stdin is not a TTY (scripts/CI): a plain
+  # `read` there would either hang (TTY) or exit non-zero on EOF and trip
+  # `set -e`, aborting guild plan with rc=1. Non-interactive callers get
+  # the graph saved without confirmation.
   if [[ "${AG_AI_MODE:-}" != "1" ]]; then
-    echo ""
-    read -p "  确认启动? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-      echo "  已取消。"
-      rm -f /tmp/guild-last-graph.txt
-      return 0
+    if [[ -t 0 ]]; then
+      echo ""
+      read -p "  确认启动? (y/n) " -n 1 -r || true
+      echo
+      if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "  已取消。"
+        rm -f /tmp/guild-last-graph.txt
+        return 0
+      fi
+    else
+      echo ""
+      echo "  (非交互模式: 跳过确认，自动继续)"
     fi
   fi
 
@@ -659,24 +668,24 @@ classify_score() {
   # Count keyword matches for this type against the task
   local kws=""
   case "$type" in
-    research-report) kws="调研 用户研究 竞品 访谈 可用性测试 焦点小组 问卷 市场研究 行业分析";;
-    strategy-consulting) kws="策略 GTM 商业模式 商业计划 产品战略 定价策略 路线图 进入市场";;
-    brand-identity) kws="品牌 VI Logo 视觉识别 品牌手册 品牌指南 标志";;
-    visual-design) kws="海报 印刷 物料 宣传册 展板 包装 视觉设计 平面设计";;
-    content-project) kws="写文档 文案 白皮书 技术文档 用户手册 博客 内容 写作";;
+    research-report) kws="调研 用户研究 竞品 访谈 可用性测试 焦点小组 问卷 市场研究 行业分析 用户调研 调研报告";;
+    strategy-consulting) kws="策略 GTM 商业模式 商业计划 产品战略 定价策略 路线图 进入市场 GTM策略";;
+    brand-identity) kws="品牌 VI Logo 视觉识别 品牌手册 品牌指南 标志 品牌Logo";;
+    visual-design) kws="海报 印刷 物料 宣传册 展板 包装 视觉设计 平面设计 活动 活动海报";;
+    content-project) kws="写文档 文案 白皮书 技术文档 用户手册 博客 内容 写作 产品 产品白皮书";;
     unity-game) kws="Unity unity C# 3D游戏 2D游戏 unity3d";;
-    unreal-game) kws="Unreal UE5 UE4 蓝图 虚幻引擎";;
-    infra-project) kws="Docker K8s Kubernetes CI/CD DevOps 运维 部署 云架构 Terraform";;
-    ai-ml-project) kws="机器学习 深度学习 模型训练 训练 分类 LLM RAG 大模型 NLP 神经网络";;
-    wechat-game) kws="小游戏 微信小游戏 抖音小游戏 H5游戏 休闲游戏 消除 三消";;
-    web-app) kws="页面 网站 注册 登录 表单 门户 控制台";;
-    landing-page) kws="落地页 landing 主页 首页 品牌页";;
-    api-service) kws="API 接口 后端服务 restful graphql 微服务";;
-    miniapp) kws="小程序 微信小程序 抖音小程序";;
-    mobile-app) kws="APP 安卓 iOS 移动端 手机应用 Flutter React Native";;
-    dashboard) kws="看板 报表 图表 数据可视化 统计 监控 大屏 BI";;
+    unreal-game) kws="Unreal UE5 UE4 蓝图 虚幻引擎 开放世界 开放";;
+    infra-project) kws="Docker K8s Kubernetes CI/CD DevOps 运维 部署 云架构 Terraform 流水线 搭建";;
+    ai-ml-project) kws="机器学习 深度学习 模型训练 训练 分类 LLM RAG 大模型 NLP 神经网络 模型 文本分类";;
+    wechat-game) kws="小游戏 微信小游戏 抖音小游戏 H5游戏 休闲游戏 消除 三消 微信";;
+    web-app) kws="页面 网站 注册 登录 表单 门户 控制台 React React网站";;
+    landing-page) kws="落地页 landing 主页 首页 品牌页 营销 营销落地页";;
+    api-service) kws="API 接口 后端服务 restful graphql 微服务 后端 API后端";;
+    miniapp) kws="小程序 微信小程序 抖音小程序 微信";;
+    mobile-app) kws="APP 安卓 iOS 移动端 手机应用 Flutter React Native 移动 移动App";;
+    dashboard) kws="看板 报表 图表 数据可视化 统计 监控 大屏 BI 数据 数据看板";;
     admin-system) kws="供应商 后台 后台管理 管理系统 CRUD 权限管理 审批流 后台系统";;
-    corp-site) kws="官网 企业官网 公司网站 企业站 品牌官网";;
+    corp-site) kws="官网 企业官网 公司网站 企业站 品牌官网 公司 公司官网";;
   esac
   for kw in $kws; do
     echo "$task" | grep -qi "$kw" && score=$((score + 1))

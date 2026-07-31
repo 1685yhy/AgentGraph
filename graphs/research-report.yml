@@ -1,0 +1,37 @@
+name: 研究报告 (Graph)
+description: 研究报告开发 — 线性流程，无代码回路
+nodes:
+  define:
+    agent: product-manager
+    action: deliver
+    delivers: [research_brief, scope]
+
+  research:
+    agent: ux-researcher
+    needs: [define]
+    delivers: [user_insights, behavior_data]
+
+  analyze:
+    agent: data-analyst
+    needs: [research]
+    delivers: [data_analysis, findings]
+
+  write:
+    agent: tech-writer
+    needs: [analyze]
+    delivers: [report_draft]
+
+  review:
+    agent: product-manager
+    action: verify
+    needs: [write]
+
+  finalize:
+    agent: tech-writer
+    needs: [review]
+    when: { review: passed }
+
+edges:
+  - { from: review, to: write, when: "review.status == failed", label: "修改后重审" }
+  - { from: write, to: review, label: "重新审查" }
+  - { from: review, to: finalize, when: "review.status == passed", label: "定稿" }

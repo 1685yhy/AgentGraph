@@ -415,7 +415,7 @@ case "$CMD" in
   handoff)   cmd_handoff "$@";;
   check)     cmd_check "$@";;
   status)
-    if [[ "$1" == "--dispatches" ]]; then
+    if [[ "${1:-}" == "--dispatches" ]]; then
       shift
       cmd_status_dispatches "$@"
     else
