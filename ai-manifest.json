@@ -15,23 +15,27 @@
   },
   "commands": {
     "plan": {
-      "description": "AI task analysis → agent selection → graph generation",
+      "description": "Full execution plan: classify → team matching → graph selection → milestones → risks",
       "usage": "guild plan [--json] '<task description>'",
       "input": {
         "task": "string (natural language)"
       },
       "output_json": {
-        "type": "string",
-        "agents": [
-          "string"
-        ],
-        "template": "string",
+        "summary": "string",
+        "product_type": "string",
+        "label": "string",
+        "confidence": "number",
+        "team": {
+          "lead": "string",
+          "members": "array"
+        },
+        "flow": {
+          "graph": "string"
+        },
         "gates": "string",
-        "modules": [
-          "string"
-        ]
+        "risks": "array"
       },
-      "example": "guild plan --json '做一个供应商后台管理系统'"
+      "example": "guild plan --json '帮我做塔罗小程序'"
     },
     "capability": {
       "description": "Show product type capabilities (agents, modules, gates)",
@@ -60,12 +64,37 @@
         "landing-page",
         "corp-site",
         "admin-system",
-        "mobile-app"
+        "mobile-app",
+        "research-report",
+        "strategy-consulting",
+        "brand-identity",
+        "visual-design",
+        "content-project",
+        "unity-game",
+        "unreal-game",
+        "infra-project",
+        "ai-ml-project"
       ]
     },
     "capabilities": {
-      "description": "List all 9 product types with capabilities",
+      "description": "List all 18 product types with capabilities",
       "usage": "guild capabilities [--json]"
+    },
+    "classify": {
+      "description": "Classify a natural language task into a product type with confidence score",
+      "usage": "guild classify [--json] '<task description>'",
+      "input": {
+        "task": "string (natural language)"
+      },
+      "output_json": {
+        "type": "string",
+        "label": "string",
+        "confidence": "number (0-1)",
+        "alternatives": "array",
+        "template": "string",
+        "gates": "string"
+      },
+      "example": "guild classify --json '做一个供应商后台管理系统'"
     },
     "init": {
       "description": "Initialize project from template",
