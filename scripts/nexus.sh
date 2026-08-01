@@ -390,7 +390,9 @@ if [[ $# -eq 0 ]]; then
   echo "  guild list      — 列出契约或交接记录"
   echo "  guild decide    — 记录结构化决策 (ADR)"
   echo "  guild context   — 显示/检查决策图谱和冲突"
-  echo "  guild run       — 执行流水线"
+  echo "  guild run-agent — 启动单个 Agent 执行 (LLM 自动调用)"
+  echo "  guild watch     — 监听 handoff 事件 (文件系统 Event Bus)"
+  echo "  guild run       — 自动执行完整 Graph 流程"
   echo "  guild inbox     — 查看 Agent 收件箱"
   echo "  guild read      — 标记收件箱消息为已读"
   echo "  guild resolve   — 基于决策权重自动解决冲突"
@@ -428,7 +430,9 @@ case "$CMD" in
   changelog) cmd_changelog "$@";;
   cleanup)   cmd_cleanup "$@";;
   list)      cmd_list "$@";;
-  run)       cmd_run "$@";;
+  run-agent) source "$SCRIPT_DIR/runtime/agent-runner.sh"; run_agent "$@";;
+  watch)     source "$SCRIPT_DIR/runtime/event-bus.sh"; cmd_watch "$@";;
+  run)       source "$SCRIPT_DIR/runtime/run.sh"; cmd_run "$@";;
   decide)    cmd_decide "$@";;
   context)   cmd_context "$@";;
   inbox)     cmd_inbox "$@";;

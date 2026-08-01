@@ -1661,3 +1661,11 @@ run_graph() {
 
   return $rc
 }
+
+# ── v0.6a Event-driven executor ──────────────────────────────────
+# run_graph_event_driven — delegate to the runtime top-level orchestrator
+# (scripts/runtime/run.sh). Parses the graph, executes initial nodes, and
+# leaves downstream nodes to event-driven (handoff) triggering.
+run_graph_event_driven() {
+  bash "$_GRApH_ENGINE_DIR/runtime/run.sh" "$@"
+}
