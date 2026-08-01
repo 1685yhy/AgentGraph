@@ -332,6 +332,12 @@ const IMPL = {
   status: (args) => runGuild(args.all ? 'status --all' : 'status'),
   help: () => {
     const manifest = JSON.parse(readFileSync(join(REPO_ROOT, 'ai-manifest.json'), 'utf8'));
+    // Add MCP-specific metadata
+    manifest.mcp_server = {
+      version: '0.5.0',
+      tool_count: Object.keys(TOOLS).length,
+      routing: { passthrough: [...PASSTHROUGH], json: [...JSON_TOOLS], composite: [...COMPOSITE] }
+    };
     return JSON.stringify(manifest, null, 2);
   },
 
