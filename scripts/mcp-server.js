@@ -170,6 +170,55 @@ const TOOLS = {
   help: {
     description: 'Get full AI manifest — all commands, agents, product types, workflows.',
     inputSchema: { type: 'object', properties: {} }
+  },
+  create_handoff: {
+    description: 'Create handoff from Agent A to Agent B — the core of AgentGraph collaboration.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'Source agent slug' },
+        to: { type: 'string', description: 'Target agent slug' },
+        path: { type: 'string', description: 'Path to deliverables directory' },
+        message: { type: 'string', description: 'Optional message' }
+      },
+      required: ['from', 'to', 'path']
+    }
+  },
+  check_handoff: {
+    description: 'Check handoff completeness — which artifacts are provided vs missing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        handoff_id: { type: 'number', description: 'Handoff ID' }
+      },
+      required: ['handoff_id']
+    }
+  },
+  list_handoffs: {
+    description: 'List all handoffs, optionally filtered by status.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['draft', 'ready', 'accepted', 'incomplete', 'needs_fix'] }
+      }
+    }
+  },
+  run_graph: {
+    description: 'Execute a named graph workflow. Use after plan to run the full agent pipeline.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        graph: { type: 'string', description: 'Graph name: feature-dev, game-mvp, research-report, unity-game, iterate, startup-mvp' },
+        task: { type: 'string', description: 'Task description' },
+        path: { type: 'string', description: 'Working directory path' },
+        dry_run: { type: 'boolean', description: 'Preview without executing' }
+      },
+      required: ['graph', 'task']
+    }
+  },
+  system_health: {
+    description: 'Full system health check — agent count, handoff count, self-test summary, issues found.',
+    inputSchema: { type: 'object', properties: {} }
   }
 };
 
@@ -332,6 +381,119 @@ const IMPL = {
       { id: 4, name: 'playability', label: '可玩性/可用性', description: '游戏可玩性或产品可用性检查' },
       { id: 5, name: 'agent-standards', label: 'Agent标准', description: 'Agent 交接合规性检查' }
     ], null, 2);
+  },
+
+  // ── Execution / check / health tools (v0.5 Task 3) ──
+  create_handoff: (args) => {
+    // 路径加引号防止空格分割（cmd_handoff 按位置取参）
+    let cmd = `handoff --from ${args.from} --to ${args.to} --path "${args.path}"`;
+    if (args.message) cmd += ` --message "${args.message}"`;
+    const output = runGuild(cmd);
+    // Parse handoff ID from output
+    const idMatch = output.match(/#(\d+)/);
+    return JSON.stringify({
+      handoff_id: idMatch ? parseInt(idMatch[1]) : null,
+      from: args.from, to: args.to, path: args.path,
+      _output: output.trim()
+    }, null, 2);
+  },
+  check_handoff: (args) => {
+    const output = runGuild(`check --handoff ${args.handoff_id}`);
+    // 实际 CLI 输出为「完整度: X/Y 项」+「所有必需项已满足 ✓」，
+    // brief 的 missing/provided 正则不匹配，改为主解析完整度行、保留原正则兜底
+    const completeMatch = output.match(/完整度[:：]\s*(\d+)\s*\/\s*(\d+)/);
+    const providedNum = completeMatch ? completeMatch[1]
+      : ((output.match(/provided[：:]\s*(\d+)/i) || [null, '0'])[1]);
+    const missingNum = completeMatch ? String(parseInt(completeMatch[2]) - parseInt(completeMatch[1]))
+      : ((output.match(/missing[：:]\s*(\d+)/i) || [null, '0'])[1]);
+    // 用状态行判断，避免 'incomplete' 包含 'complete' 子串的误判
+    const statusMatch = output.match(/状态[:：]\s*([\w-]+)/);
+    const passed = (statusMatch && statusMatch[1] === 'ready')
+      || output.includes('所有必需项已满足')
+      || output.includes('[OK]')
+      || /\bcomplete\b/.test(output);
+    return JSON.stringify({
+      handoff_id: args.handoff_id,
+      passed,
+      provided: parseInt(providedNum) || 0,
+      missing: parseInt(missingNum) || 0,
+      _output: output.trim()
+    }, null, 2);
+  },
+  list_handoffs: (args) => {
+    let cmd = 'list --handoffs';
+    if (args.status) cmd += ` --status ${args.status}`;
+    const output = runGuild(cmd);
+    // CLI 端 list.sh 尚不消费 --status（实测被忽略），改为客户端按行过滤 "(status)" 标记
+    if (args.status) {
+      return output.split('\n').filter(line => line.includes(`(${args.status})`)).join('\n');
+    }
+    return output;
+  },
+  run_graph: (args) => {
+    let cmd = `graph run --graph ${args.graph} --path ${args.path || '/tmp/agentgraph-run'}`;
+    if (args.dry_run) cmd += ' --dry-run';
+    const output = runGuild(cmd);
+    // Parse node statuses from 节点明细 ([OK]/[FAIL] 行)
+    const completed = [];
+    const failed = [];
+    const completedRe = /\[OK\].*?(\w+)/g;
+    const failedRe = /\[FAIL\].*?(\w+)/g;
+    let m;
+    while ((m = completedRe.exec(output)) !== null) completed.push(m[1]);
+    while ((m = failedRe.exec(output)) !== null) failed.push(m[1]);
+    let status = failed.length === 0 ? 'success' : 'partial_failure';
+    // 图不存在/执行出错时 CLI 输出错误标记，判定为 error
+    if (output.includes('Graph file not found') || /\[ERR\]/.test(output)) status = 'error';
+    return JSON.stringify({
+      graph: args.graph,
+      status,
+      nodes: { completed, failed },
+      _output: output.trim()
+    }, null, 2);
+  },
+  system_health: () => {
+    const results = {};
+    try {
+      // Doctor check
+      const doctor = runGuild('doctor');
+      results.doctor = doctor.trim();
+
+      // Agent count
+      try {
+        const config = JSON.parse(readFileSync(join(REPO_ROOT, 'guild.config.json'), 'utf8'));
+        results.agent_count = config.agents.length;
+      } catch(e) { results.agent_count = 'unknown'; }
+
+      // Handoff count
+      try {
+        const hdir = join(REPO_ROOT, 'handoffs');
+        if (existsSync(hdir)) {
+          results.handoff_count = require('fs').readdirSync(hdir).filter(f => f.endsWith('.json') && !f.startsWith('self-test-')).length;
+        } else { results.handoff_count = 0; }
+      } catch(e) { results.handoff_count = 'unknown'; }
+
+      // Quick self-test
+      const selfTest = execSync('bash scripts/self-test.sh --quick', {
+        cwd: REPO_ROOT, timeout: 30000, encoding: 'utf8'
+      });
+      const passMatch = selfTest.match(/(\d+)\s+passed/);
+      const failMatch = selfTest.match(/(\d+)\s+failed/);
+      results.self_test = {
+        passed: passMatch ? parseInt(passMatch[1]) : 0,
+        failed: failMatch ? parseInt(failMatch[1]) : 0
+      };
+
+      results.status = (results.self_test.failed === 0) ? 'healthy' : 'degraded';
+      results.issues = [];
+      if (results.self_test.failed > 0) results.issues.push(`${results.self_test.failed} self-tests failing`);
+      if (results.agent_count === 'unknown') results.issues.push('Cannot read agent config');
+      if (results.handoff_count === 'unknown') results.issues.push('Cannot read handoffs directory');
+
+      return JSON.stringify(results, null, 2);
+    } catch(e) {
+      return JSON.stringify({ status: 'error', error: e.message }, null, 2);
+    }
   }
 };
 
