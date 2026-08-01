@@ -24,8 +24,18 @@ const GUILD = join(REPO_ROOT, 'guild');
 
 // ── Tool Registry ──
 const TOOLS = {
+  classify: {
+    description: 'Classify a natural language task into a product type with confidence score. Use FIRST to understand what kind of project this is.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string', description: 'Natural language task. e.g. "帮我做供应商后台管理系统"' }
+      },
+      required: ['task']
+    }
+  },
   plan: {
-    description: 'AI task analysis — natural language task → product type + agents + modules + gates. Use this FIRST for any new task.',
+    description: 'Generate full execution plan: classify → team → milestones → gates → risks. Returns structured JSON.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -224,7 +234,31 @@ function jsonOrText(result) {
 
 const IMPL = {
   // ── JSON_TOOLS: parsed via runGuildJson (AG_AI_MODE=1, JSON extracted) ──
-  plan: (args) => runGuildJson(`plan ${args.task}`),
+  classify: (args) => {
+    const result = runGuildJson(`classify --json ${args.task}`);
+    // If guild classify returned JSON directly, use it; otherwise parse text
+    if (result && result.type) {
+      return JSON.stringify(result, null, 2);
+    }
+    // Fallback: parse text output
+    const text = runGuild(`classify ${args.task}`);
+    const typeMatch = text.match(/\(([a-z][a-z-]+)\)/);
+    const confMatch = text.match(/置信度[：:]\s*([\d.]+)/);
+    return JSON.stringify({
+      type: typeMatch ? typeMatch[1] : 'unknown',
+      confidence: confMatch ? parseFloat(confMatch[1]) : 0,
+      _raw: text
+    }, null, 2);
+  },
+  plan: (args) => {
+    try {
+      const result = runGuildJson(`plan --json ${args.task}`);
+      if (result && result.summary) {
+        return JSON.stringify(result, null, 2);
+      }
+    } catch(e) { /* fall through */ }
+    return runGuild(`plan ${args.task}`);
+  },
   capability: (args) => runGuildJson(`capability ${args.type}`),
   capabilities: () => runGuildJson('capabilities'),
   dispatch: (args) => runGuildJson(`dispatch ${args.agent} "${args.task}"`),
