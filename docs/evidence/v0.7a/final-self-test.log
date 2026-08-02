@@ -1,0 +1,49 @@
+╔══════════════════════════════════════════╗
+║  AgentGraph System Self-Test             ║
+║  2026-08-02 14:55 UTC                
+╚══════════════════════════════════════════╝
+
+
+── Test 1: next_id uniqueness ──
+[OK]  next_id returns 10 unique consecutive IDs (11-20)
+
+── Test 2: handoff create cycle ──
+[OK]  handoff create + check cycle for #43
+
+── Test 3: gate completeness ──
+[OK]  gate completeness passes when all artifacts provided
+[OK]  gate completeness fails when required artifacts are missing
+
+── Test 4: gate syntax ──
+[OK]  gate syntax catches invalid JSON
+
+── Test 5: graph engine ──
+[OK]  graph engine parses feature-dev.yml and lists nodes (dry-run)
+
+── Test 6: CLI smoke tests ──
+[OK]  guild list --handoffs exits 0
+[OK]  guild status exits 0
+[OK]  guild gate --list exits 0
+[OK]  guild feedback --list exits 0
+[OK]  guild changelog exits 0
+[OK]  guild context show exits 0
+
+── Test 7: contract validity ──
+[OK]  contract validity: guild-contracts.yml is valid YAML
+[OK]  contract validity: all agents referenced in contracts exist in guild.config.json
+
+── Test 8: handoff integrity ──
+[OK]  handoff integrity: all 33 handoff files have required fields (id, from, to, status, path, timestamp)
+
+── Test 9: classify accuracy ──
+[OK]  classify: 18/18 types correctly identified
+
+── Test 10: plan output structure ──
+[OK]  plan: output contains team, gates, risks, and next_step (4 sections verified)
+
+── Test 11: template completeness ──
+[OK]  template completeness: all 18 templates have template.json + README.md + AGENT_FLOW.md
+
+══════════════════════════════════════════
+  18 passed, 0 failed / 18 total
+══════════════════════════════════════════
