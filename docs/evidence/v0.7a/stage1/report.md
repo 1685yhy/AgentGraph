@@ -7,7 +7,7 @@
 | 执行人 | 编排子代理（Task 2） |
 | LLM | DeepSeek `deepseek-chat`（真实 API，.env.local 经 lib.sh 自动加载，未经手动 source） |
 | 图 | `graphs/feature-dev.yml`（define → design → build-frontend/build-backend → test → fix/approve） |
-| 状态 | 全链 6 节点真实执行完成；交付物已修复 1 轮；Gate 4/5 通过；1 项缺陷留存 |
+| 状态 | 全链 7 节点真实执行完成；交付物已修复 1 轮；Gate 4/5 通过；1 项缺陷留存 |
 
 ---
 
@@ -23,7 +23,7 @@
 
 日志全文：`docs/evidence/v0.7a/stage1/run.log`（128 行，含全部节点输出与退出码标记）。
 
-**执行方式说明（真实机制）**：`guild run --graph feature-dev --task … --yes` 自动执行「任务分析(classify 关键词匹配→landing-page) → 解析 Graph(7 节点) → 初始节点 define 自动执行」。运行器自身明确提示（run.log 原文）：「下游节点需通过 guild run-agent <slug> "<task>" --upstream <handoff-id> 手动触发」。因此后续节点按运行器自身机制，通过 `guild run-agent --upstream <handoff-id>` 逐节点触发；每节点执行前均创建 handoff JSON（id 21–24）用于上游交付物注入与 Gate 校验。
+**执行方式说明（真实机制）**：`guild run --graph feature-dev --task … --yes` 自动执行「任务分析(classify 关键词匹配→brand-identity) → 解析 Graph(7 节点) → 初始节点 define 自动执行」。（观察：classify 将任务判为 brand-identity 而非落地页——分类关键词匹配与任务类型并非完全对齐，值得后续改进；任务文本本身仍逐字透传，不影响执行。）运行器自身明确提示（run.log 原文）：「下游节点需通过 guild run-agent <slug> "<task>" --upstream <handoff-id> 手动触发」。因此后续节点按运行器自身机制，通过 `guild run-agent --upstream <handoff-id>` 逐节点触发；每节点执行前均创建 handoff JSON（id 21–24）用于上游交付物注入与 Gate 校验。
 
 | # | 图节点 | Agent | 触发方式 | 上游 handoff | 结果 | 输出文件 |
 |---|---|---|---|---|---|---|
@@ -39,7 +39,7 @@
 
 ### 交付物（最终）
 
-- **落地页**：`/mnt/e/agentguild/project/coffee-landing/index.html`（16.5KB，单文件自包含，无外部依赖）
+- **落地页**：`/mnt/e/agentguild/docs/evidence/v0.7a/stage1/deliverable/index.html`（16.5KB，单文件自包含，无外部依赖）
   - 组装方式：LLM 输出为 `.md`（运行器机制），将 frontend-engineer 输出中的 html 代码块物化为 `index.html`（对应图节点 build-frontend 交付 frontend_code；静态页场景下 backend_code 交付为接入方案文档，存于 `context/outputs/backend-architect/`）。
 - 交付物校验：非空、UTF-8 有效、`node --check` 内联 JS 通过、Chrome headless 真实加载渲染通过（见下）。
 
@@ -51,13 +51,14 @@
 | 渲染 | 桌面 1280×900 / 移动 375×812 截图（shots/desktop.png、mobile.png） | 暖木色调渲染（均值 RGB≈199,187,175；Hero 角像素 #452F1F 与 --wood-800 一致） |
 | 交互 | Playwright + chromium headless：点预约→弹窗开；Esc→关；填表→确认→「预约成功」alert；空表单→「请填写」校验 alert | 4/4 通过 |
 | 移动端 | 375px 与 320px 宽度无横向溢出；viewport meta 存在；2 组 max-width 媒体查询 | 通过 |
-| 内容 | `.menu-card` 4 个；品牌名「山屿咖啡」；门店地址/时间/预约按钮在列；品牌故事 95 字（含标点）< 150 字 | 通过 |
+| 内容 | `.menu-card` 4 个；品牌名「山屿咖啡」；门店地址/时间/预约按钮在列；品牌故事 95 字（含标点，纯汉字 83 字——口径差异不影响 ≤150 结论）< 150 字 | 通过 |
+| 回归自检 | `scripts/self-test.sh`（18 项脚本自检） | 18 通过 / 0 失败（18/18 无回归，日志：`self-test.log`） |
 
 ---
 
 ## 三、Gate 明细
 
-CLI 说明：`guild gate` 实际签名是 `--handoff <id>`（`scripts/modules/gate.sh`），不支持按路径传参；故以交付 handoff #23（path=`project/coffee-landing`，artifacts=index.html）执行。两轮日志：`gate-run1.log`、`gate-run2.log`。
+CLI 说明：`guild gate` 实际签名是 `--handoff <id>`（`scripts/modules/gate.sh`），不支持按路径传参；故以交付 handoff #23（path=`docs/evidence/v0.7a/stage1/deliverable`，artifacts=index.html）执行。两轮日志：`gate-run1.log`、`gate-run2.log`。
 
 ### 第 1 轮（修复前，交付物为截断版）
 
@@ -106,7 +107,7 @@ CLI 说明：`guild gate` 实际签名是 `--handoff <id>`（`scripts/modules/ga
 | 触发 | Gate syntax 失败 + 交付物截断（LLM max_tokens 4096 限制） |
 | 方式 | 图自身 fix 节点机制：run-agent frontend-engineer 修复任务（第 7 次调用） |
 | 修复内容 | 补齐预约弹窗完整交互与文档闭合；轻量组装规范（变量对齐、IIFE 闭合、表单字段补齐） |
-| Gate 复跑 | 2/5→4/5（syntax 由失败转通过；behavior 为游戏向套件留存失败） |
+| Gate 复跑 | 3/5→4/5（syntax 由失败转通过；behavior 为游戏向套件留存失败） |
 | 真实复验 | Playwright 交互 4/4、无 console 错误、375/320px 无溢出 |
 
 ---
@@ -150,6 +151,6 @@ CLI 说明：`guild gate` 实际签名是 `--handoff <id>`（`scripts/modules/ga
 
 1. `guild gate` 实际 CLI 为 `--handoff <id>`，brief 中的 `guild gate <deliverable-path>` 不存在 → 以 handoff #23 执行，效果等价（path 指向交付目录）。
 2. 运行器不自动串接下游节点 → 按运行器自身提示以 `guild run-agent --upstream` 逐节点触发，并手工创建 4 个 handoff（21–24）打通上游注入与 Gate。
-3. 交付物物化：LLM 输出 `.md` → 编排者按 html 代码块物化为 `project/coffee-landing/index.html`（与 brief「交付路径由 run 输出指明」一致）。
+3. 交付物物化：LLM 输出 `.md` → 编排者按 html 代码块物化为 `docs/evidence/v0.7a/stage1/deliverable/index.html`（与 brief「交付路径由 run 输出指明」一致）。
 4. 修复组装含少量编排者规范化编辑（变量名对齐/IIFE 闭合/表单字段补齐），已在「修复记录」明示。
 5. 审查子代理环境不支持图像渲染，其视觉结论以源码推演为准；本报告附真实截图与 Playwright 实测互补。
