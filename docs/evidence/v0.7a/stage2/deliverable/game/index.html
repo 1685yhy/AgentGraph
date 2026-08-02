@@ -23,11 +23,18 @@
         .btn { background:linear-gradient(145deg,#ff8a65,#f4511e); border:none; color:#fff; font-size:18px; font-weight:bold; padding:12px 28px; border-radius:40px; cursor:pointer; box-shadow:0 6px 16px rgba(244,81,30,.4); transition:transform .15s, box-shadow .15s; }
         .btn:active { transform:scale(.95); box-shadow:0 2px 8px rgba(244,81,30,.4); }
         .btn.secondary { background:#37474f; box-shadow:0 4px 12px rgba(0,0,0,.3); }
+        .result-actions { display:flex; flex-direction:column; gap:12px; align-items:center; margin-top:8px; }
+        .result-actions .btn { width:220px; }
 
         /* ===== 状态栏 ===== */
         .hud { display:flex; gap:16px; align-items:center; font-size:14px; color:#90a4ae; }
         .hud span { background:#232a3d; padding:4px 12px; border-radius:20px; }
         .hud .score { color:#ffd54f; font-weight:bold; }
+
+        /* ===== 离谱文案 (B-2 内容层) ===== */
+        .result-copy { font-size:15px; color:#ffcc80; background:#232a3d; border-left:3px solid #ffb74d; border-radius:8px; padding:10px 14px; margin:8px 16px; line-height:1.6; text-align:center; }
+        .share-copy { font-size:14px; color:#ffcc80; background:#232a3d; border-radius:8px; padding:10px 12px; margin:8px 0; line-height:1.6; }
+        .free-note { font-size:12px; color:#81c784; margin-top:12px; }
 
         /* ===== 分享屏 ===== */
         .share-card { background:linear-gradient(145deg,#2e3350,#1f2336); border-radius:16px; padding:24px; text-align:center; width:280px; border:2px solid #ffb74d; }
@@ -66,17 +73,24 @@
     <div id="result-screen" class="screen">
         <h2 style="font-size:26px; margin-bottom:8px;">🏆 结算</h2>
         <div style="font-size:18px; color:#ffd54f; margin:8px 0;" id="result-title"></div>
+        <div class="result-copy" id="result-copy"></div>
         <div style="font-size:14px; color:#b0bec5; margin:8px 0;" id="result-detail"></div>
         <div class="ad-placeholder" id="interstitial-ad" style="display:none;">🎬 插屏广告位 (每5局)</div>
-        <button class="btn secondary" id="ad-reverse-btn" style="display:none;">🔥 看广告逆袭翻倍</button>
-        <button class="btn" id="share-btn" style="margin-top:16px;">📤 分享战绩</button>
+        <div class="result-actions">
+            <button class="btn secondary" id="ad-reverse-btn" style="display:none;">🔥 看广告逆袭翻倍</button>
+            <button class="btn" id="result-restart-btn">🎮 再来一局（免费）</button>
+            <button class="btn" id="share-btn" style="background:linear-gradient(145deg,#43a047,#2e7d32); box-shadow:0 6px 16px rgba(46,125,50,.4);">📤 分享战绩</button>
+        </div>
+        <div class="free-note" id="free-note">🎉 免费游玩：跳过广告，直接再来一局</div>
     </div>
 
     <!-- ========== 分享屏 ========== -->
     <div id="share-screen" class="screen">
         <div class="share-card">
             <div class="title">🤯 离谱卡牌</div>
+            <div class="stats">玩家 <b id="share-nick">离谱小能手</b></div>
             <div class="stats">本局离谱值 <b id="share-score">0</b></div>
+            <div class="share-copy" id="share-copy"></div>
             <div class="stats">历史最高 <b id="share-best">0</b></div>
             <div style="font-size:12px; color:#78909c; margin-top:8px;">⚡ 30秒内仅可分享1次</div>
         </div>
@@ -109,13 +123,65 @@
         { num: 14, label: '🔥 自燃' }
     ];
 
+    // ===== 离谱文案生成器 (B-2: 概念核心内容层) =====
+    // 内置示例文案池 + 规则拼接: 「你抽到了：{场景} ×{分数}分，{效果}。代价是{翻车}」
+    const SCENE_POOL = [
+        '在电梯里给老板讲冷笑话',
+        '用挖掘机煎一颗溏心蛋',
+        '在早高峰地铁里打太极',
+        '给班主任发晚安小作文',
+        '把泡面煮成米其林三星',
+        '教金鱼用尾巴签合同',
+        '在KTV包间深情演唱《国歌》',
+        '给空调外机写情书',
+        '用吸管喝完整条西湖',
+        '在健身房偷偷吃薯片',
+        '让猫当你的面试官',
+        '把会议纪要写成打油诗'
+    ];
+    const EFFECT_POOL = [
+        '财运当场爆棚',
+        '桃花旺到挡不住',
+        '老板含泪给你涨薪',
+        '被同事尊称"锦鲤本鲤"',
+        '喜提三天带薪假',
+        '全小区都想认识你',
+        '外卖小哥给你免单',
+        '彩票站老板想收你为徒',
+        '对手当场认输',
+        '冰箱里凭空多出半只西瓜'
+    ];
+    const CRASH_POOL = [
+        '翻车翻出银河系',
+        '场面一度十分离谱',
+        '围观群众笑到拍桌',
+        '当事人表示很后悔',
+        '离谱指数直接拉满',
+        '连楼下保安都记住了你'
+    ];
+    const PLAYER_NICK = '离谱小能手';
+
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    function generateAbsurdCopy(cards, score, isCounter) {
+        const scene = pick(SCENE_POOL);
+        const effect = pick(EFFECT_POOL);
+        const combo = cards.map(c => c.label).join('+');
+        if (isCounter) {
+            return `你抽到了：${scene} ×${score}分，${effect}！逆袭成功，${combo}都在为你打call`;
+        }
+        return `你抽到了：${scene} ×${score}分，${effect}。代价是${pick(CRASH_POOL)}——${combo}表示不背锅`;
+    }
+
     // ===== 游戏状态 =====
     let currentRound = 1;        // 1-5
     const TOTAL_ROUNDS = 5;
     let selectedCards = [];      // 当前抽出的3张卡
+    let lastCards = [];          // 最近一局的3张卡 (结算文案用)
+    let currentCopy = '';        // 当前离谱文案
     let absurdScore = 0;         // 当前累计离谱值
     let bestScore = 0;           // 最高分
-    let lastShareTime = 0;       // 分享限频 (30s)
+    let lastShareTime = 0;       // 分享限频 (30s) —— 跨对局保留, 不随再来一局/分享重置
     let adCounter = 0;           // 插屏计数 (每5局)
     let audioCtx = null;         // WebAudio 延迟初始化
     let drawing = false;         // 抽卡判定进行中（防重复点击）
@@ -136,17 +202,22 @@
     const adReverseBtn = $('ad-reverse-btn');
     const interstitialAd = $('interstitial-ad');
     const restartBtn = $('restart-btn');
+    const resultRestartBtn = $('result-restart-btn');
     const resultTitle = $('result-title');
+    const resultCopy = $('result-copy');
     const resultDetail = $('result-detail');
     const shareBtn = $('share-btn');
     const confirmShareBtn = $('confirm-share-btn');
     const cancelShareBtn = $('cancel-share-btn');
+    const shareNickEl = $('share-nick');
     const shareScoreEl = $('share-score');
     const shareBestEl = $('share-best');
+    const shareCopy = $('share-copy');
 
     // ===== localStorage 读取 =====
     try { bestScore = parseInt(localStorage.getItem('absurd_best') || '0', 10) || 0; } catch(e) { bestScore = 0; }
     bestScoreEl.textContent = bestScore;
+    shareNickEl.textContent = PLAYER_NICK;
 
     // ===== 工具函数 =====
     function shuffle(arr) {
@@ -157,7 +228,7 @@
         return arr;
     }
 
-    // 抽3张不重复��
+    // 抽3张不重复（洗牌后取前3张）
     function drawCards() {
         const pool = shuffle([...CARD_POOL]);
         return pool.slice(0, 3).map(c => ({ ...c }));
@@ -212,7 +283,12 @@
         const cards = drawCards();
         renderCards(cards, true);
         updateHUD();
-        gameMsg.textContent = `第 ${currentRound} 局，点击「抽 3 张」继续`;
+        // B-2: 保留上一局实时生成的离谱文案, 与提示并存 (抽卡→离谱文案→翻车/爆分 循环可见)
+        if (currentCopy) {
+            gameMsg.textContent = `离谱文案：${currentCopy}\n第 ${currentRound} 局，点击「抽 3 张」继续`;
+        } else {
+            gameMsg.textContent = `第 ${currentRound} 局，点击「抽 3 张」继续`;
+        }
     }
 
     function handleDraw() {
@@ -226,14 +302,16 @@
         const score = calcAbsurd(cards);
         const isCounter = isCounterAttack(currentRound);
         lastIsCounter = isCounter;
+        lastCards = cards;
+
+        // 生成离谱文案并实时展示 (B-2)
+        currentCopy = generateAbsurdCopy(cards, score, isCounter);
+        gameMsg.textContent = (isCounter ? '💥 逆袭！' : '') + `离谱文案：${currentCopy} (+${score})`;
 
         // 更新分数
         absurdScore += score;
         if (isCounter) {
             absurdScore = Math.floor(absurdScore * 1.5); // 逆袭加成
-            gameMsg.textContent = `💥 逆袭! 离谱值x1.5! 本局+${score}`;
-        } else {
-            gameMsg.textContent = `本局离谱值 +${score}`;
         }
 
         // 渲染抽到的卡
@@ -267,10 +345,14 @@
         gameScreen.classList.remove('active');
         resultScreen.classList.add('active');
         resultTitle.textContent = `离谱值 ${absurdScore}`;
+        // 结算屏实时生成最终离谱文案 (B-2)
+        currentCopy = generateAbsurdCopy(lastCards, absurdScore, lastIsCounter);
+        resultCopy.textContent = currentCopy;
         resultDetail.textContent = `最高纪录 ${bestScore} · 共${TOTAL_ROUNDS}局`;
         // 更新分享数据
         shareScoreEl.textContent = absurdScore;
         shareBestEl.textContent = bestScore;
+        shareCopy.textContent = currentCopy;
         // 插屏广告：每5局在结算屏显示一次（2秒后自动隐藏）
         if (adCounter % 5 === 0) {
             interstitialAd.style.display = 'flex';
@@ -284,7 +366,7 @@
         adDrawBtn.style.display = 'none';
     }
 
-    // ===== 分享 (30秒限频) =====
+    // ===== 分享 (30秒限频, B-1: 跨对局真实生效) =====
     function handleShare() {
         const now = Date.now();
         if (now - lastShareTime < 30000) {
@@ -301,7 +383,7 @@
     function confirmShare() {
         // 模拟分享成功
         alert('✅ 分享成功！');
-        // 回主界面
+        // 回主界面 (lastShareTime 保留 → 30秒内再次进分享路径将被真实拦截)
         shareScreen.classList.remove('active');
         gameScreen.classList.add('active');
         resetGame();
@@ -339,6 +421,10 @@
         setTimeout(() => {
             absurdScore = Math.floor(absurdScore * 2);
             resultTitle.textContent = `离谱值 ${absurdScore}`;
+            // 翻倍后同步更新文案与分享数据 (B-2)
+            currentCopy = generateAbsurdCopy(lastCards, absurdScore, lastIsCounter);
+            resultCopy.textContent = currentCopy;
+            shareCopy.textContent = currentCopy;
             shareScoreEl.textContent = absurdScore;
             if (absurdScore > bestScore) {
                 bestScore = absurdScore;
@@ -351,12 +437,13 @@
         }, 2000);
     }
 
-    // ===== 再来一局 =====
+    // ===== 再来一局 (B-1: 结算屏免费重开; 不清空分享限频时间戳) =====
     function resetGame() {
         currentRound = 1;
         absurdScore = 0;
         adCounter = 0;
-        lastShareTime = 0;   // 修复 M-5: 再来一局后重置分享限频
+        currentCopy = '';
+        // 修复 B-1: 不再重置 lastShareTime —— 30秒分享限频跨对局真实生效
         drawing = false;
         lastIsCounter = false;
         adDrawBtn.style.display = 'none';
@@ -403,6 +490,10 @@
         watchAdReverse();
     });
     restartBtn.addEventListener('click', () => {
+        initAudio();
+        resetGame();
+    });
+    resultRestartBtn.addEventListener('click', () => {
         initAudio();
         resetGame();
     });
