@@ -11,3 +11,7 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+
+# Local secrets (never committed)
+.env.local
+.env

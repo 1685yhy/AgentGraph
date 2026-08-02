@@ -4,6 +4,13 @@
 # Bash 3.2+ compatible. No external dependencies.
 # Groups: frontmatter parsers, slug helpers, terminal helpers.
 
+# ── Local env (.env.local, gitignored) ──────────────────────────────
+if [[ -f "$(dirname "${BASH_SOURCE[0]}")/../.env.local" ]]; then
+  set -a
+  . "$(dirname "${BASH_SOURCE[0]}")/../.env.local"
+  set +a
+fi
+
 # ── JSON helpers ─────────────────────────────────────────────────────
 
 # json_get — read a single top-level field from a JSON file
