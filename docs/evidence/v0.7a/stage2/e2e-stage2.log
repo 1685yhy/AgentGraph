@@ -1,0 +1,20 @@
+PASS title 离谱卡牌 | 离谱卡牌 · 逆袭局
+PASS 初始渲染3张卡 | 3
+PASS 第1局开始 | 1
+PASS 抽卡后第2局 | 2
+PASS 看广告+1张按钮出现
+PASS 看广告后离谱值增加 | 193
+PASS 结算屏出现
+PASS 结算显示离谱值 | 离谱值 5347
+PASS 插屏广告占位显示(第5局)
+PASS 逆袭翻倍按钮出现
+PASS 逆袭翻倍后结算更新 | 离谱值 10694
+PASS 分享屏出现
+PASS 分享后回主屏
+PASS 分享后新一局 | 1
+PASS localStorage 存档 | 10694
+PASS 限频后分享被拦截(仍主屏)
+PASS 无 console 错误
+PASS 有对话框交互(广告/分享提示) | 3
+
+==== 18/18 passed ====
