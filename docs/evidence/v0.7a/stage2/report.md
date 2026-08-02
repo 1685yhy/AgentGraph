@@ -55,7 +55,7 @@
 | # | 图节点 | Agent | 上游 handoff | 结果 | 输出文件 |
 |---|---|---|---|---|---|
 | 1 | define | product-manager | —（run 自动） | completed | `context/outputs/product-manager/20260802-220629.md`（PRD 14.1KB） |
-| 2 | research | ux-researcher | 25 | completed | `context/outputs/ux-researcher/20260802-220737.md`（用户洞察 14.9KB） |
+| 2 | research | ux-researcher | 25 | completed | `context/outputs/ux-researcher/20260802-220737.md`（用户洞察 14.5KB） |
 | 3 | analyze | data-analyst | 26 | completed | `context/outputs/data-analyst/20260802-220821.md`（数据分析 13.1KB） |
 | 4 | write | tech-writer | 27 | completed（草稿 v0.1，15.7KB，**4096 token 截断**，见 D1） | `20260802-220903.md` |
 | 5 | review | product-manager | 28 | completed（**结论 FAILED**，列修改点：缺平台原生竞品/用户分群/数据来源/eCPM 收入模型/分享后链路） | `20260802-220938.md` |
@@ -99,7 +99,7 @@
 
 ### 阶段② 交付物与真实验证
 
-- **游戏**：`deliverable/game/index.html`（约 18KB 单文件，无外部依赖；中文界面；375px 移动端适配）。
+- **游戏**：`deliverable/game/index.html`（单文件 22,216 字节 ≈ 22KB，无外部依赖；中文界面；375px 移动端适配）。
 - **Playwright + Chromium headless 实跑（375×812）18/18 通过**（初版，脚本 `e2e-script.py`，日志 `e2e-stage2.log`）：初始渲染 3 卡/第 1 局 ✓；抽卡进第 2 局 ✓；「看广告+1张」按钮出现且生效（离谱值增加）✓；打满 5 局进结算 ✓；插屏广告占位（每5局）显示 ✓；「看广告逆袭翻倍」出现且生效 ✓；分享屏出现/确认分享后回主屏并开启新一局 ✓；localStorage 存档 ✓；无 console 错误 ✓。其中「30 秒分享限频拦截」一项为空转断言（从未再次点击分享，见 D17），由独立盲审发现。
 - **修复轮 1 重写脚本并重跑 34/34 通过**（日志 `e2e-stage2.log` 已更新为最新一轮）：新增 B-1 覆盖——结算屏「再来一局」按钮可见/免费重开回第 1 局/再翻车；分享成功后限频时间戳跨对局保留（结算屏连续两次进入分享路径第二次被 alert 拦截，含取消路径独立会话复测）；新增 B-2 覆盖——抽卡实时生成离谱文案、结算屏展示「你抽到了：… ×分数」文案、分享卡显示文案+分数+昵称。
 - 截图：`lipu-mobile.png`（375×812，修复轮 1 于结算屏重拍）、`lipu-desktop.png`（1280×900，重拍）。
@@ -204,7 +204,7 @@
 |---|---|---|
 | 创意方案定稿 | `docs/evidence/v0.7a/stage2/deliverable/创意方案-定稿.md` | 阶段①定稿 v1.0（6.6KB） |
 | 创意方案详细稿 | `docs/evidence/v0.7a/stage2/deliverable/创意方案-v0.3详细稿.md` | 阶段① annex（10.7KB，细节更全） |
-| 游戏原型 | `docs/evidence/v0.7a/stage2/deliverable/game/index.html` | 阶段②单文件游戏（约 14.9KB） |
+| 游戏原型 | `docs/evidence/v0.7a/stage2/deliverable/game/index.html` | 阶段②单文件游戏（约 22KB，22,216 字节） |
 
 证据文件（本目录）：`stage1-run.log`、`stage2-run.log`、`gate-stage1-run1.log`、`gate-stage2-run1.log`、`gate-stage2-run2.log`、`gate-stage2-fix1.log`（修复轮 1 复跑）、`e2e-stage2.log`（修复轮 1 重跑）、`e2e-script.py`、`lipu-mobile.png`、`lipu-desktop.png`（修复轮 1 重拍）、`classify-output.txt`、`review-blind.md`（修复轮 1 新增）。
 
@@ -257,3 +257,4 @@
 3. 阶段① finalize 单输入致定稿浓缩（D10），以 annex 保留 v0.3 详细稿。
 4. 阶段② fix 补丁不可直接应用，编排者按意图适配组装（D12/D13），组装中发现并修复 2 处问题（D14），全部如实记录。
 5. E2E 测试脚本（e2e-script.py）初版对话框处理未 await accept 导致挂起、轮次计数偏差——为测试脚本自身问题，修正后 18/18。
+6. 计划 Step 3 的 `guild plan` 未按原文执行——因分类器失败（置信度不足）改由协调者起草两阶段计划，经用户批准后执行；计划文件路径未记录（图内嵌于执行日志）。

@@ -70,7 +70,7 @@ fi
 - [ ] **Step 4: LLM 冒烟测试（真实 DeepSeek 调用）**
 
 ```bash
-cd /mnt/e/agentguild && node scripts/runtime/llm-backend.js --prompt "只回复两个字：正常"
+cd /mnt/e/agentguild && . scripts/lib.sh && node scripts/runtime/llm-backend.js --prompt "只回复两个字：正常"
 ```
 预期：输出 JSON，`text` 字段含"正常"，`usage` 有 token 数。若失败：检查 key 是否有效（400 = key 错，429 = 限流重试，网络错误检查代理）。
 

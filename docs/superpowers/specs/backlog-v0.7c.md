@@ -12,6 +12,7 @@
 - [ ] D2: `guild run --graph` 只自动执行初始节点，下游节点需手动 `run-agent` + 手工创建 handoff 接力，全自动多 Agent 流转未闭环（阶段2，证据: stage2/report.md §五/§十）— **头号候选**
 - [ ] D1: LLM 输出在 4096 token 处被截断（无闭合标签/JS 断裂/文档腰斩），无系统级兜底（拆段生成/续写自动重试/输出长度监控），两阶段累计 5 次截断（阶段1+2，证据: stage1/report.md §六、stage2/report.md §十）
 - [ ] D3: QA 节点基于截断/注入的上游文本评审，无「读真实文件」能力，产生不实结论（阶段1：第4款隐藏/156字超限/#000000 标题 3 条均不实；阶段2：B-3 自我更正、N-1 与 E2E 不符、复测缺陷 ID 描述漂移）（阶段1+2，证据: stage1/report.md §四/§六、stage2/report.md §十）
+- [ ] D7: agent-standards Gate 对无「成功指标」章节的 agent 静默 SKIP，未产出实际检查（阶段1+2，证据: gate-run1/2.log、gate-stage1/2-run1.log）
 - [ ] D9: `guild run-agent --upstream <id>` 标志未被解析（`run_agent()` 只取位置参数 `$3`），`--upstream` 被当作 upstream 值，注入静默退化为 `(upstream content unavailable)`；仅按位置传参才能注入（阶段2，证据: stage2/report.md §十、scripts/runtime/agent-runner.sh）
 - [ ] D10: 链式 handoff 单输入缺陷：finalize 节点仅注入 review 结论、未注入 write 详细稿 → 定稿为浓缩重写版（6.6KB vs 10.7KB 细节丢失），仅靠编排者以 annex 补救（阶段2，证据: stage2/report.md §十）
 - [ ] D12: fix 节点无文件访问能力：补丁引用不存在的变量名（gameOver/currentAbsurd/renderResult/drawCards(3)），与实际代码 API 不匹配，无法直接应用（阶段2，证据: stage2/report.md §十、fix 输出 221940.md）
@@ -21,6 +22,8 @@
 - [ ] D17: e2e-script.py 限频断言恒真：限频检查行从未再次点击分享按钮，限频逻辑从未被真实测试，且恰好掩盖「确认分享后 resetGame 清零 lastShareTime 绕过限频」的产品缺陷（B-1）；修复轮 1 已重写断言并修复限频绕过（阶段2，证据: stage2/report.md §十、review-blind.md §二）
 - [ ] E2E 限频断言恒真教训（I-1）：测试断言必须验证真实行为，禁止「检查屏不可见」式空转通过；本轮修复轮 1 已按此重写并 34/34 重跑（阶段2，证据: stage2/report.md §七 I-1、review-blind-fix1.md）
 - [ ] 分类器关键词覆盖弱：游戏/广告变现/裂变/创意相关类型关键词缺失或过弱，需求被判为 miniapp 误判（阶段2，证据: stage2/report.md §二、classify-output.txt）
+- [ ] classify `--json` 输出非 JSON：CLI 契约未实现——`guild classify … --json` 实际输出纯文本（原 classify-output.json 内容非 JSON，修复轮 1 已改名 .txt），仅隐含覆盖（阶段2，证据: stage2/report.md §二、classify-output.txt）
+- [ ] gate 日志重跑无时间戳/退出码：重跑与拷贝不可区分，审计性弱化——未来轮次应输出时间戳与退出码（阶段1+2，证据: gate-run1/2.log、gate-stage1/2-run1.log、gate-stage2-fix1.log）
 
 ## 二、模板缺口（Template）— 模板/门禁内容导致交付质量或误报
 
