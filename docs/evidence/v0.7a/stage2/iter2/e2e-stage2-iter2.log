@@ -1,0 +1,56 @@
+PASS title 无尽矿脉 | 无尽矿脉
+PASS guide step1 shown | 1
+PASS guide step2 after first tap | 2
+PASS coin +1 after first tap | 1
+PASS milestone modal at 20 XP
+PASS layer 2 after milestone | 2层 · 铁矿层
+PASS layer2 finite 27 ores | 剩 27 块
+PASS guide step3 after drill upgrade | 3
+PASS guide done (3 steps)
+PASS fake panel after fake hit
+PASS fake deducts 1 coin | 24 -> 23
+PASS fake#1 <=3 shows FREE reroll | 1
+PASS reroll regenerates iron ore | 6
+PASS fake#4 shows AD reroll (3:1) | 1
+PASS simulated rewarded video opens
+PASS ad reroll regenerates copper ore | 14
+PASS adCounts.reroll == 1 | 1
+PASS pack-full panel on rare drop
+PASS rare ore value granted (+25) | 22 -> 47
+PASS pack slots 6->9 | 9
+PASS amethyst collected after expand | 7
+PASS adCounts.pack == 1 | 1
+PASS last ore carries ? badge | 1
+PASS depletion gap panel (差一点)
+PASS gap text '差 3 金币' | 距升级还差 3 金币
+PASS gap ad gives 4 coins (差2给3原理) | 📺 看广告获得 4 金币 🪙
+PASS gap panel updated after claim | 已获得 4 金币，去升级吧！
+PASS coins 47->51 after gap ad | 51
+PASS layer restarted (27 ores again) | 剩 27 块
+PASS drill upgraded to Lv4 | 4
+PASS miner unlocked & Lv1 | 1
+PASS offline settlement shown on return
+PASS offline base income shown (12) | +12 🪙
+PASS offline x2 total ~24 (base12+bonus12) | delta 24.500033333333334
+PASS adCounts.offline == 1 | 1
+PASS back to playing after offline
+PASS vein strip appears
+PASS vein countdown ticks | 60s
+PASS daily quest vein progress == 1 | 1
+PASS daily quest list rendered
+PASS rank panel opens
+PASS player ranked (asset tab) | 1
+PASS player ranked (net tab) | 1
+PASS share card shown
+PASS share card has 运营天数 | 第 1 天
+PASS share card has 总资产 | 383
+PASS 3 shares each +20 | delta 60.50000000000003
+PASS shareCount == 3 | 3
+PASS 4th share blocked (limit 3/day) | shareCount 3
+PASS block toast shown | 今日分享次数已达上限
+PASS zero console errors
+PASS no horizontal overflow @375
+PASS no horizontal overflow @320
+PASS playable at 320px
+
+==== E2E 结果: 54 通过, 0 失败 / 54 项 ====
