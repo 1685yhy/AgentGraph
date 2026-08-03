@@ -222,3 +222,43 @@
 | D22（新） | 中 | 实现期自查发现：同一点击同时触发里程碑与枯竭/背包满时，后弹出的面板覆盖里程碑（原为里程碑覆盖枯竭造成必现竞争——修复轮已处理：里程碑优先，`completeMilestone` 后补弹枯竭/背包满结算；E2E 修复轮新增场景覆盖） | e2e-fix1.log（F-1/F-6/F-10 里程碑场景全绿） |
 | D23（新） | 低 | A 阶段报告 §十 提交 SHA 误写 `9201dcb`（实际 `0c60b03`，`9201dcb` 不在仓库历史），F-9 修正为 `0c60b03` | `git log`；本文件 §十 |
 | D24（新） | 低 | 原盲测脚本 `playtest-blind.py` 的 B/C 节按旧构建流程编写（枯竭面板旧规则、重roll替换计数等），修复后部分失效；其断言覆盖已由重写后的 `e2e-script.py` 取代（脚本位于 /tmp，为运行时残留，不入库） | playtest-fix1-rerun.log（A 节全绿；B 节旧流程兼容性说明） |
+
+---
+
+## 十三、修复轮2（盲测带条件通过后的收尾修复：B-1 / B-2 / P-1 / P-2）
+
+**触发**：新构建盲测（`playtest-blind-fix1.md`）PASSED with conditions（0 阻断）；2 个真实 bug + 2 项体验打磨。
+
+### 13.1 缺陷修复（B-1..B-2）
+
+| # | 问题 | 修复 | 验证结果 |
+|---|---|---|---|
+| B-1 | **第0天 bug**：首次启动显示「第0天」。`S.firstPlayDate` 为本地日期字符串，`playDays()` 用 `new Date('YYYY-MM-DD')` 按 **UTC 零点** 解析——东八区玩家 00:00-08:00 首次启动时 `now` 早于 UTC 零点，`diff=-1` → 返回 0；西半球玩家首日还会多算 1 天（次日 07:00 卡在第1天）。分享卡（`sc-days`）同源同步错误 | `playDays()` 改为按**本地日历日**计算：`firstPlayDate` 拆解为本地 `Date`（不再 UTC 解析），与 `dayKeyStr(new Date())` 的本地日期求整日差（`Math.round` 容忍夏令时 23/25h 日），并 `Math.max(1,…)` 兜底——首日必显「第1天」，分享卡同步修正 | E2E 独立上下文：Playwright `timezone_id=Asia/Shanghai` + `page.clock` 固定 2026-08-05 **07:00**（UTC 仍为前一天 23:00，旧代码必现第0天）→ 顶栏断言 **「第1天」**（旧代码=第0天）；分享卡 **「第 1 天」**；固定时钟拨到次日 07:00 重载 → **「第2天」**（旧代码 UTC 差=0 卡「第1天」） |
+| B-2 | **限时矿脉无法收尾**：点完 5 块矿后事件不结束，矿脉条空挂 60 秒。矿块按钮 `data-vein-ore` 存的是**渲染时下标**，`mineVeinOre` 对 `S.veinActive.ores` splice 后旧下标失配——点第 2 块起下标越界 splice 静默 no-op，数组残留幽灵项，`ores.length` 永不归 0 | `mineVeinOre` 不再信任旧下标：点击时按 **DOM 位置**（`veingrid.children` 的 indexOf）重新定位——按钮与数组始终一一对应同步收缩，下标永不失配；最后一块点完 `ores.length===0` 分支立即收尾（奖励已在 `collectRare` 到账，只需隐藏条+清定时器+toast） | E2E：`forceEvent` 出 5 块，**每次都点 DOM 第 2 块**（旧下标 1,2,3,4 依次递进，必触发越界）——5 连点后：矿脉条立即隐藏、`veinActive===null`、网格 0 幽灵按钮、**1.5s 后仍隐藏（不空挂）**、可再次 forceEvent 出 5 块（事件系统未卡死） |
+
+### 13.2 体验打磨（P-1..P-2）
+
+| # | 问题 | 修复 | 验证结果 |
+|---|---|---|---|
+| P-1 | **离线文案与封顶不一致**：离线 10h 时 `timeStr` 按实际 10 小时展示，金额却按 8h（480 分钟）封顶计算——玩家看到「离线了 10 小时…挖出 +7200」，以为被吞了 2 小时收益 | `settleOffline()` 按**实际展示时间**与**封顶时间**统一：超 8h 时文案改为「**离线收益已达上限（按 8 小时计算），矿工们挖出了这些金币（效率 50%）**」，不再展示实际时长；未超时仍显示「你离线了 X 小时 Y 分」 | E2E：矿工1级 `simulateOffline(600)`（10h）→ 金额 **+7200**（=30/分×0.5×480 封顶），文案含「上限」「8 小时」，**不含「10 小时」** |
+| P-2 | **差一点面板小数长尾**：矿工浮动速率（0.5/s）使 `S.coins` 带浮点误差，枯竭面板直出「距升级还差 231.79999999999998 金币」（`gap-S.coins` 未整形） | 差额计算统一 `Math.ceil(gap - S.coins)` 整数化：`onLayerDepleted`（面板文案）、`doGapAd`（广告奖励 X+1 同步整数）、`renderHeader` 脉动 `data-hint` 三处一致；语义为「还差 N 个整金币」 | E2E：纯净存档（无矿工干扰）钻头1级（下一升级 10 金币）+ 金币 8.8（挖矿 +1 → 9.8）→ 面板精确显示 **「距升级还差 1 金币」**、按钮「📺 看广告获得 2 金币 🪙」，**无任何小数位**（旧代码 10-9.8=0.1999999999999993 长尾直出） |
+
+### 13.3 修复轮验证汇总
+
+- **E2E**：`e2e-script.py` 扩为 **102 项断言**（修复轮1 全部 86 项回归 + B-1×3 / B-2×6 / P-1×4 / P-2×3），连跑 2 次均 **102/102 通过**（`e2e-fix2-run1.log`、`e2e-fix2-run2.log`）；**0 console error**；375/320 均无横向溢出；320px 可正常点击（截图 fix-01~08 为修复轮1产物，本轮无 UI 布局变化未重拍）。
+- **系统自测**：`bash scripts/self-test.sh` 基线 **17/18**（唯一确定性失败仍为 D19 仓库既有损坏 handoff `2026-07-27-product-manager-to-frontend-engineer.json` PARSE_ERROR，非本轮引入；`self-test-fix2.log`）。注：Test 9 classify 存在 `timeout 10` 边界，负载下偶发 unknown（本轮首跑 16/18，立即重跑 17/18 且 classify 18/18）——系统级偶发，与本轮游戏交付物无关（本轮仅改动 `deliverable/game/index.html` 与 `e2e-script.py`，未触碰 agents/scripts/guild）。
+- **Gate 抽查**：`./guild gate --handoff 43` **5/5 通过**（behavior 17/17；playability/agent-standards 全绿；canvas 检查为已知 warn 非失败，D6/D18；`gate-run-fix2.log`）。
+
+---
+
+## 十四、修复轮2 提交记录与新增缺陷
+
+| 项 | 内容 |
+|---|---|
+| 提交 | ONE commit `260da91` 仅 `docs/evidence/v0.7a/stage2/iter2/`（未 push；`git log` 可核验）；内容：`deliverable/game/index.html`（B-1/B-2/P-1/P-2 修复版）、`e2e-script.py`（102 断言）、`e2e-fix2-run1.log`、`e2e-fix2-run2.log`、`self-test-fix2.log`、`gate-run-fix2.log`、`report.md`（本文件） |
+| 花费 | 修复轮2 无 LLM 调用（纯代码修复+Playwright 验证），花费 $0 |
+
+| ID | 级别 | 描述 | 证据 |
+|---|---|---|---|
+| D25（新） | 低 | B-1 根因记录：`new Date('YYYY-MM-DD')` 按 UTC 解析导致本地时区偏差（东八区上午 00:00-08:00 首启「第0天」；西半球首日「第2天」、次日卡「第1天」）——已修复并双时区断言覆盖 | e2e-fix2-run1/2.log（B-1×3 全绿） |
+| D26（新） | 低 | B-2 根因记录：矿脉按钮 `data-vein-ore` 为渲染时下标，splice 后失配产生幽灵项、事件无法收尾——已改为 DOM 位置定位（D26 测试侧记录：连点矿脉会途经 XP100 里程碑面板与背包满面板，E2E 已按序处理） | e2e-fix2-run1/2.log（B-2×6 全绿） |

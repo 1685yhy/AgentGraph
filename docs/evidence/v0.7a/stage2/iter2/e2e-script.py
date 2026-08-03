@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
-"""E2E verification of 「无尽矿脉」idle mining game — 修复轮1 (Playwright, headless Chromium).
+"""E2E verification of 「无尽矿脉」idle mining game — 修复轮2 (Playwright, headless Chromium).
 
-Covers (per fix round-1 brief F-1..F-10, reproducing playtest-blind.md steps):
-- F-1 软锁回归: 第1层连挖3轮永不空场(自动补矿); 有限层最后一块必触发层切换;
-  最后一块假矿先给重roll再结算枯竭; 空层旧存档加载时自愈
-- F-2 清空存档真清空: reset 后 coins=0/引导重开/localStorage 空(不再被 beforeunload 回写)
-- F-3 重roll不吞矿: 面板延迟900ms内挖掉邻矿后, 重roll为"插入"不"替换",
-  数量断言 N-1 而非 N-2; 广告重roll真实生效并计数
-- F-4 离线收益: 矿工1级 2h=+1800(在线50%/h, ×60单位修正); 新手兜底 2h=+120 且结算面板必现
-- F-5 触控目标 ≥44px: 底部tab/mute/reset/ranktab/面板btn/引导btn
-- F-6 确定性差一点: 枯竭必弹「差X给X+1」广告位; 计数器脉动窗口 ≤3
-- F-7 分享卡文案: 无病句、不默认对方在玩("你敢来比一比")
-- F-8 矿工卡: 解锁未购买时「待解锁」+ 速率文案, 无 undefined
-- F-10 反馈增强: 稀有矿按品种着色类名; 剩余 10/8/3 张力提示; 里程碑差≤8 经验提示
-- 回归: 引导/里程碑/背包扩容/限时矿脉/任务/排行/分享限频/0 console error/375/320 无溢出
+修复轮1 (F-1..F-10) 全部保留回归；本轮新增：
+- B-1 第0天 bug: 北京时间 07:00 首次启动（Asia/Shanghai + 固定时钟）必显「第1天」；
+  分享卡同步「第 1 天」；次日 07:00 跨天显示「第2天」（旧代码 UTC 解析会卡在第1天）
+- B-2 限时矿脉收尾: 按 DOM 位置定位矿块（splice 后 data-vein-ore 旧下标失配→幽灵项），
+  5 块点完立即收尾：条隐藏、veinActive 置空、1.5s 后不空挂、可再次触发新矿脉
+- P-1 离线文案: 离线 10h（>8h 封顶）金额按 8h 计算（+7200），文案显示上限提示，
+  不再出现「10 小时」与实际金额不一致
+- P-2 差一点面板: 带小数金币（138.2）时差额整数化显示（「还差 2 金币」，无小数长尾）
 """
 import asyncio, sys, re
 from playwright.async_api import async_playwright
@@ -78,6 +73,35 @@ async def main():
         await rel()
         title = await page.title()
         await check("title 无尽矿脉", "无尽矿脉" in title, title)
+
+        # ================= 0.5 B-1 第0天 bug: 北京时间上午首次启动 =================
+        # 东八区 07:00（UTC 仍是前一天 23:00）首次启动：旧代码 new Date('YYYY-MM-DD')
+        # 按 UTC 零点解析 → 误算「第0天」；修复后必须显「第1天」，分享卡同步
+        ctx_sh = await browser.new_context(timezone_id="Asia/Shanghai")
+        page_sh = await ctx_sh.new_page()
+        await page_sh.clock.install(time="2026-08-05T07:00:00+08:00")
+        await page_sh.goto(URL)
+        await page_sh.evaluate("localStorage.clear()")
+        await page_sh.reload()
+        await page_sh.wait_for_timeout(600)
+        day1 = await page_sh.locator("#daychip").text_content()
+        await check("B-1 first launch @Beijing 07:00 -> 第1天 (not 第0天)", day1 == "第1天", day1)
+        # 引导遮罩(全屏 z-index 200)盖住底栏，先跳过引导再开分享卡
+        await page_sh.locator('[data-act="guide-skip"]').click()
+        await page_sh.wait_for_timeout(300)
+        await page_sh.locator('[data-act="share-card"]').click()
+        await page_sh.wait_for_timeout(300)
+        sc_days = await page_sh.locator("#sc-days").text_content()
+        await check("B-1 share card days sync -> 第 1 天", sc_days == "第 1 天", sc_days)
+        # 次日 07:00 跨天：本地日历日差=1 → 第2天（旧代码 UTC 差=0 会卡「第1天」）。
+        # 时钟冻结时 setInterval 不触发、无自动存档，手动持久化再重载
+        await page_sh.evaluate("localStorage.setItem('wmkuang_save_v1', JSON.stringify(window.__MINE__.state()))")
+        await page_sh.clock.set_fixed_time("2026-08-06T07:00:00+08:00")
+        await page_sh.reload()
+        await page_sh.wait_for_timeout(600)
+        day2 = await page_sh.locator("#daychip").text_content()
+        await check("B-1 next day 07:00 -> 第2天 (calendar-day diff)", day2 == "第2天", day2)
+        await ctx_sh.close()
 
         # ================= 1. 开局3步引导 + F-5 引导按钮 =================
         step1 = await page.locator("#guide").get_attribute("data-guide-step")
@@ -365,6 +389,77 @@ async def main():
         await check("adCounts.offline == 1", adc == 1, adc)
         await check("offline panel auto-closes after x2 claim", await page.locator('.panel.active').count() == 0)
 
+        # ================= 15.5 P-1 离线文案与 8h 封顶一致 (离线 10h) =================
+        # 矿工1级 0.5/s → 30/分 → 8h 封顶 = 30×0.5×480 = +7200；文案不得再显示「10 小时」
+        try:
+            await js("window.__MINE__.simulateOffline(600)")
+        except Exception:
+            pass  # navigation destroys context mid-evaluate
+        await page.wait_for_timeout(800)
+        await fast_ads()
+        off_vis = await page.locator('[data-panel="offline"]').is_visible()
+        await check("P-1 offline 10h panel shown", off_vis)
+        amt = await page.locator("#offline-amount").text_content()
+        await check("P-1 offline 10h amount capped at 8h = +7200", "7200" in amt, amt)
+        otime = await page.locator("#offline-time").text_content()
+        await check("P-1 copy mentions 上限/8 小时 (consistent with cap)", "上限" in otime and "8 小时" in otime, otime)
+        await check("P-1 copy no longer claims 10 小时", "10 小时" not in otime, otime)
+        await page.locator('[data-act="offline-close"]').click()
+        await page.wait_for_timeout(300)
+
+        # ================= 15.6 B-2 限时矿脉 5 块点完立即收尾 (无幽灵项) =================
+        # 关键操作：每次都点 DOM 第 2 块（旧下标 1,2,3,4…）——splice 后旧 data-vein-ore
+        # 下标失配会越界 no-op，残留幽灵项；修复后按 DOM 位置定位，5 次必收尾
+        # 前置：XP 压到低位——每块矿脉 +10 XP，连点 5 块会冲过 100 触发第3层里程碑面板
+        # 遮挡矿脉（实测 XP 70→100 在第 3 点击穿）；背包已满的 packfull 面板在循环内点掉
+        await page.evaluate("window.__MINE__.setXP(5)")
+        await page.evaluate("window.__MINE__.forceEvent()")
+        await page.wait_for_timeout(300)
+        vein_cnt = await page.locator('[data-vein-ore]').count()
+        await check("B-2 vein spawns 5 ores", vein_cnt == 5, vein_cnt)
+        for _ in range(5):
+            n = await page.locator('[data-vein-ore]').count()
+            await page.locator('[data-vein-ore]').nth(min(1, n - 1)).click()
+            await page.wait_for_timeout(150)
+            # 前序章节背包已近满：稀有矿触发的 packfull 面板会 pause 游戏并盖住矿脉，
+            # 点掉后继续（收尾断言在 5 连点之后统一校验）
+            if await page.locator('[data-panel="packfull"].active').count() > 0:
+                await page.locator('[data-act="pack-decline"]').click()
+                await page.wait_for_timeout(250)
+        vein_gone = not await page.locator("#veinstrip").is_visible()
+        vein_state = await js("window.__MINE__.state().veinActive")
+        await check("B-2 after 5 clicks vein finishes immediately (strip hidden)", vein_gone, vein_state)
+        await check("B-2 veinActive cleared (no ghost item)", vein_state is None, vein_state)
+        grid_left = await js("document.getElementById('veingrid').children.length")
+        await check("B-2 no ghost buttons left in grid", grid_left == 0, grid_left)
+        await page.wait_for_timeout(1500)
+        vein_still_gone = not await page.locator("#veinstrip").is_visible()
+        await check("B-2 strip stays hidden 1.5s later (no 60s empty hang)", vein_still_gone)
+        # 事件系统未卡死：可再次触发新矿脉
+        await page.evaluate("window.__MINE__.forceEvent()")
+        await page.wait_for_timeout(300)
+        vein_cnt2 = await page.locator('[data-vein-ore]').count()
+        await check("B-2 vein event can re-trigger (5 ores again)", vein_cnt2 == 5, vein_cnt2)
+
+        # ================= 15.7 P-2 差一点面板: 小数金币整数化展示 =================
+        # 注入纯净存档重载（清空矿脉/矿工/背包干扰，且 `.ore` 选择器不再误中矿脉按钮）：
+        # 默认钻头1级→下一升级 10 金币；挖矿本身 +1 → 金币 8.8 挖后 9.8 → 差额 ceil = 1
+        # （旧代码 10-9.8=0.1999999999999993 长尾直出「差 0.1999999999999993 金币」）
+        await page.evaluate("window.__MINE__.forceSave({mineLevel:2, guideDone:true})")
+        await rel()
+        await page.evaluate("window.__MINE__.setCoins(8.8)")
+        await page.evaluate("window.__MINE__.trimLayer(1)")
+        await page.evaluate("window.__MINE__.forceNext('copper')")
+        await tap_first_ore(wait=500)
+        gap_vis = await page.locator('[data-panel="gap"]').is_visible()
+        await check("P-2 gap panel appears with fractional coins", gap_vis)
+        gtxt = await page.locator("#gap-text").text_content()
+        gbtn = await page.locator("#gapAdBtn").text_content()
+        await check("P-2 gap text integerized (还差 1 金币, no long tail)", gtxt == "距升级还差 1 金币", gtxt)
+        await check("P-2 gap ad button integer (2 coins)", gbtn == "📺 看广告获得 2 金币 🪙", gbtn)
+        await page.locator('[data-panel="gap"] [data-act="layer-restart"]').click()
+        await page.wait_for_timeout(400)
+
         # ================= 16. F-2 清空存档真清空 (确认后不再被 beforeunload 回写) =================
         await page.evaluate("window.__MINE__.setCoins(999)")
         await page.locator('#resetbtn').click()
@@ -427,7 +522,7 @@ async def main():
 
         # ================= 汇总 =================
         passed = sum(1 for r in results if r[1])
-        print("\n==== E2E 修复轮1: %d 通过, %d 失败 / %d 项 ====" % (passed, len(results) - passed, len(results)))
+        print("\n==== E2E 修复轮2: %d 通过, %d 失败 / %d 项 ====" % (passed, len(results) - passed, len(results)))
         failed = [r for r in results if not r[1]]
         for f in failed:
             print("FAILED:", f)

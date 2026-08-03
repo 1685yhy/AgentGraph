@@ -741,11 +741,16 @@ function refreshDay() {
 }
 
 function playDays() {
+  /* B-1：firstPlayDate 为本地日期字符串，若 new Date('YYYY-MM-DD') 按 UTC 零点解析，
+     东八区 00:00-08:00 首次启动时 now 早于 UTC 零点 → 误算「第0天」（西半球还会多算 1 天）。
+     改为按本地日历日拆解再求整日差（Math.round 容忍夏令时 23/25 小时日）。 */
   if (!S.firstPlayDate) return 1;
-  var f = new Date(S.firstPlayDate);
-  var now = new Date();
-  var diff = Math.floor((now - f) / 86400000);
-  return diff + 1;
+  var fp = String(S.firstPlayDate).split('-');
+  var f = new Date(+fp[0], (+fp[1] || 1) - 1, +fp[2] || 1);
+  var nk = dayKeyStr(new Date()).split('-');
+  var n = new Date(+nk[0], +nk[1] - 1, +nk[2]);
+  var diff = Math.round((n - f) / 86400000);
+  return Math.max(1, diff + 1);
 }
 
 /* ================= 音频 ================= */
@@ -1209,7 +1214,8 @@ function onLayerDepleted() {
   }
   pendingFake = -1;
   var gap = nextUpgradeCost();
-  var short = gap > 0 ? gap - S.coins : 0;
+  /* P-2：矿工浮动速率使 S.coins 带小数，差额按整数向上取整展示，杜绝 231.7999… 长尾 */
+  var short = gap > 0 ? Math.ceil(gap - S.coins) : 0;
   if (short > 0) {
     /* F-6 确定性差一点：枯竭必弹「差 X 给 X+1」广告位（达日限则只展示差额） */
     $('gap-text').textContent = '距升级还差 ' + short + ' 金币';
@@ -1229,7 +1235,7 @@ function onLayerDepleted() {
 
 function doGapAd() {
   var gap = nextUpgradeCost();
-  var short = gap > 0 ? gap - S.coins : 0;
+  var short = gap > 0 ? Math.ceil(gap - S.coins) : 0;
   if (short <= 0) { showPanel('depleted'); return; }
   showAd('gap', function () {
     gainCoins(short + 1);
@@ -1304,7 +1310,7 @@ function renderHeader() {
   chip.classList.toggle('neg', net < 0);
   $('daychip').textContent = '第' + playDays() + '天';
   if (near) {
-    var short = gap - S.coins;
+    var short = Math.ceil(gap - S.coins);
     if (c.dataset.hint !== String(short)) {
       c.dataset.hint = String(short);
     }
@@ -1595,7 +1601,14 @@ function renderVein() {
 function mineVeinOre(i, cell) {
   if (gameState !== 'playing') return;
   if (!S.veinActive) return;
-  if (cell) cell.remove();
+  if (cell) {
+    /* B-2：data-vein-ore 是渲染时的旧下标，splice 后失配会删错位/越界，
+       数组残留幽灵项导致矿脉条空挂 60 秒。改为按 DOM 位置定位（按钮与数组
+       始终一一对应同步收缩），下标永不失配；最后一块点完即收尾。 */
+    var idx = Array.prototype.indexOf.call($('veingrid').children, cell);
+    if (idx >= 0) i = idx;
+    cell.remove();
+  }
   S.veinActive.ores.splice(i, 1);
   var key = S.veinActive.key;
   sndRare();
@@ -1631,10 +1644,15 @@ function settleOffline() {
   var floorMin = S.mineLevel * 2;
   var base = Math.max(rateMin, floorMin) * coef * cap;
   if (base <= 0) { S.lastSeen = Date.now(); return; }
-  var h = Math.floor(minutes / 60), m = Math.floor(minutes % 60);
+  /* P-1：文案与 8h（480 分钟）封顶一致——离线超 8h 时金额按 8h 计，不再按实际时长展示 */
+  var capped = minutes > 480;
+  var effMin = Math.min(minutes, 480);
+  var h = Math.floor(effMin / 60), m = Math.floor(effMin % 60);
   var timeStr = h > 0 ? h + ' 小时 ' + m + ' 分' : m + ' 分钟';
   $('offline-amount').textContent = '+' + fmtNum(base) + ' 🪙';
-  $('offline-time').textContent = '你离线了 ' + timeStr + '，矿工们挖出了这些金币（效率 50%）';
+  $('offline-time').textContent = capped
+    ? '离线收益已达上限（按 8 小时计算），矿工们挖出了这些金币（效率 50%）'
+    : '你离线了 ' + timeStr + '，矿工们挖出了这些金币（效率 50%）';
   showPanel('offline');
   gameState = 'paused';
   pendingOfflineBonus = base;
