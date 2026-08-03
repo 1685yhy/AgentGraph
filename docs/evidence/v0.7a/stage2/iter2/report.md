@@ -8,7 +8,7 @@
 | 设计源 | 本目录 `concepts-v2.md` §候选1「无尽矿脉」（用户多轮否决后批准的方案）；纪律源 `viral-teardown.md`（黄金区模型/3:1法则/多巴胺节奏） |
 | LLM | DeepSeek `deepseek-chat`（真实 API，.env.local 经 lib.sh 自动加载）：2 次校准调用（§四） |
 | 交付物 | `deliverable/game/index.html`（单文件，64KB，内联 CSS/JS，无外部资源） |
-| E2E | Playwright headless Chromium **54/54 通过**（连跑 2 次均 54/54；日志 `e2e-stage2-iter2.log`，截图 6 张） |
+| E2E | Playwright headless Chromium **54/54 通过**（连跑 2 次均 54/54；日志 `e2e-stage2-iter2.log`，截图 6 张）；**修复轮1：86/86 通过（连跑 2 次均 86/86；日志 `e2e-fix1.log`，截图 8 张）** |
 | 系统自测 | `bash scripts/self-test.sh` **17/18**（唯一失败项为仓库既有损坏文件导致，非本阶段引入，见 D19） |
 | Gate | `guild gate --handoff 43` **5/5 通过**（behavior 17/17 全过，canvas/setInterval 为已知 warn 非失败；日志 `gate-run.log`） |
 | 花费估算 | ≈ $0.010（约 ¥0.08），2 次 LLM 调用（§九） |
@@ -173,4 +173,52 @@
 - E2E：`docs/evidence/v0.7a/stage2/iter2/e2e-script.py` + `e2e-stage2-iter2.log` + 截图 e2e-01~06.png
 - 验证日志：`self-test.log`、`gate-run.log`
 - LLM 原始输出：`context/outputs/game-designer/20260803-222405.md`、`context/outputs/monetization-designer/20260803-222446.md`
-- **提交记录**：commit `9201dcb`（仅 `docs/evidence/v0.7a/stage2/iter2/`，未 push）
+- **提交记录（F-9 修正）**：A 阶段实现 commit 实际为 `0c60b03`（本文件此前误记为 `9201dcb`，已修正——`9201dcb` 不存在于仓库历史，见 §十一 D23）；修复轮1 commit 见 §十二
+
+---
+
+## 十一、修复轮1 记录（盲测阻断修复，F-1..F-10）
+
+盲测裁决「不通过」后按 `playtest-blind.md` 修复清单执行。全部修复落在 `deliverable/game/index.html`（单文件，无结构性重构），E2E 重写为 `e2e-script.py`（86 项断言，连跑 2 次均 86/86，日志 `e2e-fix1.log`，截图 fix-01~08.png）；`playtest-fix1-rerun.log` 为盲测脚本 Section A（复现步骤）对修复后版本的重跑记录。
+
+### 11.1 阻断修复（F-1/F-2/F-3，盲测裁决的玩不下去问题）
+
+| # | 问题 | 修复 | 验证结果 |
+|---|---|---|---|
+| F-1 | 软锁：`completeOre()` 仅假矿分支调 `onLayerDepleted()`，第1层挖完永久空场；有限层最后一块非假矿 50% 概率空场 | ① 所有矿种完成分支在 `ores.length===0` 时必走 `onLayerDepleted()`（无限层 700ms 自动补矿/有限层必弹面板）；② 最后一块假矿**先给重roll面板**，玩家决策后再结算枯竭（假矿分支不再直接吞掉重roll）；③ 假矿/枯竭面板的每种关闭路径（按钮/点遮罩）都校验空场并补结算；④ 加载旧存档时若矿层已空则自动重新生成（历史软锁自愈）；⑤ 里程碑与枯竭/背包满面板同屏竞争时里程碑优先、关闭后补弹（D22） | E2E：第1层 3 轮「挖空→自动补 3 块」6 断言；有限层最后一块铜→必出面板；最后一块假矿→先 fake 面板后 gap 面板；旧空层存档加载自愈→27/3 块恢复。盲测重跑 A1/A2/A3 逐条转绿（`playtest-fix1-rerun.log`） |
+| F-2 | 「清空存档」被 `beforeunload→touchSeen→saveState` 覆盖，确认后存档原样保留 | ① `resetState()` 置内存标记 `DBG.resetFlag`（`touchSeen` 跳过）阻断卸载期回写；② 写 `wmkuang_reset_pending` 标记，新页 `loadState()` 检测到即忽略旧存档并清标记（双保险） | E2E：coins=999→确认→coins 归 0、引导重开、存档为全新状态（coins:0）、标记已消费；标记位不残留 |
+| F-3 | 重roll索引错乱：900ms 延迟期内数组已缩短，重roll用旧索引**替换**掉相邻矿石；数组短于旧索引时重roll静默失效 | ① 假矿完成时记录 ore.id，`onFakeHit()` 弹面板时索引收束 `min(idx, length)`；② `doReroll` 由 `splice(idx,1,new)` 改为 `splice(idx,0,new)` **插入**，绝不吞邻矿；③ 广告重roll走真实广告链路并计 `adCounts.reroll`；④ 假矿重roll被其他面板打断时 `closePanel()` 补弹（抗竞态） | E2E：N=27→挖假矿+挖邻矿（数组缩至 25）→重roll 后 26（插入 +1，旧代码为 25 吞矿）；广告重roll 25→26 且 adCounts.reroll==1；盲测 A3 重roll 面板先于枯竭出现 |
+
+### 11.2 体验修复（F-4..F-10）
+
+| # | 问题 | 修复 | 验证结果 |
+|---|---|---|---|
+| F-4 | 离线收益名存实亡：2h=12 金币（rate 每秒×系数×分钟，少了 ×60）；新手无矿工连结算面板都没有 | 公式修正为 `max(矿工每秒×60, 矿场等级×2/分) × 0.5 × 离线分钟`（矿工在线产出的 50%/h）；新手兜底=矿场等级×1 金币/分钟；结算面板标题「🎉 欢迎回来！」+ 醒目金额，任何玩家离线必见 | E2E：矿工1级 2h=**+1800**、×2 广告 +3600（含今日目标奖励容差）；新手 2h=+120 且面板必现 |
+| F-5 | 底部 tab/mute/reset/ranktab/面板主按钮 26-39px < 44px | 全部交互元素 `min-height:2.75rem`（44px）+ flex 居中 | E2E：tab×4/mute/reset/ranktab/面板按钮/引导按钮实测高度均 ≥44px（最小值 44.0） |
+| F-6 | 「差一点」触发太随机（仅枯竭且缺口 ≤5 才弹） | ① 有限层枯竭且缺口 >0 时**必弹**「差 X 给 X+1」广告位（达日限 8 次则仅展示差额）；② 计数器脉动窗口 ≤2→≤3 | E2E：缺口 14（远超旧窗口 5）仍必弹 gap 面板且广告给 15；setCoins(13) 计数器脉动命中 |
+| F-7 | 分享文案病句「几座」+ 默认对方在玩；无稀有时文案造假 | 战绩卡/分享文案改写：可炫耀、不假设对方在玩（「…总资产 X 金币！你敢来比一比吗？」），收藏稀有宝石时追加炫耀句（真实数据驱动） | E2E：卡片文案含「敢来比」，不含「几座/你的矿场」 |
+| F-8 | 矿工卡 `MINER_RATES[minerLv-1]` 在 minerLv=0 时显示「每秒 +undefined 金币」 | 解锁未购买时单独文案「待解锁·点击雇佣矿工，每秒 +0.5 金币」；购买后显示「X级·每秒 +X 金币」 | E2E：层2未购时「待解锁」且无 undefined；购买后显示 0.5/s |
+| F-9 | 报告 SHA 错误（9201dcb vs 实际 0c60b03） | 修正 §十 提交记录（`9201dcb` 不存在于仓库历史，D23） | `git log` 核验 HEAD=0c60b03 |
+| F-10 | 第2层 27 块机械点矿枯燥；里程碑无紧张感 | 轻量增强：① 挖矿反馈（金币计数 pop、飘字放大 pop 动画，原有碎裂/音效保留）；② 稀有矿按品种着色+专属光晕（紫/红/绿/蓝）；③ 有限层剩余 10/8/3 块时张力提示 + 剩 8 块时最后一块 50% 转假矿（点到关键矿的紧张感）；④ 距里程碑 ≤8 经验必提示「差 X 经验」；⑤ 里程碑文案换行修复（`white-space:pre-line`）；⑥ 假矿扣金币下限 0 | E2E：稀有矿 `ore-rare-{品种}` 类名断言、剩 8 块 toast、距扩建差 7 经验 toast；截图 fix-04-rare.png |
+
+### 11.3 修复轮验证汇总
+
+- **E2E**：`python3 e2e-script.py` 连跑 2 次均 **86/86 通过**（覆盖 F-1..F-10 + 引导/里程碑/背包扩容/限时矿脉/任务/排行/分享限频回归）；**0 console error**；375/320 均无横向溢出；320px 可正常点击。
+- **盲测复现重跑**（`playtest-fix1-rerun.log`）：A1 第1层 3 连点→自动补矿（旧版 grid=0 永久卡死）；A2 最后一块正常矿→必出枯竭面板（旧版 panels=[]）；A3 最后一块假矿→先重roll后枯竭，差一点→广告→升级全链路（旧版重roll被吞）。原盲测脚本 B/C 节为旧构建观测工具（按旧流程编写），与修复后确定性流程不兼容，其覆盖已由新 E2E 套件替代（D24）。
+- **系统自测**：`bash scripts/self-test.sh` 17/18（唯一失败项仍为 D19 仓库既有损坏 handoff，非本轮引入）。
+- **Gate**：`guild gate --handoff 43` 5/5（behavior 17/17；canvas 检查为已知 warn 非失败，D6/D18）。
+
+---
+
+## 十二、修复轮1 提交记录与新增缺陷
+
+| 项 | 内容 |
+|---|---|
+| 提交 | ONE commit 仅 `docs/evidence/v0.7a/stage2/iter2/`（SHA 见 §十二 下方提交记录，未 push）；内容：`deliverable/game/index.html`（修复版）、`e2e-script.py`（重写 86 断言）、`e2e-fix1.log`、`playtest-fix1-rerun.log`、`report.md`（本文件）、截图 fix-01~08.png |
+| 花费 | 修复轮无 LLM 调用（纯代码修复+验证），花费 $0 |
+
+| ID | 级别 | 描述 | 证据 |
+|---|---|---|---|
+| D22（新） | 中 | 实现期自查发现：同一点击同时触发里程碑与枯竭/背包满时，后弹出的面板覆盖里程碑（原为里程碑覆盖枯竭造成必现竞争——修复轮已处理：里程碑优先，`completeMilestone` 后补弹枯竭/背包满结算；E2E 修复轮新增场景覆盖） | e2e-fix1.log（F-1/F-6/F-10 里程碑场景全绿） |
+| D23（新） | 低 | A 阶段报告 §十 提交 SHA 误写 `9201dcb`（实际 `0c60b03`，`9201dcb` 不在仓库历史），F-9 修正为 `0c60b03` | `git log`；本文件 §十 |
+| D24（新） | 低 | 原盲测脚本 `playtest-blind.py` 的 B/C 节按旧构建流程编写（枯竭面板旧规则、重roll替换计数等），修复后部分失效；其断言覆盖已由重写后的 `e2e-script.py` 取代（脚本位于 /tmp，为运行时残留，不入库） | playtest-fix1-rerun.log（A 节全绿；B 节旧流程兼容性说明） |

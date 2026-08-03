@@ -1,0 +1,12 @@
+── Test 9: classify accuracy ──
+[OK]  classify: 18/18 types correctly identified
+
+── Test 10: plan output structure ──
+[OK]  plan: output contains team, gates, risks, and next_step (4 sections verified)
+
+── Test 11: template completeness ──
+[OK]  template completeness: all 18 templates have template.json + README.md + AGENT_FLOW.md
+
+══════════════════════════════════════════
+  17 passed, 1 failed / 18 total
+══════════════════════════════════════════

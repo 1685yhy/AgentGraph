@@ -1,0 +1,92 @@
+===== SECTION A: 阻断性复现 =====
+  A1: guide=「点击矿石，挖矿赚金币！」; after 3 taps: grid=3, coins=3  (infinite layer should have refilled)
+  A1: +1.5s still grid=3
+  A1: after page reload: grid=3 (FIXED: layer-1 auto-refills, no soft-lock)
+  A2: milestone on 20th XP: True 「矿场等级提升到 2 层 · 铁矿层
+开启有限矿脉，小心「假矿」！」
+  A2: now 2层 · 铁矿层 (剩 27 块)
+  A2: last ore=copper -> grid=0, panels=['depleted']  (FIXED: depletion panel always settles)
+  A3: last ore=fake -> panels=['fake']  (FIXED: reroll panel first, depletion after decision)
+  A3: after reroll declined -> panels=['gap'] 「距升级还差 3 金币」 btn=「📺 看广告获得 4 金币 🪙」
+  A3: after ad: coins=11, gap=「已获得 4 金币，去升级吧！」
+  A3: drill Lv2, coins=1 — 差一点->广告->升级 loop works
+[TIMING] +13.0s  A done
+
+===== SECTION B: 曲线与特性 =====
+  B0: pack-full on rare drop: True 「背包已满，紫水晶 🟣 掉在地上。扩容后可拾取。」
+  B0: after ad: packSlots=9, amethyst=7
+    run1: depleted 「-」
+    [dbg run1-exception] active=['depleted'] mask=True fakeToday=5 adCounts={'reroll': 0, 'gap': 1, 'pack': 1, 'offline': 0} coins=937 ores=0
+    run1: exception Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("[data-panel=\"gap\"] [data-act=\"layer-restart\"], [data-panel=\"depleted\"] [data-act=\"layer-restart\"]").first
+    - locator resolved to <button class="btn ghost" data-act="layer-restart">重开矿脉</button>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is not visible
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is not visible
+    - retrying click action
+      - waiting 100ms
+    56 × waiting for element to be visible, enabled and stable
+       - element is not visible
+     - retrying click action
+       - waiting 500ms
+ — recovering
+  B1 run1: 35 taps, +911 coins, +50 XP (total 80), 0 fake-rerolls notes=[]
+Traceback (most recent call last):
+  File "/tmp/playtest-blind.py", line 362, in <module>
+    asyncio.run(main())
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/tmp/playtest-blind.py", line 260, in main
+    await pg.locator('[data-act="upgrade-drill"]').click(); await pg.wait_for_timeout(200); continue
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/a/.local/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 17692, in click
+    await self._impl_obj.click(
+  File "/home/a/.local/lib/python3.12/site-packages/playwright/_impl/_locator.py", line 163, in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/a/.local/lib/python3.12/site-packages/playwright/_impl/_frame.py", line 591, in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+  File "/home/a/.local/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/a/.local/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 563, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("[data-act=\"upgrade-drill\"]")
+    - locator resolved to <button id="drillcard" class="upcard disabled" data-act="upgrade-drill">…</button>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <div id="mask" data-mask="" class="show">…</div> intercepts pointer events
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <div id="mask" data-mask="" class="show">…</div> intercepts pointer events
+    - retrying click action
+      - waiting 100ms
+    56 × waiting for element to be visible, enabled and stable
+       - element is visible, enabled and stable
+       - scrolling into view if needed
+       - done scrolling
+       - <div id="mask" data-mask="" class="show">…</div> intercepts pointer events
+     - retrying click action
+       - waiting 500ms
+

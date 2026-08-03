@@ -1,0 +1,88 @@
+PASS title 无尽矿脉 | 无尽矿脉
+PASS guide step1 shown | 1
+PASS F-5 guide button >= 44px | 44.0
+PASS guide step2 after first tap | 2
+PASS coin +1 after first tap | 1
+PASS F-1 layer1 full clear -> grid empty (iter 0)
+PASS F-1 layer1 auto-refills to 3 (iter 0) | 3
+PASS F-1 layer1 full clear -> grid empty (iter 1)
+PASS F-1 layer1 auto-refills to 3 (iter 1) | 3
+PASS F-1 layer1 full clear -> grid empty (iter 2)
+PASS F-1 layer1 auto-refills to 3 (iter 2) | 3
+PASS mined >= 10 coins on layer1 (auto-refill) | 19
+PASS guide step3 after drill upgrade | 3
+PASS guide done (3 steps)
+PASS milestone modal at 20 XP
+PASS layer 2 after milestone | 2层 · 铁矿层
+PASS layer2 finite 27 ores | 剩 27 块
+PASS F-8 miner card shows 待解锁 (unlocked, not bought) | 待解锁
+PASS F-8 miner desc has rate, no undefined | 点击雇佣矿工，每秒 +0.5 金币
+PASS layer2 starts with 27 ores (N) | 27
+PASS F-3 fake panel appears (900ms delay + shrunk array)
+PASS F-3 array shrunk by 2 before reroll (N-2) | 25
+PASS F-3 reroll INSERTS ore (N-1), neighbor not swallowed | N=27 n1=25 n2=26
+PASS F-3 rerolled ore is iron at index 0 | iron
+PASS F-3 fake#4 shows AD reroll (3:1) | 1
+PASS simulated rewarded video opens
+PASS F-3 ad reroll inserts ore (+1) | 25 -> 26
+PASS F-3 adCounts.reroll == 1 | 1
+PASS last ore carries ? badge | 1
+PASS F-1 last fake -> REROLL panel first (not depletion)
+PASS F-1 after reroll declined -> depletion panel settles
+PASS layer restarted (27 ores again) | 剩 27 块
+PASS F-6 depletion always shows gap panel
+PASS F-6 gap text '差 14 金币' (short=15-mined+1, beyond old window 5) | 距升级还差 14 金币
+PASS F-6 gap ad gives 15 coins (X+1) | 📺 看广告获得 15 金币 🪙
+PASS F-6 gap ad pays exactly short+1 (0 -> 16) | 16
+PASS F-6 adCounts.gap == 1 | 1
+PASS F-6 counter pulses within 3 of upgrade cost (13/15)
+PASS F-10 rare ore carries per-kind class ore-rare-amethyst | 4
+PASS F-10 rare amethyst collected | 1
+PASS F-10 tension toast at 8 ores left | ⚠️ 还剩 8 块！矿脉深处传来碎裂声…
+PASS F-10 milestone near toast (93/100, diff 7) | xp=93 toast=🔥 距矿场扩建还差 7 经验！
+PASS pack-full panel on rare drop
+PASS rare ore value granted (+25) | 41 -> 66
+PASS pack slots 6->9 | 9
+PASS amethyst collected after expand | 7
+PASS adCounts.pack == 1 | 1
+PASS vein strip appears
+PASS daily quest vein progress == 1 | 1
+PASS daily quest list rendered
+PASS rank panel opens
+PASS F-5 ranktab >= 44px | 44.0
+PASS player ranked (asset tab) | 1
+PASS player ranked (net tab) | 1
+PASS share card shown
+PASS F-7 copy invites challenge, no 病句 | 我在「无尽矿脉」第 0 天挖到了总资产 391 金币，还收藏了 8 件稀有宝石！你敢来比一比吗？
+PASS F-5 panel button >= 44px | 44.0
+PASS 3 shares each +20 | delta 60
+PASS shareCount == 3 | 3
+PASS 4th share blocked (limit 3/day) | shareCount 3
+PASS block toast shown | 今日分享次数已达上限
+PASS F-5 all 4 bottom tabs >= 44px | 44.0
+PASS F-5 mute button >= 44px | 44.0
+PASS F-5 reset button >= 44px | 44.0
+PASS miner unlocked & Lv1 | 1
+PASS F-8 miner desc shows 0.5/s after purchase | 每秒 +0.5 金币
+PASS offline settlement shown on return
+PASS F-4 offline base 2h = +1800 (0.5/s*60*0.5*120) | +1800 🪙
+PASS F-4 welcome-back headline shown | 🎉 欢迎回来！矿工们加班挖矿的成果
+PASS F-4 offline x2 total +3600 (+day-target reward ok) | delta 3650.005
+PASS adCounts.offline == 1 | 1
+PASS offline panel auto-closes after x2 claim
+PASS F-2 coins reset to 0 after confirm
+PASS F-2 guide restarts (fresh state) | 1
+PASS F-2 save is cleared/fresh after confirm (no stale state) | {"coins":0,"xp":0,"mineLevel":1,"drillLv":1,"minerLv":0,"day":"2026-08-04","dayE
+PASS F-2 reset marker consumed
+PASS F-1 broken empty-layer save heals to 27 ores | 27
+PASS F-1 healed save keeps coins (5) | 5
+PASS F-1 broken layer1 save heals to 3 ores | 3
+PASS F-4 newbie (no miner) gets offline panel too
+PASS F-4 newbie floor 2h = +120 (lvl1*2/min*0.5*120) | +120 🪙
+PASS F-4 newbie sees welcome-back headline | 🎉 欢迎回来！矿工们加班挖矿的成果
+PASS zero console errors
+PASS no horizontal overflow @375
+PASS no horizontal overflow @320
+PASS playable at 320px
+
+==== E2E 修复轮1: 86 通过, 0 失败 / 86 项 ====

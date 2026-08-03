@@ -47,6 +47,12 @@ body {
   0%,100% { transform:scale(1); filter:drop-shadow(0 0 .2rem rgba(255,200,60,.2)); }
   50% { transform:scale(1.14); filter:drop-shadow(0 0 .8rem rgba(255,200,60,.9)); }
 }
+#coins.pop { animation: coinPop .25s ease; }
+@keyframes coinPop {
+  0% { transform:scale(1); }
+  40% { transform:scale(1.16); }
+  100% { transform:scale(1); }
+}
 #netchip {
   font-size:.72rem; color:#8fe3a0; background:rgba(40,110,60,.25);
   border:.1rem solid rgba(120,220,150,.35);
@@ -62,6 +68,8 @@ body {
   font-size:1.05rem; background:rgba(90,70,35,.4);
   border:.1rem solid rgba(200,170,110,.3);
   border-radius:.7rem; padding:.3rem .5rem; color:#f5e9c8;
+  min-width:2.75rem; min-height:2.75rem;
+  display:inline-flex; align-items:center; justify-content:center;
 }
 
 /* ============ 矿层进度条 ============ */
@@ -78,6 +86,8 @@ body {
 }
 #xptext { font-size:.68rem; color:#c9a86a; white-space:nowrap; }
 #remaining { font-size:.72rem; color:#ff9a8a; white-space:nowrap; }
+#remaining.hot { color:#ff5a3a; animation:remPulse .8s ease-in-out infinite; }
+@keyframes remPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
 
 /* ============ 限时矿脉条 ============ */
 #veinstrip {
@@ -128,6 +138,15 @@ body {
   0%,100% { box-shadow:0 0 .35rem rgba(255,190,60,.5), inset 0 0 .5rem rgba(255,255,255,.35); }
   50% { box-shadow:0 0 1.1rem rgba(255,200,80,.95), inset 0 0 .7rem rgba(255,255,255,.5); }
 }
+/* 稀有度视觉区分（F-10）：按品种着色 + 专属光晕 */
+.ore-rare-amethyst { background:radial-gradient(circle at 32% 28%, #e9ccff, #9b59d0 55%, #552a80); animation:rareGlowP 1.6s ease-in-out infinite; }
+.ore-rare-ruby     { background:radial-gradient(circle at 32% 28%, #ffb3a3, #e04030 55%, #851a10); animation:rareGlowR 1.6s ease-in-out infinite; }
+.ore-rare-emerald  { background:radial-gradient(circle at 32% 28%, #baf3c3, #2fae58 55%, #11602a); animation:rareGlowE 1.6s ease-in-out infinite; }
+.ore-rare-diamond  { background:radial-gradient(circle at 32% 28%, #eaf6ff, #6fc0ee 55%, #245a8a); animation:rareGlowD 1.6s ease-in-out infinite; }
+@keyframes rareGlowP { 0%,100%{box-shadow:0 0 .35rem rgba(170,100,255,.55), inset 0 0 .5rem rgba(255,255,255,.35)} 50%{box-shadow:0 0 1.1rem rgba(170,100,255,1), inset 0 0 .7rem rgba(255,255,255,.5)} }
+@keyframes rareGlowR { 0%,100%{box-shadow:0 0 .35rem rgba(255,90,70,.6), inset 0 0 .5rem rgba(255,255,255,.35)} 50%{box-shadow:0 0 1.1rem rgba(255,90,70,1), inset 0 0 .7rem rgba(255,255,255,.5)} }
+@keyframes rareGlowE { 0%,100%{box-shadow:0 0 .35rem rgba(80,230,130,.6), inset 0 0 .5rem rgba(255,255,255,.35)} 50%{box-shadow:0 0 1.1rem rgba(80,230,130,1), inset 0 0 .7rem rgba(255,255,255,.5)} }
+@keyframes rareGlowD { 0%,100%{box-shadow:0 0 .35rem rgba(110,190,255,.6), inset 0 0 .5rem rgba(255,255,255,.35)} 50%{box-shadow:0 0 1.1rem rgba(110,190,255,1), inset 0 0 .7rem rgba(255,255,255,.5)} }
 .ore .gem { position:absolute; top:12%; left:50%; transform:translateX(-50%); font-size:1rem; filter:drop-shadow(0 .1rem .2rem rgba(0,0,0,.6)); }
 .ore.shatter { animation:shatter .45s ease-out forwards; }
 @keyframes shatter {
@@ -157,6 +176,12 @@ body {
   animation:gainUp 1s ease-out forwards;
 }
 @keyframes gainUp { 0%{opacity:1; transform:translateY(0)} 100%{opacity:0; transform:translateY(-4rem)} }
+.gain-fly.pop { font-size:1.2rem; animation:gainPop .95s ease-out forwards; }
+@keyframes gainPop {
+  0% { opacity:0; transform:translateY(0) scale(.5); }
+  18% { opacity:1; transform:translateY(-.35rem) scale(1.3); }
+  100% { opacity:0; transform:translateY(-4rem) scale(1); }
+}
 
 /* ============ 底部升级区 ============ */
 #upgrades {
@@ -191,6 +216,8 @@ body {
   background:rgba(90,70,35,.35);
   border-radius:.8rem; padding:.5rem 0; font-size:.78rem; color:#e8d5a8;
   cursor:pointer;
+  min-height:2.75rem;
+  display:flex; align-items:center; justify-content:center;
 }
 .tab:active { transform:scale(.95); }
 
@@ -209,6 +236,7 @@ body {
 .panel.active { display:block; }
 .panel h2 { font-size:1.05rem; color:#ffd970; text-align:center; margin-bottom:.5rem; }
 .panel .sub { font-size:.8rem; color:#cbb88a; text-align:center; line-height:1.5; margin-bottom:.7rem; }
+#ms-text { white-space:pre-line; }
 .panel .big { text-align:center; font-size:1.3rem; font-weight:800; color:#ffe9b0; margin:.3rem 0 .7rem; }
 .btnrow { display:flex; gap:.6rem; margin-top:.8rem; }
 .btn {
@@ -217,6 +245,8 @@ body {
   color:#3a2205; font-size:.95rem; font-weight:800;
   padding:.7rem .4rem; cursor:pointer;
   box-shadow:0 .2rem .5rem rgba(0,0,0,.4);
+  min-height:2.75rem;
+  display:flex; align-items:center; justify-content:center;
 }
 .btn:active { transform:scale(.96); }
 .btn.ghost { background:rgba(120,95,50,.35); color:#e8d5a8; border:.1rem solid rgba(200,170,110,.35); box-shadow:none; }
@@ -244,7 +274,7 @@ body {
 #guide .gtxt { font-size:.95rem; font-weight:700; color:#ffe9b0; line-height:1.5; }
 #guide .ghint { font-size:.72rem; color:#cbb88a; margin-top:.3rem; }
 #guide .gbtnrow { display:flex; gap:.6rem; margin-top:.7rem; }
-#guide .gbtn { flex:1; border:none; border-radius:.8rem; padding:.55rem 0; font-size:.85rem; font-weight:800; cursor:pointer; }
+#guide .gbtn { flex:1; border:none; border-radius:.8rem; padding:.55rem 0; font-size:.85rem; font-weight:800; cursor:pointer; min-height:2.75rem; display:flex; align-items:center; justify-content:center; }
 #guide .gbtn.next { background:linear-gradient(180deg,#ffc84d,#e8930a); color:#3a2205; }
 #guide .gbtn.skip { background:rgba(120,95,50,.35); color:#cbb88a; border:.1rem solid rgba(200,170,110,.35); }
 .gfinger { position:fixed; z-index:201; font-size:1.9rem; pointer-events:none; animation:handBounce 1s ease-in-out infinite; }
@@ -273,7 +303,7 @@ body {
 .rankrow .rkval { font-size:.85rem; font-weight:800; color:#ffe9b0; }
 .rankrow.me { background:rgba(255,200,80,.12); border-radius:.6rem; border:.08rem solid rgba(255,210,110,.4); }
 .ranktabs { display:flex; gap:.5rem; margin-bottom:.6rem; }
-.ranktab { flex:1; border:.1rem solid rgba(200,170,110,.3); background:rgba(90,70,35,.35); border-radius:.7rem; padding:.45rem 0; font-size:.78rem; color:#e8d5a8; cursor:pointer; }
+.ranktab { flex:1; border:.1rem solid rgba(200,170,110,.3); background:rgba(90,70,35,.35); border-radius:.7rem; padding:.45rem 0; font-size:.78rem; color:#e8d5a8; cursor:pointer; min-height:2.75rem; display:flex; align-items:center; justify-content:center; }
 .ranktab.on { background:rgba(255,200,80,.22); color:#ffd970; border-color:rgba(255,210,110,.6); }
 
 /* 任务 */
@@ -439,7 +469,7 @@ body {
 
   <!-- 离线结算 -->
   <div class="panel" data-panel="offline" data-offline>
-    <h2>⛏️ 矿工们加班挖矿的成果！</h2>
+    <h2>🎉 欢迎回来！矿工们加班挖矿的成果</h2>
     <div class="offline-big" id="offline-amount"></div>
     <div class="offline-sub" id="offline-time"></div>
     <div class="btnrow">
@@ -558,7 +588,7 @@ var GUIDE_STEPS = [
 /* ================= 状态 ================= */
 var S = null;
 var gameState = 'playing';
-var DBG = { nextKind: null };
+var DBG = { nextKind: null, resetFlag: false };
 var oreSeq = 0;
 var audioCtx = null;
 var muted = false;
@@ -573,6 +603,9 @@ var curTargetIdx = 0;
 var curFakeOreIdx = -1;
 var curPackKey = null;
 var toastTimer = null;
+var pendingFake = -1;
+var msNearFlag = 0;
+var RESET_KEY = 'wmkuang_reset_pending';
 
 function defaultState() {
   return {
@@ -642,17 +675,26 @@ function saveState() {
 }
 
 function touchSeen() {
-  if (DBG.skipSeen) return;
+  if (DBG.skipSeen || DBG.resetFlag) return;
   S.lastSeen = Date.now();
   saveState();
 }
 
 function loadState() {
-  var raw = null;
+  var resetPending = false;
   try {
-    raw = localStorage.getItem(SAVE_KEY);
+    resetPending = localStorage.getItem(RESET_KEY) === '1';
+    if (resetPending) localStorage.removeItem(RESET_KEY);
   } catch (e) {
-    console.warn('loadState failed', e);
+    console.warn('loadState reset marker failed', e);
+  }
+  var raw = null;
+  if (!resetPending) {
+    try {
+      raw = localStorage.getItem(SAVE_KEY);
+    } catch (e) {
+      console.warn('loadState failed', e);
+    }
   }
   var base = defaultState();
   if (raw) {
@@ -671,8 +713,10 @@ function loadState() {
 }
 
 function resetState() {
+  DBG.resetFlag = true;
   try {
     localStorage.removeItem(SAVE_KEY);
+    localStorage.setItem(RESET_KEY, '1');
   } catch (e) {
     console.warn('resetState failed', e);
   }
@@ -832,6 +876,7 @@ function spawnLayer(depth) {
     ores[ores.length - 1] = rollOre(null, true);
   }
   S.layer = { depth: depth, ores: ores };
+  pendingFake = -1;
 }
 
 function refillBatch() {
@@ -857,6 +902,7 @@ function gainCoins(n, opts) {
   if (isEarn) S.careerEarned += n;
   if (isSpend) S.careerSpent += n;
   S.coins += n;
+  if (S.coins < 0) S.coins = 0;
   checkTarget();
   renderHeader();
 }
@@ -886,11 +932,24 @@ function checkMilestone() {
   for (var i = 0; i < LAYERS.length; i++) {
     if (LAYERS[i].xpNeed <= S.xp && LAYERS[i].depth > S.mineLevel) { target = LAYERS[i]; break; }
   }
-  if (target) showMilestone(target);
+  if (target) { showMilestone(target); return; }
+  if (!S.guideDone) return;
+  for (var j = 0; j < LAYERS.length; j++) {
+    var need = LAYERS[j].xpNeed;
+    if (need > S.xp) {
+      var near = need - S.xp;
+      if (near <= 8 && msNearFlag !== need) {
+        msNearFlag = need;
+        toast('🔥 距矿场扩建还差 ' + near + ' 经验！');
+      }
+      break;
+    }
+  }
 }
 
 function showMilestone(cfg) {
   gameState = 'paused';
+  msNearFlag = 0;
   S.mineLevel = cfg.depth;
   var unlockNote = '';
   if (cfg.depth === 2) unlockNote = '开启有限矿脉，小心「假矿」！';
@@ -918,6 +977,46 @@ function completeMilestone() {
 }
 
 /* ================= 挖矿交互 ================= */
+function popCoins() {
+  var c = $('coins');
+  if (!c) return;
+  c.classList.remove('pop');
+  void c.offsetWidth;
+  c.classList.add('pop');
+  setTimeout(function () { c.classList.remove('pop'); }, 300);
+}
+
+function maybeDepleted() {
+  if (!S.layer) return false;
+  if (S.layer.ores.length === 0) {
+    onLayerDepleted();
+    return true;
+  }
+  return false;
+}
+
+function layerTension(rem) {
+  var cfg = layerConfig(S.mineLevel);
+  if (cfg.infinite) return;
+  if (rem === 10) {
+    toast('还剩 10 块！最后几块要小心…');
+  } else if (rem === 8) {
+    toast('⚠️ 还剩 8 块！矿脉深处传来碎裂声…');
+    maybeHotLast();
+  } else if (rem === 3) {
+    toast('🔥 只剩 3 块了！');
+  }
+}
+
+function maybeHotLast() {
+  if (!S.layer || !S.layer.ores.length) return;
+  var o = S.layer.ores[S.layer.ores.length - 1];
+  if (o.kind === 'fake') return;
+  if (Math.random() < 0.5) {
+    o.kind = 'fake';
+  }
+}
+
 function tapOre(idx) {
   if (gameState !== 'playing') return;
   if (!S.layer) return;
@@ -975,11 +1074,14 @@ function completeOre(idx, ore, cell) {
     floatText(x, y, '-1 🪙', 'gain-red');
     gainCoins(-1);
     ores.splice(idx, 1);
-    if (ores.length === 0) {
-      onLayerDepleted();
-    } else {
-      setTimeout(function () { onFakeHit(idx); }, 900);
-    }
+    if (ores.length === 1) ores[0].last = true;
+    else if (ore.last && ores.length > 0) ores[ores.length - 1].last = true;
+    /* 任何情况下都给重roll机会（含假矿恰为最后一块），再结算枯竭（F-1/F-3） */
+    pendingFake = ore.id;
+    curFakeOreIdx = idx;
+    setTimeout(function () {
+      if (pendingFake === ore.id) onFakeHit();
+    }, 900);
     renderGrid();
     return;
   }
@@ -991,22 +1093,33 @@ function completeOre(idx, ore, cell) {
   if (ore.kind === 'copper') {
     flyCoin(cell);
     sndCoin();
-    floatText(x, y, '+1 🪙', 'gain-gold');
+    floatText(x, y, '+1 🪙', 'gain-gold pop');
     gainCoins(1);
     gainXP(1);
   } else if (ore.kind === 'iron') {
     flyCoin(cell);
     sndCoin();
-    floatText(x, y, '+5 🪙', 'gain-gold');
+    floatText(x, y, '+5 🪙', 'gain-gold pop');
     gainCoins(5);
     gainXP(3);
   } else if (ore.kind === 'rare') {
     sndRare();
-    floatText(x, y, '+' + RARES[ore.rareKey].value + ' 🪙 ' + RARES[ore.rareKey].ico, 'gain-blue');
+    floatText(x, y, '+' + RARES[ore.rareKey].value + ' 🪙 ' + RARES[ore.rareKey].ico, 'gain-blue pop');
     collectRare(ore.rareKey, RARES[ore.rareKey].value, cell);
     gainXP(10);
   }
+  popCoins();
+  /* 若本次点击同时触发里程碑（XP 达标），里程碑面板优先，
+     枯竭结算推迟到 continue 之后（completeMilestone 会重新生成矿层） */
+  var milestoneUp = document.querySelector('[data-panel="milestone"]').classList.contains('active');
   ores.splice(idx, 1);
+  if (ores.length === 0) {
+    if (!milestoneUp) onLayerDepleted();
+  } else {
+    if (ores.length === 1) ores[0].last = true;
+    else if (ore.last && ores.length > 0) ores[ores.length - 1].last = true;
+    layerTension(ores.length);
+  }
   if (S.guideDone && S.mineLevel >= 3 && !S.veinUnlockSeen) {
     S.veinUnlockSeen = true;
     scheduleVein();
@@ -1045,10 +1158,13 @@ function collectRare(key, value, cell) {
   }
 }
 
-function onFakeHit(idx) {
+function onFakeHit() {
   if (gameState !== 'playing') return;
+  if (!S.layer) return;
+  pendingFake = -1;
+  var ores = S.layer.ores;
+  if (curFakeOreIdx > ores.length) curFakeOreIdx = ores.length;
   var rerollFree = S.fakeCountToday <= 3;
-  curFakeOreIdx = idx;
   var btn = $('rerollBtn');
   btn.textContent = rerollFree ? '🔄 重新勘探' : '📺 看广告重新勘探';
   btn.dataset.act = rerollFree ? 'reroll-free' : 'reroll-ad';
@@ -1057,20 +1173,22 @@ function onFakeHit(idx) {
 }
 
 function doReroll(useAd) {
-  var idx = curFakeOreIdx;
   closePanel();
   gameState = 'playing';
   if (!S.layer) return;
   var ores = S.layer.ores;
-  if (idx >= ores.length) { renderGrid(); return; }
+  /* 插入而非替换：绝不吞掉相邻矿石；旧索引越界时收束到数组尾部（F-3） */
+  if (curFakeOreIdx > ores.length) curFakeOreIdx = ores.length;
   function regen() {
     var kind = DBG.nextKind;
     DBG.nextKind = null;
     if (!kind) kind = (Math.random() < 0.5) ? 'iron' : 'fake';
-    ores.splice(idx, 1, rollOre(kind, false));
+    ores.splice(curFakeOreIdx, 0, rollOre(kind, false));
+    if (ores.length === 1) ores[0].last = true;
     if (kind === 'fake') toast('这次还是废矿…再试试别的？');
     else toast('🪨 重新勘探成功！');
     renderGrid();
+    renderLayerbar();
   }
   if (useAd) {
     showAd('reroll', regen);
@@ -1089,11 +1207,18 @@ function onLayerDepleted() {
     }, 700);
     return;
   }
+  pendingFake = -1;
   var gap = nextUpgradeCost();
   var short = gap > 0 ? gap - S.coins : 0;
-  if (gap > 0 && short > 0 && short <= 5 && S.adCounts.gap < 8) {
+  if (short > 0) {
+    /* F-6 确定性差一点：枯竭必弹「差 X 给 X+1」广告位（达日限则只展示差额） */
     $('gap-text').textContent = '距升级还差 ' + short + ' 金币';
     $('gapAdBtn').textContent = '📺 看广告获得 ' + (short + 1) + ' 金币 🪙';
+    if (S.adCounts.gap >= 8) {
+      $('gapAdBtn').classList.add('hidden');
+    } else {
+      $('gapAdBtn').classList.remove('hidden');
+    }
     showPanel('gap');
   } else {
     showPanel('depleted');
@@ -1171,7 +1296,7 @@ function renderHeader() {
   var c = $('coins');
   c.childNodes[0].nodeValue = fmtNum(S.coins) + ' ';
   var gap = nextUpgradeCost();
-  var near = gap > 0 && S.coins >= gap - 2 && S.coins < gap;
+  var near = gap > 0 && S.coins >= gap - 3 && S.coins < gap;
   c.classList.toggle('pulse', near);
   var net = S.dayEarned - S.daySpent;
   var chip = $('netchip');
@@ -1204,16 +1329,19 @@ function renderLayerbar() {
   $('xpfill').style.width = pct + '%';
   $('xptext').textContent = S.xp + '/' + nextNeed;
   var rem = remainingCount();
+  var remEl = $('remaining');
   if (cfg.infinite) {
-    $('remaining').textContent = '';
+    remEl.textContent = '';
+    remEl.classList.remove('hot');
   } else {
-    $('remaining').textContent = '剩 ' + rem + ' 块';
+    remEl.textContent = '剩 ' + rem + ' 块';
+    remEl.classList.toggle('hot', rem <= 10);
   }
 }
 
 function oreCell(ore, idx) {
   var b = document.createElement('button');
-  b.className = 'ore ore-' + ore.kind;
+  b.className = 'ore ore-' + ore.kind + (ore.kind === 'rare' && ore.rareKey ? ' ore-rare-' + ore.rareKey : '');
   b.dataset.ore = '1';
   b.dataset.idx = String(idx);
   b.dataset.oreKind = ore.kind;
@@ -1284,9 +1412,15 @@ function renderUpgrades() {
   } else {
     mc.classList.remove('locked');
     mc.classList.toggle('disabled', S.coins < mCost);
-    $('minerlv').textContent = S.minerLv + '级';
-    $('minerdesc').textContent = '每秒 +' + MINER_RATES[S.minerLv - 1] + ' 金币';
     $('minercost').innerHTML = '<span class="ico">🪙</span> ' + mCost;
+    if (S.minerLv === 0) {
+      /* F-8：解锁未购买时不再索引 -1 显示 undefined，单独文案「待解锁」 */
+      $('minerlv').textContent = '待解锁';
+      $('minerdesc').textContent = '点击雇佣矿工，每秒 +' + MINER_RATES[0] + ' 金币';
+    } else {
+      $('minerlv').textContent = S.minerLv + '级';
+      $('minerdesc').textContent = '每秒 +' + MINER_RATES[S.minerLv - 1] + ' 金币';
+    }
   }
 }
 
@@ -1305,6 +1439,19 @@ function closePanel() {
   var panels = document.querySelectorAll('.panel');
   for (var i = 0; i < panels.length; i++) panels[i].classList.remove('active');
   if (!S.guideDone && S.guideCurStep) renderGuide(S.guideCurStep);
+  /* 假矿重roll被其他面板打断时，面板关闭后补弹（F-3/F-1 抗竞态） */
+  if (pendingFake >= 0 && gameState === 'playing') {
+    var pf = pendingFake;
+    pendingFake = -1;
+    onFakeHit();
+    return;
+  }
+  /* 背包满提示被里程碑等面板覆盖时，关闭后补弹（稀有矿不丢） */
+  if (curPackKey !== null && gameState === 'playing') {
+    showPanel('packfull');
+    gameState = 'paused';
+    sndRare();
+  }
 }
 
 /* ================= 广告模拟 ================= */
@@ -1477,14 +1624,17 @@ function settleOffline() {
   var minutes = (Date.now() - last) / 60000;
   if (minutes < 1) return;
   var cap = Math.min(minutes, 480);
-  var coef = S.mineLevel <= 1 ? 0.5 : 0.2;
-  var rate = S.minerLv ? MINER_RATES[S.minerLv - 1] : 0;
-  var base = rate * coef * cap;
+  /* F-4：系数统一 50%（矿工在线产出的 50%/h，×60 修复单位错误）；
+     新手兜底：无矿工时按矿场等级 2 金币/分钟，离线必给反馈 */
+  var coef = 0.5;
+  var rateMin = S.minerLv ? MINER_RATES[S.minerLv - 1] * 60 : 0;
+  var floorMin = S.mineLevel * 2;
+  var base = Math.max(rateMin, floorMin) * coef * cap;
   if (base <= 0) { S.lastSeen = Date.now(); return; }
   var h = Math.floor(minutes / 60), m = Math.floor(minutes % 60);
   var timeStr = h > 0 ? h + ' 小时 ' + m + ' 分' : m + ' 分钟';
   $('offline-amount').textContent = '+' + fmtNum(base) + ' 🪙';
-  $('offline-time').textContent = '矿工们工作了 ' + timeStr + '（离线效率 ' + Math.round(coef * 100) + '%）';
+  $('offline-time').textContent = '你离线了 ' + timeStr + '，矿工们挖出了这些金币（效率 50%）';
   showPanel('offline');
   gameState = 'paused';
   pendingOfflineBonus = base;
@@ -1503,11 +1653,12 @@ function settleOffline() {
 }
 
 function claimOfflineBase() {
+  var amt = pendingOfflineBonus;
   gainCoins(pendingOfflineBonus);
   pendingOfflineBonus = 0;
   closePanel();
   gameState = 'playing';
-  toast('🪙 离线收益已到账');
+  toast('🎉 欢迎回来！离线挖矿 +' + fmtNum(amt) + ' 金币');
 }
 
 function doOfflineX2() {
@@ -1666,7 +1817,10 @@ function renderShareCard() {
   $('sc-asset').textContent = fmtNum(playerAsset());
   $('sc-net').textContent = (playerNet() >= 0 ? '+' : '') + fmtNum(playerNet());
   $('sc-gems').textContent = packUsed() + ' 件';
-  $('sc-copy').textContent = '我的第 ' + playDays() + ' 天矿场刚开出稀有水晶，你的矿场还只有几座——但今天开始还不算晚。';
+  /* F-7：不默认对方在玩、无病句；没玩过的人也能看懂并想点开 */
+  $('sc-copy').textContent = packUsed() > 0
+    ? '我在「无尽矿脉」第 ' + playDays() + ' 天挖到了总资产 ' + fmtNum(playerAsset()) + ' 金币，还收藏了 ' + packUsed() + ' 件稀有宝石！你敢来比一比吗？'
+    : '我在「无尽矿脉」第 ' + playDays() + ' 天，矿场已扩建到 ' + S.mineLevel + ' 层，总资产 ' + fmtNum(playerAsset()) + ' 金币！你敢来比一比吗？';
   var left = Math.max(0, 3 - S.shareCount);
   $('share-reward').textContent = left > 0 ? '今日还可分享 ' + left + ' 次，每次 +20 金币' : '今日分享次数已达上限';
   showPanel('share');
@@ -1679,7 +1833,7 @@ function doShare() {
   }
   S.shareCount++;
   gainCoins(20);
-  var text = '无尽矿脉战绩卡：第' + playDays() + '天 · ' + S.mineLevel + '层矿场 · 总资产' + fmtNum(playerAsset()) + ' · 今日净收益' + (playerNet() >= 0 ? '+' : '') + fmtNum(playerNet()) + ' —— 我的矿场刚开出稀有水晶，你的矿场还只有几座？';
+  var text = '我在无尽矿脉第' + playDays() + '天，矿场' + S.mineLevel + '层，总资产' + fmtNum(playerAsset()) + '金币，今天净赚' + (playerNet() >= 0 ? '+' : '') + fmtNum(playerNet()) + '！点开就能开始挖矿，敢不敢来比一比？';
   var done = function () { toast('📤 战绩卡已分享 +20 金币'); renderShareCard(); };
   if (navigator.share) {
     try {
@@ -1713,7 +1867,7 @@ function update(now) {
     if (dt < 0 || dt > 500) return;
     var c = $('coins');
     var gap = nextUpgradeCost();
-    var near = gap > 0 && S.coins >= gap - 2 && S.coins < gap;
+    var near = gap > 0 && S.coins >= gap - 3 && S.coins < gap;
     if (c.classList.contains('pulse') !== near) {
       c.classList.toggle('pulse', near);
     }
@@ -1740,14 +1894,23 @@ function bindEvents() {
 
   $('mask').addEventListener('click', function (ev) {
     if (ev.target === $('mask')) {
+      var activePanel = document.querySelector('.panel.active');
+      var pname = activePanel ? activePanel.dataset.panel : null;
       closePanel();
       gameState = 'playing';
+      /* F-1：任何关闭路径都不留空场——假矿面板关闭后补枯竭结算；
+         枯竭面板点遮罩=放弃广告机会并重开矿脉 */
+      if (pname === 'fake') {
+        maybeDepleted();
+      } else if (pname === 'gap' || pname === 'depleted') {
+        if (S.layer && S.layer.ores.length === 0) restartLayer();
+      }
       return;
     }
     var act = ev.target.dataset ? ev.target.dataset.act : null;
     if (!act) return;
     if (act === 'milestone-continue') completeMilestone();
-    else if (act === 'fake-dismiss') { closePanel(); gameState = 'playing'; }
+    else if (act === 'fake-dismiss') { closePanel(); gameState = 'playing'; maybeDepleted(); }
     else if (act === 'reroll-free') doReroll(false);
     else if (act === 'reroll-ad') doReroll(true);
     else if (act === 'layer-restart') restartLayer();
@@ -1816,6 +1979,11 @@ function bindDebugHooks() {
       saveState();
       location.reload();
     },
+    forceSave: function (obj) {
+      /* 注入指定存档（跳过 beforeunload 回写），用于旧存档兼容性/自愈验证 */
+      DBG.skipSeen = true;
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(obj)); } catch (e) { console.warn('forceSave failed', e); }
+    },
     forceEvent: function () { spawnVein(); },
     fastAds: function (on) { AD_MS = on ? 400 : 2500; },
     resetAll: function () { resetState(); }
@@ -1826,7 +1994,8 @@ function initGame() {
   loadState();
   if (!S) S = defaultState();
   refreshDay();
-  if (!S.layer) spawnLayer(S.mineLevel);
+  /* F-1 回归：旧存档若矿层已空（历史软锁），强制重新生成，玩家永不被锁死 */
+  if (!S.layer || !S.layer.ores || S.layer.ores.length === 0) spawnLayer(S.mineLevel);
   curTargetIdx = 0;
   for (var i = 0; i < TARGETS.length; i++) {
     if (S.dayEarned < TARGETS[i].need) { curTargetIdx = i; break; }
