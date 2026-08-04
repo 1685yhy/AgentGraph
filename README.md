@@ -40,15 +40,6 @@ Beyond the 40 agents and the Graph engine, AgentGraph has grown a full self-buil
 
 ## Quick Start (5 Minutes)
 
-### 0. Play It Online
-
-Nothing to install — these live on GitHub Pages and run right in the browser:
-
-- 🎮 Game "无尽矿脉" (Endless Vein) — a complete playable game prototype produced end-to-end by AgentGraph (v0.7a real delivery)
-  https://1685yhy.github.io/AgentGraph/evidence/v0.7a/stage2/iter2/deliverable/game/index.html
-- 🖥️ Landing Page Demo — delivered automatically in v0.7a Stage 1
-  https://1685yhy.github.io/AgentGraph/evidence/v0.7a/stage1/deliverable/index.html
-
 ### 1. Install
 
 ```bash
@@ -211,7 +202,7 @@ All commands run through `./guild` (symlink to `scripts/nexus.sh`).
 | `guild context show` | View decision graph | `guild context show` |
 | `guild context check` | Check for decision conflicts | `guild context check` |
 | `guild run` | Run a graph with the runtime (real LLM drives the whole chain) | `guild run --graph feature-dev --task "Build an admin system"` |
-| `guild run --graph <name> --task "<desc>" --yes` | Auto mode (skip confirmations) | `guild run --graph game-mvp --task "Make an endless mining game" --yes` |
+| `guild run --graph <name> --task "<desc>" --yes` | Auto mode (skip confirmations) | `guild run --graph game-mvp --task "Make a snake game" --yes` |
 | `guild run-agent` | Run a single agent with the runtime (real LLM) | `guild run-agent game-designer "Design a core loop" --upstream 1` |
 | `guild watch` | Watch a project directory and trigger execution on changes | `guild watch --timeout 120` |
 | `guild graph run` | Execute a graph | `guild graph run --graph game-mvp --path ./my-game/` |
@@ -288,7 +279,7 @@ mkdir -p /tmp/my-game
 ./guild graph run --graph game-mvp --path /tmp/my-game
 
 # Or runtime mode: a real LLM drives the whole graph automatically
-./guild run --graph game-mvp --task "Make an endless mining game" --yes
+./guild run --graph game-mvp --task "Make a snake game" --yes
 ```
 
 The `game-mvp` graph runs: concept → art (parallel), code (parallel), UI (parallel), audio (parallel) → integration → QA → pass: ship / fail: fix → retest
@@ -455,8 +446,7 @@ AgentGraph/
 ├── handoffs/                  Handoff records (auto-generated JSON)
 ├── integrations/              Tool-specific output (auto-generated)
 ├── demos/                     Handoff walkthrough scenarios
-├── docs/                      Documentation & verification evidence
-│   └── evidence/              Version evidence (v0.7a demo deliverables)
+├── docs/                      Documentation
 ├── website/                   Project website
 ├── guild → scripts/nexus.sh   CLI entry
 └── guild.config.json          40 Agent + 4 tool registry
@@ -483,7 +473,6 @@ Run `bash scripts/convert.sh` first to generate tool-specific files.
 - **v0.4 — Templates**: 18 project template scaffolds (doc + engineering types)
 - **v0.5 — MCP**: MCP adapter exposing 23 AgentGraph tools to any AI host
 - **v0.6a — Runtime Engine**: custom runtime (llm-backend / agent-runner / event-bus / run) wired to real LLMs
-- **v0.7a — Real End-to-End**: DeepSeek API produced two real deliverables (game prototype + landing page) for ≈ $0.14 total; 25 defects logged to the v0.7c backlog
 
 ---
 

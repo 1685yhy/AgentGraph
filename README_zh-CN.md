@@ -38,15 +38,6 @@
 
 ## 快速开始（5 分钟上手）
 
-### 0. 在线试玩
-
-不想装任何东西？直接点下面两个链接（GitHub Pages 部署，浏览器即开即玩）：
-
-- 🎮 游戏「无尽矿脉」— 由 AgentGraph 真实端到端自动产出的完整可玩游戏原型（v0.7a 交付物）
-  https://1685yhy.github.io/AgentGraph/evidence/v0.7a/stage2/iter2/deliverable/game/index.html
-- 🖥️ 落地页 Demo — v0.7a 阶段 1 自动交付的完整落地页
-  https://1685yhy.github.io/AgentGraph/evidence/v0.7a/stage1/deliverable/index.html
-
 ### 1. 安装
 
 ```bash
@@ -206,7 +197,7 @@ AgentGraph 内置 40 个 AI Agent，分布在 11 个部门：
 | `guild context show` | 查看决策图谱 | `guild context show` |
 | `guild context check` | 检查决策冲突 | `guild context check` |
 | `guild run` | 运行时执行图（真实 LLM 驱动完整交付链） | `guild run --graph feature-dev --task "做一个供应商后台管理系统"` |
-| `guild run --graph <name> --task "<描述>" --yes` | 全自动模式（跳过确认直接执行） | `guild run --graph game-mvp --task "做一个无尽矿脉小游戏" --yes` |
+| `guild run --graph <name> --task "<描述>" --yes` | 全自动模式（跳过确认直接执行） | `guild run --graph game-mvp --task "做一个贪吃蛇小游戏" --yes` |
 | `guild run-agent` | 单个 Agent 运行时执行（真实 LLM 调用） | `guild run-agent game-designer "设计一个核心循环" --upstream 1` |
 | `guild watch` | 监听项目目录变化，自动触发执行 | `guild watch --timeout 120` |
 | `guild graph run` | 执行图 | `guild graph run --graph game-mvp --path ./my-game/` |
@@ -319,7 +310,7 @@ mkdir -p /tmp/my-game
 也可以让运行时（真实 LLM）自动驱动整个图：
 
 ```bash
-./guild run --graph game-mvp --task "做一个无尽矿脉小游戏" --yes
+./guild run --graph game-mvp --task "做一个贪吃蛇小游戏" --yes
 ```
 
 运行时接入真实 LLM 后端，按图自动执行：concept（游戏设计师）→ art/code/ui/audio（技术美术/游戏程序/游戏UI/音频，并行）→ integration（游戏程序合并）→ qa（游戏QA 验证）→ 不通过则 fix 修复重测，通过则 ship 发布。每个节点真实调用 LLM 产出交付物并自动审查。
@@ -508,14 +499,13 @@ AgentGraph/
 │   ├── copilot/
 │   └── windsurf/
 ├── demos/                     交接演练场景（Markdown）
-├── docs/                      文档与验证证据
+├── docs/                      文档
 │   ├── 使用指南.md             完整 CLI 使用手册
 │   ├── 协作指南.md             Agent 协作详细说明
 │   ├── 流水线指南.md           流水线使用说明
 │   ├── 决策系统指南.md          决策/冲突系统说明
 │   ├── 迭代指南.md             迭代工作流说明
-│   ├── AGENT_TEMPLATE.md      Agent 模板规范
-│   └── evidence/               版本验证证据（v0.7a 演示交付物）
+│   └── AGENT_TEMPLATE.md      Agent 模板规范
 ├── website/                   项目官网
 ├── guild → scripts/nexus.sh   CLI 入口
 └── guild.config.json          40 Agent + 4 工具注册表
@@ -542,7 +532,6 @@ AgentGraph/
 - **v0.4 — 模板**：18 个项目模板脚手架（文档型 + 工程型），一条命令初始化工程
 - **v0.5 — MCP**：MCP 适配层上线，23 个 AgentGraph 工具暴露给任意 AI 宿主
 - **v0.6a — 运行时引擎**：自建运行时（llm-backend / agent-runner / event-bus / run），接入真实 LLM
-- **v0.7a — 真实端到端验证**：DeepSeek 真实 API 完成「游戏原型 + 落地页」双交付，总成本 ≈ $0.14，25 项缺陷进入 v0.7c backlog
 
 ---
 
