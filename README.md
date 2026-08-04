@@ -134,7 +134,7 @@ All gates must pass before the receiver can accept.
 | Sales | 2 | Sales Engineer, Deal Strategist |
 | Support | 1 | Customer Support |
 | Finance | 1 | Financial Analyst |
-| Game Dev | 10 | Game Designer, Level Designer, Narrative Designer, Game Programmer, Unity/Unreal Devs, Tech Artist, Game UI, Audio, Monetization, Producer, QA |
+| Game Dev | 12 | Game Designer, Level Designer, Narrative Designer, Game Programmer, Unity/Unreal Devs, Tech Artist, Game UI, Audio, Monetization, Producer, QA |
 
 Each Agent has 13 sections: provocative opinion, hard rules, conflict preferences, blind spot declarations, decision authority, and collaboration contracts.
 
@@ -206,7 +206,7 @@ All commands run through `./guild` (symlink to `scripts/nexus.sh`).
 | `guild run-agent` | Run a single agent with the runtime (real LLM) | `guild run-agent game-designer "Design a core loop" --upstream 1` |
 | `guild watch` | Watch a project directory and trigger execution on changes | `guild watch --timeout 120` |
 | `guild graph run` | Execute a graph | `guild graph run --graph game-mvp --path ./my-game/` |
-| `guild graph status` | View graph execution status | `guild graph status --graph game-mvp` |
+| `guild graph status` | View graph execution status | `guild graph status game-mvp` |
 | `guild graph show <name>` | Display graph structure | `guild graph show game-mvp` |
 | `guild graph list` | List available graph definitions | `guild graph list` |
 | `guild graph resume` | Resume a graph from checkpoint | `guild graph resume --graph game-mvp --path ./my-game/` |
@@ -216,7 +216,7 @@ All commands run through `./guild` (symlink to `scripts/nexus.sh`).
 | `guild read --agent <name>` | Mark inbox as read | `guild read --agent frontend-engineer` |
 | `guild resolve --topic <topic>` | Resolve conflicts by authority | `guild resolve --topic "API response format"` |
 | `guild gate` | Run quality gates on a handoff | `guild gate --handoff 1` |
-| `guild gate --handoff 1 --gate 1` | Run one specific gate | `guild gate --handoff 1 --gate completeness` |
+| `guild gate --handoff 1 --gate <name>` | Run one specific gate | `guild gate --handoff 1 --gate completeness` |
 | `guild gate --list` | List all quality gates | `guild gate --list` |
 
 > **Shortcuts**: Agent names support abbreviations, partial matching, and case-insensitive input. E.g., `pm` resolves to `product-manager`, `backend` to `backend-architect`.
@@ -374,7 +374,7 @@ Fix the issue, create a new handoff, then run gates again.
 ./guild graph resume --graph game-mvp --path /tmp/my-game/
 
 # Check current progress
-./guild graph status --graph game-mvp
+./guild graph status game-mvp
 ```
 
 **Q: How do I know which Agent has authority on a topic?**
@@ -414,6 +414,7 @@ AgentGraph/
 │   │   └── event-bus.sh       Event bus (guild watch)
 │   ├── mcp-server.js          MCP server (23 tools)
 │   ├── graph-generator.sh     Classifier + plan generator (18 product types)
+│   ├── research-engine.sh     Research & ideation engine (guild research/ideate)
 │   ├── graph-engine.sh        Graph execution engine
 │   ├── modules/               Modular command implementations
 │   ├── test-runner.sh         Behavioral test engine
@@ -438,6 +439,10 @@ AgentGraph/
 │   ├── iterate.yml            Product iteration graph
 │   ├── research-report.yml    Research report graph
 │   └── unity-game.yml         Unity game graph
+├── templates/                 18 project templates (for guild init)
+│   ├── admin-system/          Admin system template
+│   ├── web-app/               Web application template
+│   └── ...                    (guild init --template <name> <dir>)
 ├── context/                   Decision system
 │   ├── decisions/             Decision records (ADR JSON)
 │   ├── inbox/                 Agent inboxes

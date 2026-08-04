@@ -125,7 +125,7 @@ AgentGraph 内置 40 个 AI Agent，分布在 11 个部门：
 | 销售 | 2 | 销售工程师、交易策略师 |
 | 支持 | 1 | 客户支持 |
 | 财务 | 1 | 财务分析师 |
-| 游戏开发 | 10 | 游戏设计师、关卡设计、叙事设计、游戏程序、Unity、Unreal、技术美术、游戏UI、游戏音频、变现设计、游戏QA、游戏制作人 |
+| 游戏开发 | 12 | 游戏设计师、关卡设计、叙事设计、游戏程序、Unity、Unreal、技术美术、游戏UI、游戏音频、变现设计、游戏QA、游戏制作人 |
 
 每个 Agent 有 13 段定义，包括：挑衅性观点、铁律、冲突偏好、盲区声明、决策权重、协作契约。
 
@@ -211,7 +211,7 @@ AgentGraph 内置 40 个 AI Agent，分布在 11 个部门：
 | `guild read --agent <name>` | 标记收件箱全部已读 | `guild read --agent frontend-engineer` |
 | `guild resolve --topic <topic>` | 基于决策权重解决冲突 | `guild resolve --topic "API响应格式"` |
 | `guild gate` | 运行质量门禁 | `guild gate --handoff 1` |
-| `guild gate --handoff 1 --gate 1` | 只运行指定的某一关 | `guild gate --handoff 1 --gate completeness` |
+| `guild gate --handoff 1 --gate <name>` | 只运行指定的某一关 | `guild gate --handoff 1 --gate completeness` |
 | `guild gate --list` | 列出所有质量门禁 | `guild gate --list` |
 
 > **缩写支持**：Agent 名字支持缩写、部分匹配、大小写不敏感。比如 `pm` 自动匹配 `product-manager`，`backend` 匹配 `backend-architect`。
@@ -423,7 +423,7 @@ cat guild.config.json | grep -A1 '"slug"'
 # 从上次中断处继续
 ./guild graph resume --graph game-mvp --path /tmp/my-game/
 # 或者查看当前进度
-./guild graph status --graph game-mvp
+./guild graph status game-mvp
 ```
 
 **Q: 怎么知道哪个 Agent 在哪个领域有最终话语权？**
@@ -463,6 +463,7 @@ AgentGraph/
 │   │   └── event-bus.sh       事件总线（guild watch）
 │   ├── mcp-server.js          MCP 服务器（23 个工具）
 │   ├── graph-generator.sh     分类器 + 计划生成（18 种产品类型）
+│   ├── research-engine.sh     调研与创意引擎（guild research/ideate）
 │   ├── graph-engine.sh        图执行引擎
 │   ├── modules/               模块化命令实现
 │   ├── test-runner.sh         行为测试引擎
@@ -487,6 +488,10 @@ AgentGraph/
 │   ├── iterate.yml            产品迭代图
 │   ├── research-report.yml    研究报告图
 │   └── unity-game.yml         Unity 游戏图
+├── templates/                 18 个项目模板（供 guild init 使用）
+│   ├── admin-system/          后台管理系统模板
+│   ├── web-app/               网页应用模板
+│   └── ...                    （guild init --template <名称> <目录>）
 ├── context/                   决策系统
 │   ├── decisions/             决策记录（ADR 格式 JSON）
 │   ├── inbox/                 Agent 收件箱
