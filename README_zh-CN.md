@@ -492,12 +492,7 @@ AgentGraph/
 │   ├── admin-system/          后台管理系统模板
 │   ├── web-app/               网页应用模板
 │   └── ...                    （guild init --template <名称> <目录>）
-├── context/                   决策系统
-│   ├── decisions/             决策记录（ADR 格式 JSON）
-│   ├── inbox/                 Agent 收件箱
-│   ├── feedback/              反馈记录
-│   └── index.json             决策图谱索引
-├── handoffs/                  交接记录（自动生成 JSON）
+├── context/memory/            运行时记忆库（运行时自动创建，不入库）
 ├── integrations/              工具格式输出（自动生成）
 │   ├── claude-code/
 │   ├── cursor/

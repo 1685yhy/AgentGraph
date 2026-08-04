@@ -15,3 +15,14 @@ Thumbs.db
 # Local secrets (never committed)
 .env.local
 .env
+
+# Runtime working dirs (never commit)
+context/*
+!context/memory/
+context/memory/*
+!context/memory/.gitkeep
+handoffs/
+project/
+dispatches/
+docs/evidence/
+.superpowers/

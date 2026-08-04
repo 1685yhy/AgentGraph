@@ -206,6 +206,10 @@ test_gate_completeness() {
 
   require_node || return
 
+  # Tests 3/4 write fixture handoffs into the repo dir — ensure it exists
+  # (runtime dirs are gitignored and may not exist on a fresh clone)
+  mkdir -p "$REPO_ROOT/handoffs"
+
   local pass_dir="$TEMP_DIR/gate-pass"
   mkdir -p "$pass_dir"
   echo "work content" > "$pass_dir/work.txt"

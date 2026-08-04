@@ -443,12 +443,7 @@ AgentGraph/
 │   ├── admin-system/          Admin system template
 │   ├── web-app/               Web application template
 │   └── ...                    (guild init --template <name> <dir>)
-├── context/                   Decision system
-│   ├── decisions/             Decision records (ADR JSON)
-│   ├── inbox/                 Agent inboxes
-│   ├── feedback/              Feedback records
-│   └── index.json             Decision graph index
-├── handoffs/                  Handoff records (auto-generated JSON)
+├── context/memory/            Runtime Memory Store (auto-created, gitignored)
 ├── integrations/              Tool-specific output (auto-generated)
 ├── demos/                     Handoff walkthrough scenarios
 ├── docs/                      Documentation
