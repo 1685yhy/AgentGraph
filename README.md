@@ -34,9 +34,20 @@ Two things make it unique:
 
 > In one sentence: You write the PRD, AgentGraph handles the rest — from requirements to deployment — with automated quality checks at every step.
 
+Beyond the 40 agents and the Graph engine, AgentGraph has grown a full self-built capability chain: **Classifier → Templates → MCP Adapter → Custom Runtime**. A natural-language task is first classified into one of 18 product types, then scaffolded from one of 18 project templates; an MCP server exposes 23 tools to any AI host (Claude Code, Cursor, etc.); finally a custom runtime plugs into real LLM backends (Anthropic / OpenAI / DeepSeek) and drives agents through the full delivery chain — classify → plan → execute → review → fix — with real API calls from requirements to a playable prototype.
+
 ---
 
 ## Quick Start (5 Minutes)
+
+### 0. Play It Online
+
+Nothing to install — these live on GitHub Pages and run right in the browser:
+
+- 🎮 Game "无尽矿脉" (Endless Vein) — a complete playable game prototype produced end-to-end by AgentGraph (v0.7a real delivery)
+  https://1685yhy.github.io/AgentGraph/evidence/v0.7a/stage2/iter2/deliverable/game/index.html
+- 🖥️ Landing Page Demo — delivered automatically in v0.7a Stage 1
+  https://1685yhy.github.io/AgentGraph/evidence/v0.7a/stage1/deliverable/index.html
 
 ### 1. Install
 
@@ -199,8 +210,10 @@ All commands run through `./guild` (symlink to `scripts/nexus.sh`).
 | `guild decide` | Record a decision (ADR pattern) | `guild decide --agent backend --type api-design --topic "API format" --summary "Unified wrapper"` |
 | `guild context show` | View decision graph | `guild context show` |
 | `guild context check` | Check for decision conflicts | `guild context check` |
-| `guild run` | Execute a pipeline | `guild run --pipeline feature-dev --path ./project/` |
-| `guild run --pipeline <name> --path <dir> --yes` | Auto-mode pipeline | `guild run --pipeline game-mvp --path ./my-game/ --yes` |
+| `guild run` | Run a graph with the runtime (real LLM drives the whole chain) | `guild run --graph feature-dev --task "Build an admin system"` |
+| `guild run --graph <name> --task "<desc>" --yes` | Auto mode (skip confirmations) | `guild run --graph game-mvp --task "Make an endless mining game" --yes` |
+| `guild run-agent` | Run a single agent with the runtime (real LLM) | `guild run-agent game-designer "Design a core loop" --upstream 1` |
+| `guild watch` | Watch a project directory and trigger execution on changes | `guild watch --timeout 120` |
 | `guild graph run` | Execute a graph | `guild graph run --graph game-mvp --path ./my-game/` |
 | `guild graph status` | View graph execution status | `guild graph status --graph game-mvp` |
 | `guild graph show <name>` | Display graph structure | `guild graph show game-mvp` |
@@ -274,8 +287,8 @@ mkdir -p /tmp/my-game
 # Graph mode: parallel art + code + UI + audio
 ./guild graph run --graph game-mvp --path /tmp/my-game
 
-# Or pipeline mode: 5 sequential phases
-./guild run --pipeline game-mvp --path /tmp/my-game --yes
+# Or runtime mode: a real LLM drives the whole graph automatically
+./guild run --graph game-mvp --task "Make an endless mining game" --yes
 ```
 
 The `game-mvp` graph runs: concept → art (parallel), code (parallel), UI (parallel), audio (parallel) → integration → QA → pass: ship / fail: fix → retest
@@ -403,8 +416,19 @@ AgentGraph/
 │   └── game-development/      10 agents
 ├── scripts/                   Core scripts
 │   ├── nexus.sh               Main CLI entry point
+│   ├── runtime/               Custom runtime engine (v0.6a)
+│   │   ├── run.sh             Runtime orchestrator (guild run)
+│   │   ├── agent-runner.sh    Single-agent executor (real LLM)
+│   │   ├── llm-backend.js     LLM backend adapter (Anthropic/OpenAI/DeepSeek)
+│   │   └── event-bus.sh       Event bus (guild watch)
+│   ├── mcp-server.js          MCP server (23 tools)
+│   ├── graph-generator.sh     Classifier + plan generator (18 product types)
 │   ├── graph-engine.sh        Graph execution engine
+│   ├── modules/               Modular command implementations
 │   ├── test-runner.sh         Behavioral test engine
+│   ├── runtime-test.sh        Browser runtime tests
+│   ├── self-test.sh           System self-test
+│   ├── ci-test.sh             CI self-test
 │   ├── lib.sh                 Shared function library
 │   ├── lint.sh                Agent quality checks
 │   ├── convert.sh             Format conversion (agent.md → tool format)
@@ -417,10 +441,12 @@ AgentGraph/
 │   ├── game-mvp.yml           Game MVP development
 │   ├── iterate.yml            Product iteration
 │   └── startup-mvp.yml        Startup MVP development
-├── graphs/                    Graph definitions (YAML)
+├── graphs/                    Graph definitions (YAML, 5 total)
 │   ├── feature-dev.yml        Feature dev graph
 │   ├── game-mvp.yml           Game MVP graph
-│   └── iterate.yml            Product iteration graph
+│   ├── iterate.yml            Product iteration graph
+│   ├── research-report.yml    Research report graph
+│   └── unity-game.yml         Unity game graph
 ├── context/                   Decision system
 │   ├── decisions/             Decision records (ADR JSON)
 │   ├── inbox/                 Agent inboxes
@@ -429,7 +455,8 @@ AgentGraph/
 ├── handoffs/                  Handoff records (auto-generated JSON)
 ├── integrations/              Tool-specific output (auto-generated)
 ├── demos/                     Handoff walkthrough scenarios
-├── docs/                      Documentation
+├── docs/                      Documentation & verification evidence
+│   └── evidence/              Version evidence (v0.7a demo deliverables)
 ├── website/                   Project website
 ├── guild → scripts/nexus.sh   CLI entry
 └── guild.config.json          40 Agent + 4 tool registry
@@ -447,6 +474,16 @@ AgentGraph/
 | **Windsurf** | `bash scripts/install.sh --tool windsurf` |
 
 Run `bash scripts/convert.sh` first to generate tool-specific files.
+
+---
+
+## Version History
+
+- **v0.3 — Classifier**: natural-language classifier identifying 18 product types
+- **v0.4 — Templates**: 18 project template scaffolds (doc + engineering types)
+- **v0.5 — MCP**: MCP adapter exposing 23 AgentGraph tools to any AI host
+- **v0.6a — Runtime Engine**: custom runtime (llm-backend / agent-runner / event-bus / run) wired to real LLMs
+- **v0.7a — Real End-to-End**: DeepSeek API produced two real deliverables (game prototype + landing page) for ≈ $0.14 total; 25 defects logged to the v0.7c backlog
 
 ---
 

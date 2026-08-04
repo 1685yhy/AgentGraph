@@ -32,9 +32,20 @@
 
 > 一句话：你写 PRD，AgentGraph 帮你完成从需求到上线的全流程，每个步骤自动检查质量。
 
+除了 40 个 Agent 与 Graph 引擎，AgentGraph 已长出一条完整的自建能力链：**分类器 → 模板 → MCP 适配 → 自建运行时**。自然语言任务先由 18 种产品类型分类器识别方向，再从 18 个项目模板初始化工程骨架；MCP 服务器把 23 个工具暴露给任意 AI 宿主（Claude Code / Cursor 等）；最后自建运行时接入真实 LLM 后端（Anthropic / OpenAI / DeepSeek），驱动 Agent 走完「分类 → 计划 → 执行 → 审查 → 修复」的完整交付链——从需求到可玩原型、可交付页面，全程真实 API 调用、自动审查、修复闭环。
+
 ---
 
 ## 快速开始（5 分钟上手）
+
+### 0. 在线试玩
+
+不想装任何东西？直接点下面两个链接（GitHub Pages 部署，浏览器即开即玩）：
+
+- 🎮 游戏「无尽矿脉」— 由 AgentGraph 真实端到端自动产出的完整可玩游戏原型（v0.7a 交付物）
+  https://1685yhy.github.io/AgentGraph/evidence/v0.7a/stage2/iter2/deliverable/game/index.html
+- 🖥️ 落地页 Demo — v0.7a 阶段 1 自动交付的完整落地页
+  https://1685yhy.github.io/AgentGraph/evidence/v0.7a/stage1/deliverable/index.html
 
 ### 1. 安装
 
@@ -194,8 +205,10 @@ AgentGraph 内置 40 个 AI Agent，分布在 11 个部门：
 | `guild decide` | 记录决策（ADR 模式） | `guild decide --agent backend --type api-design --topic "API格式" --summary "统一包裹"` |
 | `guild context show` | 查看决策图谱 | `guild context show` |
 | `guild context check` | 检查决策冲突 | `guild context check` |
-| `guild run` | 执行流水线 | `guild run --pipeline feature-dev --path ./project/` |
-| `guild run --pipeline <name> --path <dir> --yes` | 全自动模式执行流水线 | `guild run --pipeline game-mvp --path ./my-game/ --yes` |
+| `guild run` | 运行时执行图（真实 LLM 驱动完整交付链） | `guild run --graph feature-dev --task "做一个供应商后台管理系统"` |
+| `guild run --graph <name> --task "<描述>" --yes` | 全自动模式（跳过确认直接执行） | `guild run --graph game-mvp --task "做一个无尽矿脉小游戏" --yes` |
+| `guild run-agent` | 单个 Agent 运行时执行（真实 LLM 调用） | `guild run-agent game-designer "设计一个核心循环" --upstream 1` |
+| `guild watch` | 监听项目目录变化，自动触发执行 | `guild watch --timeout 120` |
 | `guild graph run` | 执行图 | `guild graph run --graph game-mvp --path ./my-game/` |
 | `guild graph status` | 查看图执行状态 | `guild graph status` |
 | `guild graph show <name>` | 显示图结构 | `guild graph show game-mvp` |
@@ -303,18 +316,13 @@ mkdir -p /tmp/my-game
 #                        └─ 不通过 → fix → 重新 QA
 ```
 
-也可以用流水线模式：
+也可以让运行时（真实 LLM）自动驱动整个图：
 
 ```bash
-./guild run --pipeline game-mvp --path /tmp/my-game --yes
+./guild run --graph game-mvp --task "做一个无尽矿脉小游戏" --yes
 ```
 
-内置流水线 `pipelines/game-mvp.yml` 分 5 个阶段：
-1. 概念设计 — game-designer, narrative-designer, monetization-designer
-2. 关卡与系统 — level-designer, game-programmer, game-producer
-3. 原型开发 — game-programmer, unity-developer, technical-artist
-4. 视觉与音频 — game-ui-designer, game-audio-engineer, technical-artist
-5. 质量验证 — game-qa-engineer, qa-engineer, performance-tester
+运行时接入真实 LLM 后端，按图自动执行：concept（游戏设计师）→ art/code/ui/audio（技术美术/游戏程序/游戏UI/音频，并行）→ integration（游戏程序合并）→ qa（游戏QA 验证）→ 不通过则 fix 修复重测，通过则 ship 发布。每个节点真实调用 LLM 产出交付物并自动审查。
 
 ---
 
@@ -456,9 +464,20 @@ AgentGraph/
 │   ├── finance/               财务部（1个）
 │   └── game-development/      游戏开发部（10个）
 ├── scripts/                   核心脚本
-│   ├── nexus.sh               主 CLI 入口（77672 字节）
+│   ├── nexus.sh               主 CLI 入口
+│   ├── runtime/               自建运行时引擎（v0.6a）
+│   │   ├── run.sh             运行时编排（guild run）
+│   │   ├── agent-runner.sh    单 Agent 执行器（真实 LLM）
+│   │   ├── llm-backend.js     LLM 后端适配（Anthropic/OpenAI/DeepSeek）
+│   │   └── event-bus.sh       事件总线（guild watch）
+│   ├── mcp-server.js          MCP 服务器（23 个工具）
+│   ├── graph-generator.sh     分类器 + 计划生成（18 种产品类型）
 │   ├── graph-engine.sh        图执行引擎
+│   ├── modules/               模块化命令实现
 │   ├── test-runner.sh         行为测试引擎
+│   ├── runtime-test.sh        浏览器运行时测试
+│   ├── self-test.sh           系统自测
+│   ├── ci-test.sh             CI 自测
 │   ├── lib.sh                 共享函数库
 │   ├── lint.sh                Agent 质量检查
 │   ├── convert.sh             格式转换（agent.md → 工具格式）
@@ -471,10 +490,12 @@ AgentGraph/
 │   ├── game-mvp.yml           游戏 MVP 流水线
 │   ├── iterate.yml            产品迭代流水线
 │   └── startup-mvp.yml        创业 MVP 流水线
-├── graphs/                    图定义（YAML）
+├── graphs/                    图定义（YAML，共 5 个）
 │   ├── feature-dev.yml        功能开发图
 │   ├── game-mvp.yml           游戏 MVP 图
-│   └── iterate.yml            产品迭代图
+│   ├── iterate.yml            产品迭代图
+│   ├── research-report.yml    研究报告图
+│   └── unity-game.yml         Unity 游戏图
 ├── context/                   决策系统
 │   ├── decisions/             决策记录（ADR 格式 JSON）
 │   ├── inbox/                 Agent 收件箱
@@ -487,13 +508,14 @@ AgentGraph/
 │   ├── copilot/
 │   └── windsurf/
 ├── demos/                     交接演练场景（Markdown）
-├── docs/                      文档
+├── docs/                      文档与验证证据
 │   ├── 使用指南.md             完整 CLI 使用手册
 │   ├── 协作指南.md             Agent 协作详细说明
 │   ├── 流水线指南.md           流水线使用说明
 │   ├── 决策系统指南.md          决策/冲突系统说明
 │   ├── 迭代指南.md             迭代工作流说明
-│   └── AGENT_TEMPLATE.md      Agent 模板规范
+│   ├── AGENT_TEMPLATE.md      Agent 模板规范
+│   └── evidence/               版本验证证据（v0.7a 演示交付物）
 ├── website/                   项目官网
 ├── guild → scripts/nexus.sh   CLI 入口
 └── guild.config.json          40 Agent + 4 工具注册表
@@ -511,6 +533,16 @@ AgentGraph/
 | **Windsurf** | `bash scripts/install.sh --tool windsurf` |
 
 安装前先运行 `bash scripts/convert.sh` 生成工具格式文件。
+
+---
+
+## 版本历程
+
+- **v0.3 — 分类器**：自然语言分类器上线，可识别 18 种产品类型
+- **v0.4 — 模板**：18 个项目模板脚手架（文档型 + 工程型），一条命令初始化工程
+- **v0.5 — MCP**：MCP 适配层上线，23 个 AgentGraph 工具暴露给任意 AI 宿主
+- **v0.6a — 运行时引擎**：自建运行时（llm-backend / agent-runner / event-bus / run），接入真实 LLM
+- **v0.7a — 真实端到端验证**：DeepSeek 真实 API 完成「游戏原型 + 落地页」双交付，总成本 ≈ $0.14，25 项缺陷进入 v0.7c backlog
 
 ---
 
